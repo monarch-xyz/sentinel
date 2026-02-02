@@ -236,3 +236,85 @@
 
 **Phase 5 - Integration (Week 4):**
 - FLARE-016, FLARE-017, FLARE-018, FLARE-019
+
+---
+
+## Gemini 3 Flash Review (2026-02-03)
+
+### Additional Tasks Identified
+
+#### FLARE-020: Envio Health & Lag Monitoring
+- **Description:** Track sync status across all 7 chains. Signals are unreliable if the indexer is lagging.
+- **Acceptance Criteria:**
+    - Health check endpoint that reports sync lag per chain
+    - Alerts if any chain is >N blocks behind
+    - Skip signal evaluation for lagging chains
+- **Dependencies:** FLARE-002
+- **Estimated Hours:** 2
+
+#### FLARE-021: Signal Execution Logs & Audit Trail
+- **Description:** Persist the results of every evaluation (input values, result, block height). Critical for debugging.
+- **Acceptance Criteria:**
+    - `execution_logs` table with signal_id, timestamp, result, input_values, block_height
+    - Queryable via API for debugging "why did/didn't this fire?"
+    - Automatic cleanup of old logs (retention policy)
+- **Dependencies:** FLARE-013
+- **Estimated Hours:** 4
+
+#### FLARE-022: Query Hoisting/Batching
+- **Description:** Group multiple signals' data requirements into single GraphQL requests to optimize Envio performance.
+- **Acceptance Criteria:**
+    - Signals with overlapping data needs share queries
+    - Measurable reduction in Envio API calls
+    - Handles partial failures gracefully
+- **Dependencies:** FLARE-002, FLARE-013
+- **Estimated Hours:** 5
+
+#### FLARE-023: API Key & Auth Middleware
+- **Description:** Implement X-API-Key validation for all CRUD and simulation endpoints.
+- **Acceptance Criteria:**
+    - API key validation middleware
+    - Key rotation support
+    - Rate limiting per key
+- **Dependencies:** FLARE-008
+- **Estimated Hours:** 3
+
+#### FLARE-024: Webhook Reliability
+- **Description:** Exponential backoff and retry logic for failed notifications.
+- **Acceptance Criteria:**
+    - Configurable retry attempts (default 3)
+    - Exponential backoff (1s, 4s, 16s)
+    - "Failed" state in audit logs after exhausted retries
+- **Dependencies:** FLARE-014
+- **Estimated Hours:** 3
+
+### Recommended Ordering Changes
+
+1. **Environment First:** Move FLARE-019 (Docker Compose) to start
+2. **Simulation Early:** Move FLARE-010 up after core engine
+3. **Consolidate:** Merge FLARE-007 (Zod) into FLARE-008 (CRUD)
+4. **Track State:** Add "last_evaluated_block" to signals schema
+
+### Optimized Execution Order
+
+**Phase 0 - Infra:**
+- FLARE-019 (Docker), FLARE-001 (Schema)
+
+**Phase 1 - Data:**
+- FLARE-002 (Envio), FLARE-003 (Blocks), FLARE-020 (Sync Monitor)
+
+**Phase 2 - Core:**
+- FLARE-005 (Evaluator), FLARE-010 (Simulation), FLARE-022 (Batching)
+
+**Phase 3 - API:**
+- FLARE-023 (Auth), FLARE-008 (CRUD + Zod), FLARE-009 (Channels), FLARE-011 (Filter)
+
+**Phase 4 - Worker:**
+- FLARE-012 (Scheduler), FLARE-013 (Processor), FLARE-014 (Notifier), FLARE-021 (Logs)
+
+**Phase 5 - Polish:**
+- FLARE-015 (Cooldown), FLARE-016-017 (E2E), FLARE-018 (Monitoring), FLARE-024 (Retry)
+
+---
+
+**Updated Total: 24 tasks, ~75 hours**
