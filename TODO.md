@@ -15,8 +15,10 @@
     - [ ] Logic to compare two `ExpressionNodes`
 
 ## Phase 2: Signal Infrastructure
-- [ ] **PostgreSQL Schema** (`src/db/schema.sql`)
-    - [ ] Signals, notification logs, snapshot blocks
+- [x] **PostgreSQL Schema** (`src/db/schema.sql`)
+    - [x] Signals, notification logs, snapshot blocks
+    - [x] Evaluation cache table
+    - [x] Repository classes with CRUD operations
 - [ ] **Signal CRUD API** (`src/api/routes/signals.ts`)
     - [ ] Zod validation for complex DSL
 - [ ] **Simulation Engine**
