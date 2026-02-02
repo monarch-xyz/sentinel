@@ -1,15 +1,368 @@
 import axios from 'axios';
-import { config } from '../config/index.js';
 
-export async function resolveBlockByTimestamp(chainId: number, timestampMs: number): Promise<number> {
-  // block times in ms
-  const blockTimes: Record<number, number> = {
-    1: 12000,    // Ethereum
-    8453: 2000,  // Base
-  };
-
-  const blockTime = blockTimes[chainId] || 12000;
-  
-  // simple linear estimate for now (assuming block 0 at unix 0 for baseline)
-  return Math.floor(timestampMs / blockTime); 
+/**
+ * Chain configuration for block resolution
+ */
+interface ChainConfig {
+  name: string;
+  rpcEndpoints: string[];
+  genesisTimestamp: number; // Unix timestamp in seconds
+  avgBlockTimeMs: number;
 }
+
+/**
+ * Known chain configurations
+ */
+const CHAIN_CONFIGS: Record<number, ChainConfig> = {
+  1: {
+    name: 'Ethereum',
+    rpcEndpoints: [
+      'https://eth.llamarpc.com',
+      'https://rpc.ankr.com/eth',
+      'https://ethereum.publicnode.com',
+    ],
+    genesisTimestamp: 1438269973, // July 30, 2015
+    avgBlockTimeMs: 12000,
+  },
+  8453: {
+    name: 'Base',
+    rpcEndpoints: [
+      'https://mainnet.base.org',
+      'https://base.llamarpc.com',
+      'https://base.publicnode.com',
+    ],
+    genesisTimestamp: 1686789347, // June 15, 2023
+    avgBlockTimeMs: 2000,
+  },
+  137: {
+    name: 'Polygon',
+    rpcEndpoints: [
+      'https://polygon-rpc.com',
+      'https://rpc.ankr.com/polygon',
+    ],
+    genesisTimestamp: 1590824836, // May 30, 2020
+    avgBlockTimeMs: 2000,
+  },
+  42161: {
+    name: 'Arbitrum',
+    rpcEndpoints: [
+      'https://arb1.arbitrum.io/rpc',
+      'https://rpc.ankr.com/arbitrum',
+    ],
+    genesisTimestamp: 1622243344, // May 28, 2021
+    avgBlockTimeMs: 250,
+  },
+};
+
+/**
+ * Simple LRU Cache implementation
+ */
+class LRUCache<K, V> {
+  private cache: Map<K, V>;
+  private maxSize: number;
+
+  constructor(maxSize: number) {
+    this.cache = new Map();
+    this.maxSize = maxSize;
+  }
+
+  get(key: K): V | undefined {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      // Move to end (most recently used)
+      this.cache.delete(key);
+      this.cache.set(key, value);
+    }
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // Delete oldest entry (first in map)
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, value);
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+}
+
+// Cache for block lookups: key is `${chainId}:${timestampSeconds}`
+const blockCache = new LRUCache<string, number>(1000);
+
+/**
+ * Make an RPC call with fallback to alternate endpoints
+ */
+async function rpcCall(
+  chainId: number,
+  method: string,
+  params: unknown[]
+): Promise<unknown> {
+  const config = CHAIN_CONFIGS[chainId];
+  if (!config) {
+    throw new Error(`Unsupported chain: ${chainId}`);
+  }
+
+  let lastError: Error | null = null;
+
+  for (const endpoint of config.rpcEndpoints) {
+    try {
+      const response = await axios.post(
+        endpoint,
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method,
+          params,
+        },
+        {
+          timeout: 10000,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      if (response.data.error) {
+        throw new Error(response.data.error.message || 'RPC error');
+      }
+
+      return response.data.result;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      // Continue to next endpoint
+    }
+  }
+
+  throw lastError || new Error('All RPC endpoints failed');
+}
+
+/**
+ * Get block by number
+ */
+async function getBlock(
+  chainId: number,
+  blockNumber: number | 'latest'
+): Promise<{ number: number; timestamp: number }> {
+  const blockParam =
+    blockNumber === 'latest' ? 'latest' : `0x${blockNumber.toString(16)}`;
+
+  const result = (await rpcCall(chainId, 'eth_getBlockByNumber', [
+    blockParam,
+    false,
+  ])) as { number: string; timestamp: string } | null;
+
+  if (!result) {
+    throw new Error(`Block not found: ${blockNumber}`);
+  }
+
+  return {
+    number: parseInt(result.number, 16),
+    timestamp: parseInt(result.timestamp, 16),
+  };
+}
+
+/**
+ * Estimate block number from timestamp using average block time
+ */
+function estimateBlockNumber(chainId: number, timestampSec: number): number {
+  const config = CHAIN_CONFIGS[chainId];
+  if (!config) {
+    // Fallback for unknown chains: assume 12s blocks from Unix epoch
+    return Math.floor((timestampSec * 1000) / 12000);
+  }
+
+  const elapsedSec = timestampSec - config.genesisTimestamp;
+  if (elapsedSec <= 0) return 0;
+
+  return Math.floor((elapsedSec * 1000) / config.avgBlockTimeMs);
+}
+
+/**
+ * Binary search to find the block closest to the target timestamp
+ * Returns the highest block number with timestamp <= target
+ */
+async function binarySearchBlock(
+  chainId: number,
+  targetTimestampSec: number,
+  latestBlock: { number: number; timestamp: number }
+): Promise<number> {
+  const config = CHAIN_CONFIGS[chainId];
+  if (!config) {
+    throw new Error(`Unsupported chain: ${chainId}`);
+  }
+
+  // Edge case: target is at or before genesis
+  if (targetTimestampSec <= config.genesisTimestamp) {
+    return 0;
+  }
+
+  // Edge case: target is at or after latest block
+  if (targetTimestampSec >= latestBlock.timestamp) {
+    return latestBlock.number;
+  }
+
+  // Start with an estimate
+  let low = 0;
+  let high = latestBlock.number;
+  let estimate = estimateBlockNumber(chainId, targetTimestampSec);
+
+  // Clamp estimate
+  estimate = Math.max(0, Math.min(estimate, latestBlock.number));
+
+  // Use estimate as starting point for binary search bounds
+  const block = await getBlock(chainId, estimate);
+
+  if (block.timestamp === targetTimestampSec) {
+    return block.number;
+  }
+
+  if (block.timestamp < targetTimestampSec) {
+    low = block.number;
+  } else {
+    high = block.number;
+  }
+
+  // Binary search with max iterations to prevent infinite loops
+  const maxIterations = 50;
+  for (let i = 0; i < maxIterations; i++) {
+    if (high - low <= 1) {
+      // Check if high is still valid
+      const highBlock = await getBlock(chainId, high);
+      if (highBlock.timestamp <= targetTimestampSec) {
+        return high;
+      }
+      return low;
+    }
+
+    const mid = Math.floor((low + high) / 2);
+    const midBlock = await getBlock(chainId, mid);
+
+    if (midBlock.timestamp === targetTimestampSec) {
+      return mid;
+    }
+
+    if (midBlock.timestamp < targetTimestampSec) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  // If we exhausted iterations, return low (safe choice)
+  return low;
+}
+
+/**
+ * Resolve a timestamp to a block number for a given chain
+ *
+ * @param chainId - The chain ID (1 for Ethereum, 8453 for Base, etc.)
+ * @param timestampMs - The target timestamp in milliseconds
+ * @returns The block number closest to but not exceeding the timestamp
+ * @throws Error if the chain is not supported or RPC calls fail
+ */
+export async function resolveBlockByTimestamp(
+  chainId: number,
+  timestampMs: number
+): Promise<number> {
+  const timestampSec = Math.floor(timestampMs / 1000);
+  const cacheKey = `${chainId}:${timestampSec}`;
+
+  // Check cache first
+  const cached = blockCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const config = CHAIN_CONFIGS[chainId];
+  if (!config) {
+    // For unsupported chains, use estimation as fallback
+    const estimated = estimateBlockNumber(chainId, timestampSec);
+    blockCache.set(cacheKey, estimated);
+    return estimated;
+  }
+
+  // Handle edge case: timestamp before genesis
+  if (timestampSec <= config.genesisTimestamp) {
+    blockCache.set(cacheKey, 0);
+    return 0;
+  }
+
+  try {
+    // Get latest block to establish upper bound
+    const latestBlock = await getBlock(chainId, 'latest');
+
+    // Handle edge case: timestamp in the future
+    if (timestampSec >= latestBlock.timestamp) {
+      blockCache.set(cacheKey, latestBlock.number);
+      return latestBlock.number;
+    }
+
+    // Perform binary search
+    const blockNumber = await binarySearchBlock(
+      chainId,
+      timestampSec,
+      latestBlock
+    );
+
+    // Cache the result
+    blockCache.set(cacheKey, blockNumber);
+    return blockNumber;
+  } catch (error) {
+    // Fallback to estimation if RPC fails
+    const estimated = estimateBlockNumber(chainId, timestampSec);
+    blockCache.set(cacheKey, estimated);
+    return estimated;
+  }
+}
+
+/**
+ * Get supported chain IDs
+ */
+export function getSupportedChains(): number[] {
+  return Object.keys(CHAIN_CONFIGS).map(Number);
+}
+
+/**
+ * Check if a chain is supported
+ */
+export function isChainSupported(chainId: number): boolean {
+  return chainId in CHAIN_CONFIGS;
+}
+
+/**
+ * Clear the block cache (useful for testing)
+ */
+export function clearBlockCache(): void {
+  blockCache.clear();
+}
+
+/**
+ * Get cache stats (useful for monitoring)
+ */
+export function getBlockCacheSize(): number {
+  return blockCache.size();
+}
+
+/**
+ * Add or update chain configuration (useful for adding new chains at runtime)
+ */
+export function addChainConfig(chainId: number, config: ChainConfig): void {
+  CHAIN_CONFIGS[chainId] = config;
+}
+
+// Export for testing
+export { CHAIN_CONFIGS, LRUCache, blockCache };
