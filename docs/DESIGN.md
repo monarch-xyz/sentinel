@@ -611,9 +611,18 @@ CREATE INDEX idx_notifications_time ON notification_log(triggered_at DESC);
 
 ---
 
-## 9. Trade-offs & Decisions
+## Webhook Dispatcher & Abstraction
 
-### 9.1 Why Envio over SQD?
+**Everything is a webhook.** To support different channels (Telegram, Discord, etc.), Flare uses a "tunnel" approach:
+1. Flare evaluates a signal and triggers a generic HTTP POST webhook.
+2. For internal notifications (like our Telegram bot), we point Flare to an internal **Notification Tunnel** service.
+3. This keeps Flare lean—it doesn't care about Telegram APIs, just valid JSON over HTTP.
+
+```
+[Flare] ──▶ [Internal Tunnel] ──▶ [Telegram API]
+         └─▶ [Customer Webhook]
+```
+
 
 | Aspect | Envio | SQD |
 |--------|-------|-----|

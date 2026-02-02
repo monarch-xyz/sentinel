@@ -1,92 +1,56 @@
 # 🔥 Flare
 
-> **Complex signal monitoring for DeFi — by Monarch**
+> **Composable Signal Monitoring for DeFi — by Monarch**
 
-Flare lets users define sophisticated monitoring conditions on blockchain data and receive alerts when they trigger. Built on Monarch's Envio indexer infrastructure.
+Flare enables sophisticated, multi-condition monitoring of blockchain data. It's designed to be protocol-agnostic, efficient, and highly extensible.
 
-## Why Flare?
+## 🚀 API Usage
 
-Current monitoring tools are limited to:
-- Single events with thresholds ("alert if TVL drops below X")
-- Simple state checks ("alert if utilization > 90%")
+Flare exposes a REST API for managing signals. All requests require an `X-API-Key`.
 
-**Flare enables:**
-- Multi-condition logic ("A AND B AND C")
-- Group conditions ("3 of 5 addresses do X")
-- Change detection ("position decreased by 10%")
-- Cross-market aggregations
-- Historical simulation/backtesting
-
-## Example Signal
+### Create a Signal
+`POST /api/v1/signals`
 
 ```json
 {
-  "name": "Whale Exodus Alert",
-  "conditions": [
-    {
-      "type": "group",
-      "addresses": ["0xwhale1", "0xwhale2", "0xwhale3", "0xwhale4", "0xwhale5"],
-      "requirement": { "count": 3, "of": 5 },
-      "condition": {
-        "type": "change",
-        "metric": "supply_assets",
-        "direction": "decrease",
-        "by": { "percent": 10 }
-      }
-    }
-  ],
-  "window": "7d",
+  "name": "Whale Position Drop",
+  "chains": [1],
+  "window": { "duration": "7d" },
+  "condition": {
+    "type": "condition",
+    "operator": "lt",
+    "left": {
+      "type": "event",
+      "event_type": "Withdraw",
+      "filters": [{"field": "user", "op": "eq", "value": "0xwhale..."}],
+      "field": "assets",
+      "aggregation": "sum"
+    },
+    "right": { "type": "constant", "value": 1000000000000 }
+  },
   "webhook_url": "https://your-webhook.com/alerts"
 }
 ```
 
-*Triggers when 3 of 5 whale addresses reduce their supply by 10%+ within 7 days.*
+## 🧩 Defining the DSL
 
-## Architecture
+Flare uses a tree-based DSL composed of four primitives:
 
-```
-┌─────────────────────────────────────────────────────┐
-│                      FLARE                          │
-├─────────────────────────────────────────────────────┤
-│  API          │  Engine        │  Worker           │
-│  (CRUD +      │  (Condition    │  (Scheduler +     │
-│   Simulate)   │   Evaluation)  │   Notifications)  │
-└───────────────┴────────────────┴───────────────────┘
-                        │
-                        ▼
-              ┌─────────────────┐
-              │  Envio Indexer  │
-              │  (7 chains)     │
-              └─────────────────┘
-```
+1. **EventRef**: Aggregates events over the time window.
+   - `Supply`, `Withdraw`, `Borrow`, etc.
+2. **StateRef**: Reads entity state at `current` or `window_start`.
+   - `Position.supply_assets`, `Market.total_supply`, etc.
+3. **Expression**: Composable math operations (`add`, `sub`, `mul`, `div`).
+   - Example: `Supply.assets - Withdraw.assets`
+4. **Condition**: Compares two expressions using operators (`gt`, `lt`, `eq`, etc.).
 
-## Quick Start
+## 🏗️ Architecture
 
-```bash
-# Install
-pnpm install
+- **Data Source**: Envio GraphQL (Supports time-travel queries via block height).
+- **Execution**: Recursive tree-walker for expression evaluation.
+- **Scaling**: BullMQ-based job distribution for workers.
+- **Notifications**: Pure Webhook architecture. Telegram/Discord are handled via external tunnels.
 
-# Setup database
-docker compose up -d
-pnpm db:migrate
+## 🛠️ Development
 
-# Run all services
-pnpm dev
-```
-
-## Documentation
-
-| Doc | Description |
-|-----|-------------|
-| [DESIGN.md](./docs/DESIGN.md) | Full architecture & design decisions |
-| [DSL.md](./docs/DSL.md) | Signal definition language reference |
-| [API.md](./docs/API.md) | REST API documentation |
-| [GETTING_STARTED.md](./docs/GETTING_STARTED.md) | Development setup guide |
-
-## Project Status
-
-🚧 **In Design Phase** — See [DESIGN.md](./docs/DESIGN.md) for current RFC.
-
-## License
-
-MIT
+See [GETTING_STARTED.md](./docs/GETTING_STARTED.md) for local setup and [DESIGN.md](./docs/DESIGN.md) for full technical RFC.
