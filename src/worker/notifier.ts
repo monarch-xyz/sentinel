@@ -28,7 +28,7 @@ export async function dispatchNotification(
     const response = await axios.post(url, payload, {
       timeout: timeoutMs,
       headers: {
-        'Content-Type': application/json',
+        'Content-Type': 'application/json',
         'User-Agent': 'Flare-Notification-Service/1.0',
       },
     });
