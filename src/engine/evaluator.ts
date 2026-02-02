@@ -1,4 +1,4 @@
-import { ExpressionNode, StateRef, EventRef } from '../types/index.js';
+import { ExpressionNode, StateRef, EventRef, ComparisonOp } from '../types/index.js';
 
 export interface EvalContext {
   chainId: number;
@@ -10,6 +10,9 @@ export interface EvalContext {
   fetchEvents: (ref: EventRef, start: number, end: number) => Promise<number>;
 }
 
+/**
+ * Evaluates a single math node (returns numeric result)
+ */
 export async function evaluateNode(node: ExpressionNode, context: EvalContext): Promise<number> {
   switch (node.type) {
     case 'constant':
@@ -28,5 +31,28 @@ export async function evaluateNode(node: ExpressionNode, context: EvalContext): 
         case 'mul': return left * right;
         case 'div': return right === 0 ? 0 : left / right;
       }
+  }
+}
+
+/**
+ * Evaluates a comparison condition (returns boolean result)
+ */
+export async function evaluateCondition(
+  left: ExpressionNode, 
+  operator: ComparisonOp, 
+  right: ExpressionNode, 
+  context: EvalContext
+): Promise<boolean> {
+  const leftVal = await evaluateNode(left, context);
+  const rightVal = await evaluateNode(right, context);
+
+  switch (operator) {
+    case 'gt': return leftVal > rightVal;
+    case 'gte': return leftVal >= rightVal;
+    case 'lt': return leftVal < rightVal;
+    case 'lte': return leftVal <= rightVal;
+    case 'eq': return leftVal === rightVal;
+    case 'neq': return leftVal !== rightVal;
+    default: return false;
   }
 }
