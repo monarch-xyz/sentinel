@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateNode, EvalContext } from '../src/engine/evaluator.js';
-import { ExpressionNode } from '../src/types/index.js';
+import { evaluateNode, EvalContext } from '../../src/engine/evaluator.js';
+import { ExpressionNode } from '../../src/types/index.js';
 
 describe('Evaluator', () => {
   const mockContext: EvalContext = {
