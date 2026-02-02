@@ -57,6 +57,9 @@ export class EnvioClient {
     }
   }
 
+  /**
+   * Refactored: Fetch raw events and aggregate in-memory to avoid costly server-side _aggregate queries.
+   */
   async fetchEvents(ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> {
     const where = this.translateFilters(ref.filters);
     const entityName = ref.event_type.startsWith('Morpho_') ? ref.event_type : `Morpho_${ref.event_type}`;
@@ -64,23 +67,37 @@ export class EnvioClient {
     where['timestamp'] = { _gte: Math.floor(startTimeMs / 1000), _lte: Math.floor(endTimeMs / 1000) };
 
     const query = `
-      query GetEvents($where: ${entityName}_bool_exp!) {
-        ${entityName}_aggregate(where: $where) {
-          aggregate {
-            ${ref.aggregation} {
-              ${ref.field}
-            }
-          }
+      query GetRawEvents($where: ${entityName}_bool_exp!) {
+        ${entityName}(where: $where) {
+          ${ref.field}
         }
       }
     `;
 
     try {
       const data: any = await this.client.request(query, { where });
-      const val = data[`${entityName}_aggregate`]?.aggregate?.[ref.aggregation]?.[ref.field];
-      return val ? Number(val) : 0;
+      const rows = data[entityName] || [];
+      
+      if (rows.length === 0) return 0;
+
+      const values = rows.map((r: any) => Number(rows[0][ref.field] === undefined ? 0 : r[ref.field]));
+
+      switch (ref.aggregation) {
+        case 'sum':
+          return values.reduce((a: number, b: number) => a + b, 0);
+        case 'count':
+          return rows.length;
+        case 'avg':
+          return values.reduce((a: number, b: number) => a + b, 0) / rows.length;
+        case 'min':
+          return Math.min(...values);
+        case 'max':
+          return Math.max(...values);
+        default:
+          return 0;
+      }
     } catch (error: any) {
-      logger.error({ error: error.message, ref }, 'Envio event fetch failed');
+      logger.error({ error: error.message, ref }, 'Envio event fetch and aggregate failed');
       return 0;
     }
   }

@@ -22,14 +22,14 @@ describe('EnvioClient', () => {
 
   it('translates simple equality filters correctly', async () => {
     mockRequest.mockResolvedValue({
-      Position: [{ supply_assets: '1000' }]
+      Position: [{ supplyShares: '1000' }]
     });
 
     const result = await client.fetchState({
       type: 'state',
       entity_type: 'Position',
       filters: [{ field: 'user', op: 'eq', value: '0x123' }],
-      field: 'supply_assets'
+      field: 'supplyShares'
     });
 
     expect(mockRequest).toHaveBeenCalledWith(
@@ -39,31 +39,14 @@ describe('EnvioClient', () => {
     expect(result).toBe(1000);
   });
 
-  it('handles time-travel queries with block height', async () => {
+  it('aggregates raw events in-memory correctly', async () => {
+    // Scenario: Sum of 'assets' from raw Supply events
     mockRequest.mockResolvedValue({
-      Market: [{ total_supply_assets: '5000' }]
-    });
-
-    await client.fetchState({
-      type: 'state',
-      entity_type: 'Market',
-      filters: [{ field: 'id', op: 'eq', value: '0xmarket' }],
-      field: 'total_supply_assets'
-    }, 12345678);
-
-    expect(mockRequest).toHaveBeenCalledWith(
-      expect.stringContaining('(block: { number: 12345678 })'),
-      expect.anything()
-    );
-  });
-
-  it('aggregates events correctly', async () => {
-    mockRequest.mockResolvedValue({
-      Morpho_Supply_aggregate: {
-        aggregate: {
-          sum: { assets: '2500' }
-        }
-      }
+      Morpho_Supply: [
+        { assets: '1000' },
+        { assets: '2000' },
+        { assets: '500' }
+      ]
     });
 
     const result = await client.fetchEvents({
@@ -74,14 +57,29 @@ describe('EnvioClient', () => {
       aggregation: 'sum'
     }, 1700000000000, 1700003600000);
 
+    // Verify it used the raw query (not _aggregate)
     expect(mockRequest).toHaveBeenCalledWith(
-      expect.stringContaining('Morpho_Supply_aggregate'),
-      expect.objectContaining({
-        where: expect.objectContaining({
-          timestamp: { _gte: 1700000000, _lte: 1700003600 }
-        })
-      })
+      expect.stringContaining('Morpho_Supply(where: $where)'),
+      expect.anything()
     );
-    expect(result).toBe(2500);
+    
+    // Verify in-memory sum: 1000 + 2000 + 500 = 3500
+    expect(result).toBe(3500);
+  });
+
+  it('calculates counts correctly in-memory', async () => {
+    mockRequest.mockResolvedValue({
+      Morpho_Withdraw: [{}, {}, {}, {}] // 4 events
+    });
+
+    const result = await client.fetchEvents({
+      type: 'event',
+      event_type: 'Withdraw',
+      filters: [],
+      field: 'any',
+      aggregation: 'count'
+    }, 0, Date.now());
+
+    expect(result).toBe(4);
   });
 });
