@@ -4,9 +4,11 @@
 - [x] Initial scaffold & Git repo
 - [x] Core recursive `evaluateNode` engine
 - [x] Initial unit tests for evaluator
-- [ ] **Envio Client** (`src/envio/client.ts`)
-    - [ ] GraphQL request logic
-    - [ ] Batching support (hoisting queries)
+- [x] **Envio Client** (`src/envio/client.ts`)
+    - [x] GraphQL request logic
+    - [x] Batching support (hoisting queries)
+    - [x] Time-travel queries (block height support)
+    - [x] Entity types: Position, Market, MorphoEvent
 - [ ] **Block Resolver** (`src/envio/blocks.ts`)
     - [ ] Logic to convert timestamps to block heights (time-travel)
 - [ ] **Condition Evaluator** (`src/engine/condition.ts`)
