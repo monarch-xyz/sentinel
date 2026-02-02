@@ -12,6 +12,8 @@ export interface EventRef {
   filters: Filter[];
   field: string;
   aggregation: 'sum' | 'count' | 'avg' | 'min' | 'max';
+  /** Optional custom window duration (e.g., "2d", "7d"). Overrides signal-level window. */
+  window?: string;
 }
 
 export interface StateRef {
@@ -19,7 +21,13 @@ export interface StateRef {
   entity_type: string;
   filters: Filter[];
   field: string;
-  snapshot?: 'current' | 'window_start';
+  /** 
+   * Snapshot timing:
+   * - 'current': current block (default)
+   * - 'window_start': start of signal's window
+   * - Custom duration string (e.g., "2d", "7d"): state at N time ago
+   */
+  snapshot?: 'current' | 'window_start' | string;
 }
 
 export type MathOp = 'add' | 'sub' | 'mul' | 'div';
