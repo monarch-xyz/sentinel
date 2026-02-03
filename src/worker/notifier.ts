@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { WebhookPayload } from '../types/index.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('worker:notifier');
 
 export interface NotificationResult {
   success: boolean;

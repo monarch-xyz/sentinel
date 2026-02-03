@@ -18,10 +18,9 @@ import {
   type MarketResult,
 } from '../rpc/index.js';
 import type { DataFetcher, DataFetcherOptions } from './fetcher.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
-const logger = pinoFactory({ name: 'morpho-fetcher' });
+const logger = createLogger('morpho-fetcher');
 
 /**
  * Extract a field value from RPC Position result

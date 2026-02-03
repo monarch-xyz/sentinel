@@ -3,9 +3,9 @@ import { config } from './config/index.js';
 import signalRoutes from './api/routes/signals.js';
 import simulateRoutes from './api/routes/simulate.js';
 import { initDb } from './db/index.js';
-import pino from 'pino';
+import { createLogger } from './utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('api');
 const app = express();
 
 app.use(express.json());

@@ -7,9 +7,9 @@ import { config } from '../config/index.js';
 import { initDb, closeDb } from '../db/index.js';
 import signalsRouter from './routes/signals.js';
 import simulateRouter from './routes/simulate.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('api');
 const app = express();
 
 // Middleware

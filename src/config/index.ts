@@ -30,10 +30,6 @@ export const config = {
   // Envio
   envio: {
     endpoint: process.env.ENVIO_ENDPOINT ?? '',
-    // Default to snake_case fields used by Morpho Envio schemas.
-    // Override via ENVIO_EVENT_* if your indexer uses camelCase.
-    eventMarketField: process.env.ENVIO_EVENT_MARKET_FIELD ?? 'market_id',
-    eventUserField: process.env.ENVIO_EVENT_USER_FIELD ?? 'onBehalf',
   },
 
   // Webhook

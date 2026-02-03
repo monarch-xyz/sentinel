@@ -1,9 +1,9 @@
 import pg from 'pg';
 import { config } from '../config/index.js';
 import { schema } from './schema.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('db');
 const { Pool } = pg;
 
 export const pool = new Pool({

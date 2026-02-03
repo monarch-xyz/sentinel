@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { compileSignalDefinition } from './compile-signal.js';
+import type { SignalDefinition } from '../types/signal.js';
 
-const baseDefinition = {
+const baseDefinition: SignalDefinition = {
   scope: {
     chains: [1],
     markets: ['m1'],
@@ -18,7 +19,7 @@ const baseDefinition = {
       market_id: 'm1',
     },
   ],
-} as const;
+};
 
 describe('compileSignalDefinition', () => {
   it('defaults logic to AND', () => {
@@ -49,7 +50,7 @@ describe('compileSignalDefinition', () => {
   });
 
   it('rejects group requirement mismatch', () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1'] },
       window: { duration: '1h' },
       conditions: [
@@ -67,13 +68,13 @@ describe('compileSignalDefinition', () => {
           },
         },
       ],
-    } as const;
+    };
 
     expect(() => compileSignalDefinition(definition)).toThrow('requirement.of');
   });
 
   it('rejects group inner condition with address', () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1'] },
       window: { duration: '1h' },
       conditions: [
@@ -92,13 +93,13 @@ describe('compileSignalDefinition', () => {
           },
         },
       ],
-    } as const;
+    };
 
     expect(() => compileSignalDefinition(definition)).toThrow('address');
   });
 
   it('rejects aggregate market metric without markets', () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1] },
       window: { duration: '1h' },
       conditions: [
@@ -111,13 +112,13 @@ describe('compileSignalDefinition', () => {
           chain_id: 1,
         },
       ],
-    } as const;
+    };
 
     expect(() => compileSignalDefinition(definition)).toThrow('market_id');
   });
 
   it('rejects aggregate position metric without addresses', () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1'] },
       window: { duration: '1h' },
       conditions: [
@@ -130,13 +131,13 @@ describe('compileSignalDefinition', () => {
           chain_id: 1,
         },
       ],
-    } as const;
+    };
 
     expect(() => compileSignalDefinition(definition)).toThrow('addresses');
   });
 
   it('rejects change direction any', () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1'], addresses: ['0x1'] },
       window: { duration: '1h' },
       conditions: [
@@ -149,7 +150,7 @@ describe('compileSignalDefinition', () => {
           market_id: 'm1',
         },
       ],
-    } as const;
+    };
 
     expect(() => compileSignalDefinition(definition)).toThrow('direction');
   });

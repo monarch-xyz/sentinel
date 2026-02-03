@@ -37,10 +37,9 @@ import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
 import { parseDuration } from '../utils/duration.js';
 import { Condition as UserCondition } from '../types/signal.js';
 import { config } from '../config/index.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
-const logger = pinoFactory({ name: 'test-condition' });
+const logger = createLogger('test-condition');
 
 // ============================================
 // Argument Parsing

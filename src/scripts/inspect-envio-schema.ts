@@ -74,8 +74,8 @@ function flattenType(type: any): string {
 }
 
 async function main() {
-  const boolExp = await client.request(boolExpQuery, { name: boolExpType });
-  const object = await client.request(objectQuery, { name: eventType });
+  const boolExp = await client.request<any>(boolExpQuery, { name: boolExpType });
+  const object = await client.request<any>(objectQuery, { name: eventType });
 
   const boolFields = boolExp?.__type?.inputFields ?? [];
   const objectFields = object?.__type?.fields ?? [];

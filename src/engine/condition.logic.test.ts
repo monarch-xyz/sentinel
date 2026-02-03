@@ -3,6 +3,7 @@ import { SignalEvaluator } from './condition.js';
 import { compileSignalDefinition } from './compile-signal.js';
 import type { DataFetcher } from './fetcher.js';
 import type { StateRef, EventRef } from '../types/index.js';
+import type { SignalDefinition } from '../types/signal.js';
 
 function getFilterValue(ref: StateRef | EventRef, field: string): string | number | undefined {
   const match = ref.filters.find((filter) => filter.field === field && filter.op === 'eq');
@@ -11,7 +12,7 @@ function getFilterValue(ref: StateRef | EventRef, field: string): string | numbe
 
 describe('SignalEvaluator logic', () => {
   it('evaluates group conditions across addresses', async () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['market-1'] },
       window: { duration: '1h' },
       conditions: [
@@ -29,7 +30,7 @@ describe('SignalEvaluator logic', () => {
           },
         },
       ],
-    } as const;
+    };
 
     const compiled = compileSignalDefinition(definition);
 
@@ -57,7 +58,7 @@ describe('SignalEvaluator logic', () => {
   });
 
   it('evaluates aggregate conditions across markets', async () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1', 'm2'] },
       window: { duration: '1h' },
       conditions: [
@@ -70,7 +71,7 @@ describe('SignalEvaluator logic', () => {
           chain_id: 1,
         },
       ],
-    } as const;
+    };
 
     const compiled = compileSignalDefinition(definition);
 
@@ -97,7 +98,7 @@ describe('SignalEvaluator logic', () => {
   });
 
   it('evaluates multi-condition AND logic', async () => {
-    const definition = {
+    const definition: SignalDefinition = {
       scope: { chains: [1], markets: ['m1'] },
       window: { duration: '1h' },
       logic: 'AND',
@@ -119,7 +120,7 @@ describe('SignalEvaluator logic', () => {
           market_id: 'm1',
         },
       ],
-    } as const;
+    };
 
     const compiled = compileSignalDefinition(definition);
 

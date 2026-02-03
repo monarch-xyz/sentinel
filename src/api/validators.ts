@@ -37,16 +37,6 @@ const ChangeConditionSchema = z.object({
   address: z.string().optional(),
 });
 
-const GroupConditionSchema = z.object({
-  type: z.literal('group'),
-  addresses: z.array(z.string()).min(1),
-  requirement: z.object({
-    count: z.number().int().positive(),
-    of: z.number().int().positive(),
-  }),
-  condition: z.lazy(() => ConditionSchema),
-});
-
 const AggregateConditionSchema = z.object({
   type: z.literal('aggregate'),
   aggregation: z.enum(['sum', 'avg', 'min', 'max', 'count']),
@@ -57,7 +47,21 @@ const AggregateConditionSchema = z.object({
   market_id: z.string().optional(),
 });
 
-const ConditionSchema = z.union([
+let ConditionSchema: z.ZodTypeAny;
+
+const GroupConditionSchema: z.ZodTypeAny = z.lazy(() =>
+  z.object({
+    type: z.literal('group'),
+    addresses: z.array(z.string()).min(1),
+    requirement: z.object({
+      count: z.number().int().positive(),
+      of: z.number().int().positive(),
+    }),
+    condition: ConditionSchema,
+  })
+);
+
+ConditionSchema = z.union([
   ThresholdConditionSchema,
   ChangeConditionSchema,
   GroupConditionSchema,

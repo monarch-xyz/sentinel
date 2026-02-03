@@ -6,9 +6,9 @@ import { normalizeStoredDefinition } from '../engine/compile-signal.js';
 import { EnvioClient } from '../envio/client.js';
 import { dispatchNotification } from './notifier.js';
 import { connection } from './connection.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('worker:processor');
 
 export const QUEUE_NAME = 'signal-evaluation';
 

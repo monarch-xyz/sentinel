@@ -3,9 +3,9 @@ import { SignalRepository } from '../../db/index.js';
 import { CreateSignalSchema, UpdateSignalSchema } from '../validators.js';
 import { compileSignalDefinition } from '../../engine/compile-signal.js';
 import { ValidationError } from '../../utils/validation.js';
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('api:signals');
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
 

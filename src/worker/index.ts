@@ -10,9 +10,9 @@ import { startScheduler, setupSchedulerWorker } from './scheduler.js';
 import { setupWorker } from './processor.js';
 import { closeConnection } from './connection.js';
 import { initDb, closeDb } from '../db/index.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('worker');
 
 const start = async () => {
   try {

@@ -1,10 +1,9 @@
 import { GraphQLClient } from 'graphql-request';
 import { config } from '../config/index.js';
 import { EventRef, StateRef, Filter } from '../types/index.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const pinoFactory = (pino as any).default || pino;
-const logger = pinoFactory();
+const logger = createLogger('envio-client');
 
 /**
  * Error thrown when Envio queries fail.
@@ -162,15 +161,12 @@ export class EnvioClient {
    * Remap event filter fields to match indexer schema differences.
    */
   private remapEventFilters(filters: Filter[]): Filter[] {
-    const marketField = config.envio.eventMarketField;
-    const userField = config.envio.eventUserField;
-
     return filters.map((filter) => {
-      if (filter.field === 'marketId' && marketField !== 'marketId') {
-        return { ...filter, field: marketField };
+      if (filter.field === 'marketId') {
+        return { ...filter, field: 'market_id' };
       }
-      if (filter.field === 'user' && userField !== 'user') {
-        return { ...filter, field: userField };
+      if (filter.field === 'user') {
+        return { ...filter, field: 'onBehalf' };
       }
       return filter;
     });

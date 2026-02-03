@@ -47,10 +47,9 @@ const monad = defineChain({
   },
 });
 import { morphoAbi, MORPHO_ADDRESSES, type PositionResult, type MarketResult } from './abi.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
-const logger = pinoFactory({ name: 'rpc-client' });
+const logger = createLogger('rpc-client');
 
 /**
  * Error thrown when RPC queries fail

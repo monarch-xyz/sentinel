@@ -23,10 +23,9 @@ import {
 import { getMetric } from './metrics.js';
 import { parseDuration } from '../utils/duration.js';
 import type { DataFetcher } from './fetcher.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
-const logger = pinoFactory({ name: 'signal-evaluator' });
+const logger = createLogger('signal-evaluator');
 
 function getMetricEntity(metricName: string): 'Position' | 'Market' | 'Event' | 'Unknown' {
   const metric = getMetric(metricName);

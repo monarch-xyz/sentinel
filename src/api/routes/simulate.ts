@@ -4,9 +4,9 @@ import { normalizeStoredDefinition } from '../../engine/compile-signal.js';
 import { resolveBlockByTimestamp } from '../../envio/blocks.js';
 import { parseDuration } from '../../utils/duration.js';
 import { z } from 'zod';
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('api:simulate');
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
 

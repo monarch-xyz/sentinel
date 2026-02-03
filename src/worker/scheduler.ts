@@ -8,9 +8,9 @@ import { pool } from '../db/index.js';
 import { signalQueue, QUEUE_NAME as SIGNAL_QUEUE_NAME } from './processor.js';
 import { connection } from './connection.js';
 import { config } from '../config/index.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = (pino as any)() as pino.Logger;
+const logger = createLogger('worker:scheduler');
 
 export const SCHEDULER_QUEUE_NAME = 'signal-scheduler';
 
