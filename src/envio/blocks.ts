@@ -30,8 +30,10 @@ function getRpcEndpoints(chainId: number, fallbackEndpoints: string[]): string[]
 
 /**
  * Known chain configurations
+ * Supported chains: Ethereum, Base, Polygon, Arbitrum, Monad, Unichain, Hyperliquid
  */
 const CHAIN_CONFIGS: Record<number, ChainConfig> = {
+  // === Production Chains ===
   1: {
     name: 'Ethereum',
     rpcEndpoints: [
@@ -69,6 +71,35 @@ const CHAIN_CONFIGS: Record<number, ChainConfig> = {
     ],
     genesisTimestamp: 1622243344, // May 28, 2021
     avgBlockTimeMs: 250,
+  },
+  
+  // === Newer Chains (update RPC/genesis as needed) ===
+  // Monad - High-performance EVM L1
+  10143: {
+    name: 'Monad',
+    rpcEndpoints: [
+      'https://rpc.monad.xyz', // Update with actual RPC
+    ],
+    genesisTimestamp: 1704067200, // Placeholder - Jan 1, 2024
+    avgBlockTimeMs: 500, // Monad targets ~500ms blocks
+  },
+  // Unichain - Uniswap L2 (OP Stack)
+  130: {
+    name: 'Unichain',
+    rpcEndpoints: [
+      'https://rpc.unichain.org', // Update with actual RPC
+    ],
+    genesisTimestamp: 1704067200, // Placeholder - update when mainnet
+    avgBlockTimeMs: 2000,
+  },
+  // Hyperliquid - Native chain
+  999: {
+    name: 'Hyperliquid',
+    rpcEndpoints: [
+      'https://rpc.hyperliquid.xyz', // Update with actual RPC
+    ],
+    genesisTimestamp: 1704067200, // Placeholder
+    avgBlockTimeMs: 1000,
   },
 };
 
