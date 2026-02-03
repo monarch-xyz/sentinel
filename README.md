@@ -11,13 +11,14 @@ Flare enables sophisticated, multi-condition monitoring of blockchain data. User
 ```json
 {
   "name": "Whale Position Drop",
-  "chains": [1],
   "window": { "duration": "7d" },
   "conditions": [{
     "type": "change",
     "metric": "Morpho.Position.supplyShares",
     "direction": "decrease",
     "by": { "percent": 20 },
+    "chain_id": 1,
+    "market_id": "0xmarket...",
     "address": "0xwhale..."
   }],
   "webhook_url": "https://your-webhook.com/alerts"

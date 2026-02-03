@@ -200,9 +200,17 @@ Simple value comparison.
   "metric": "Morpho.Market.utilization",
   "operator": ">",
   "value": 0.9,
+  "chain_id": 1,
   "market_id": "0x..."
 }
 ```
+
+**Required fields by metric type:**
+| Metric Entity | Required Fields |
+|---------------|-----------------|
+| Position | `chain_id`, `market_id`, `address` |
+| Market | `chain_id`, `market_id` |
+| Event/Flow | `chain_id` |
 
 #### ChangeCondition
 Detect changes over time window.
@@ -213,6 +221,8 @@ Detect changes over time window.
   "metric": "Morpho.Position.supplyShares",
   "direction": "decrease",
   "by": { "percent": 20 },
+  "chain_id": 1,
+  "market_id": "0x...",
   "address": "0xwhale..."
 }
 ```

@@ -60,9 +60,11 @@ export interface ThresholdCondition {
   metric: MetricType;
   operator: ComparisonOperator;
   value: number;
-  /** Filter to specific market */
+  /** Chain ID (required) */
+  chain_id: number;
+  /** Market ID (required for Market/Position metrics) */
   market_id?: string;
-  /** Filter to specific address */
+  /** User address (required for Position metrics) */
   address?: string;
 }
 
@@ -71,9 +73,11 @@ export interface ChangeCondition {
   metric: MetricType;
   direction: 'increase' | 'decrease' | 'any';
   by: { percent: number } | { absolute: number };
-  /** Filter to specific market */
+  /** Chain ID (required) */
+  chain_id: number;
+  /** Market ID (required for Market/Position metrics) */
   market_id?: string;
-  /** Filter to specific address */
+  /** User address (required for Position metrics) */
   address?: string;
 }
 
@@ -96,6 +100,10 @@ export interface AggregateCondition {
   metric: MetricType;
   operator: ComparisonOperator;
   value: number;
+  /** Chain ID (required) */
+  chain_id: number;
+  /** Market ID (optional for aggregation) */
+  market_id?: string;
 }
 
 export type Condition =

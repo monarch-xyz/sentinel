@@ -77,10 +77,60 @@ function resolveMetric(metricName: string): MetricDef {
   const metric = getMetric(metricName);
   if (!metric) {
     throw new Error(
-      `Unknown metric: "${metricName}". Use qualified names like "Morpho.Position.supplyShares" or legacy names like "supply_assets".`
+      `Unknown metric: "${metricName}". Use qualified names like "Morpho.Position.supplyShares".`
     );
   }
   return metric;
+}
+
+// ============================================
+// Validation
+// ============================================
+
+/**
+ * Get the entity type for a metric (Position, Market, or Event)
+ */
+function getMetricEntity(metricName: string): string {
+  const metric = resolveMetric(metricName);
+  if (metric.kind === 'state') return metric.entity;
+  if (metric.kind === 'computed') {
+    // Computed metrics derive from their operands - check first operand
+    const firstOperand = resolveMetric(metric.operands[0]);
+    return firstOperand.kind === 'state' ? firstOperand.entity : 'Event';
+  }
+  if (metric.kind === 'event' || metric.kind === 'chained_event') return 'Event';
+  return 'Unknown';
+}
+
+/**
+ * Validate required filters based on metric type
+ */
+function validateRequiredFilters(
+  metricName: string,
+  chainId?: number,
+  marketId?: string,
+  address?: string
+): void {
+  const entity = getMetricEntity(metricName);
+  
+  // All metrics require chain_id
+  if (chainId === undefined) {
+    throw new Error(`chain_id is required for metric "${metricName}"`);
+  }
+  
+  if (entity === 'Position') {
+    if (!marketId) {
+      throw new Error(`market_id is required for Position metric "${metricName}"`);
+    }
+    if (!address) {
+      throw new Error(`address is required for Position metric "${metricName}"`);
+    }
+  } else if (entity === 'Market') {
+    if (!marketId) {
+      throw new Error(`market_id is required for Market metric "${metricName}"`);
+    }
+  }
+  // Event metrics: chain_id is enough (market_id/address are optional filters)
 }
 
 // ============================================
@@ -91,8 +141,11 @@ function constant(value: number): Constant {
   return { type: 'constant', value };
 }
 
-function buildFilters(marketId?: string, address?: string): Filter[] {
+function buildFilters(chainId: number, marketId?: string, address?: string): Filter[] {
   const filters: Filter[] = [];
+
+  // Chain ID is always required
+  filters.push({ field: 'chainId', op: 'eq', value: chainId });
 
   if (marketId) {
     filters.push({ field: 'marketId', op: 'eq', value: marketId });
@@ -108,6 +161,7 @@ function buildFilters(marketId?: string, address?: string): Filter[] {
 function buildStateRef(
   metricName: string,
   snapshot: 'current' | 'window_start' | string,
+  chainId: number,
   marketId?: string,
   address?: string
 ): StateRef {
@@ -120,7 +174,7 @@ function buildStateRef(
   return {
     type: 'state',
     entity_type: metric.entity,
-    filters: buildFilters(marketId, address),
+    filters: buildFilters(chainId, marketId, address),
     field: metric.field,
     snapshot,
   };
@@ -128,6 +182,7 @@ function buildStateRef(
 
 function buildEventRef(
   metricName: string,
+  chainId: number,
   marketId?: string,
   address?: string
 ): EventRef {
@@ -140,7 +195,7 @@ function buildEventRef(
   return {
     type: 'event',
     event_type: metric.eventType,
-    filters: buildFilters(marketId, address),
+    filters: buildFilters(chainId, marketId, address),
     field: metric.field,
     aggregation: metric.aggregation,
   };
@@ -166,6 +221,7 @@ function isChainedEventMetric(metricName: string): boolean {
  */
 function buildChainedEventExpression(
   metricName: string,
+  chainId: number,
   marketId?: string,
   address?: string
 ): BinaryExpression {
@@ -176,8 +232,8 @@ function buildChainedEventExpression(
   }
 
   const [leftMetric, rightMetric] = metric.operands;
-  const leftEvent = buildEventRef(leftMetric, marketId, address);
-  const rightEvent = buildEventRef(rightMetric, marketId, address);
+  const leftEvent = buildEventRef(leftMetric, chainId, marketId, address);
+  const rightEvent = buildEventRef(rightMetric, chainId, marketId, address);
 
   return {
     type: 'expression',
@@ -193,6 +249,7 @@ function buildChainedEventExpression(
 function buildComputedExpression(
   metricName: string,
   snapshot: 'current' | 'window_start' | string,
+  chainId: number,
   marketId?: string,
   address?: string
 ): BinaryExpression {
@@ -203,8 +260,8 @@ function buildComputedExpression(
   }
 
   const [leftMetric, rightMetric] = metric.operands;
-  const leftState = buildStateRef(leftMetric, snapshot, marketId, address);
-  const rightState = buildStateRef(rightMetric, snapshot, marketId, address);
+  const leftState = buildStateRef(leftMetric, snapshot, chainId, marketId, address);
+  const rightState = buildStateRef(rightMetric, snapshot, chainId, marketId, address);
 
   const operatorMap: Record<string, 'add' | 'sub' | 'mul' | 'div'> = {
     ratio: 'div',
@@ -225,25 +282,28 @@ function buildComputedExpression(
 
 /**
  * Compiles a threshold condition:
- * { type: 'threshold', metric: 'Morpho.Position.supplyShares', operator: '>', value: 1000 }
+ * { type: 'threshold', metric: 'Morpho.Position.supplyShares', operator: '>', value: 1000, chain_id: 1, market_id: '0x...', address: '0x...' }
  * 
  * → { left: StateRef(supplyShares), operator: 'gt', right: Constant(1000) }
  */
 function compileThreshold(cond: ThresholdCondition): InternalCondition {
+  // Validate required filters
+  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address);
+  
   let left: ExpressionNode;
 
   if (isChainedEventMetric(cond.metric)) {
     // Chained events: e.g., Morpho.Flow.netSupply = Supply - Withdraw
-    left = buildChainedEventExpression(cond.metric, cond.market_id, cond.address);
+    left = buildChainedEventExpression(cond.metric, cond.chain_id, cond.market_id, cond.address);
   } else if (isEventMetric(cond.metric)) {
     // Single event aggregation
-    left = buildEventRef(cond.metric, cond.market_id, cond.address);
+    left = buildEventRef(cond.metric, cond.chain_id, cond.market_id, cond.address);
   } else if (isComputedMetric(cond.metric)) {
     // Computed state metrics: e.g., Morpho.Market.utilization = borrow / supply
-    left = buildComputedExpression(cond.metric, 'current', cond.market_id, cond.address);
+    left = buildComputedExpression(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
   } else {
     // Simple state metric
-    left = buildStateRef(cond.metric, 'current', cond.market_id, cond.address);
+    left = buildStateRef(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
   }
 
   return {
@@ -256,7 +316,7 @@ function compileThreshold(cond: ThresholdCondition): InternalCondition {
 
 /**
  * Compiles a change condition:
- * { type: 'change', metric: 'supply_assets', direction: 'decrease', by: { percent: 10 } }
+ * { type: 'change', metric: 'Morpho.Position.supplyShares', direction: 'decrease', by: { percent: 10 }, chain_id: 1, market_id: '0x...', address: '0x...' }
  * 
  * For percent decrease: current < past * (1 - percent/100)
  * For percent increase: current > past * (1 + percent/100)
@@ -264,8 +324,11 @@ function compileThreshold(cond: ThresholdCondition): InternalCondition {
  * For absolute increase: (current - past) > absolute
  */
 function compileChange(cond: ChangeCondition): InternalCondition {
-  const current = buildStateRef(cond.metric, 'current', cond.market_id, cond.address);
-  const past = buildStateRef(cond.metric, 'window_start', cond.market_id, cond.address);
+  // Validate required filters
+  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address);
+  
+  const current = buildStateRef(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
+  const past = buildStateRef(cond.metric, 'window_start', cond.chain_id, cond.market_id, cond.address);
 
   if ('percent' in cond.by) {
     const percentDecimal = cond.by.percent / 100;
@@ -404,11 +467,16 @@ function compileGroup(cond: GroupCondition): CompiledGroupCondition {
 
 /**
  * Compiles an aggregate condition:
- * { type: 'aggregate', aggregation: 'sum', metric: 'market_total_supply', operator: '>', value: 1000000 }
+ * { type: 'aggregate', aggregation: 'sum', metric: 'Morpho.Market.totalSupplyAssets', operator: '>', value: 1000000, chain_id: 1 }
  * 
  * This creates an event-based aggregation across the scope
  */
 function compileAggregate(cond: AggregateCondition): InternalCondition {
+  // Validate chain_id is required
+  if (cond.chain_id === undefined) {
+    throw new Error(`chain_id is required for aggregate condition`);
+  }
+  
   const metric = resolveMetric(cond.metric);
 
   if (metric.kind !== 'state') {
@@ -419,7 +487,7 @@ function compileAggregate(cond: AggregateCondition): InternalCondition {
   const left: StateRef = {
     type: 'state',
     entity_type: metric.entity,
-    filters: [],
+    filters: buildFilters(cond.chain_id, cond.market_id),
     field: metric.field,
     snapshot: 'current',
   };
