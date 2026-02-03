@@ -1,9 +1,8 @@
 /**
  * MorphoDataFetcher - Morpho Blue specific implementation of DataFetcher
  *
- * Uses a hybrid approach:
- * - Current state: Envio GraphQL (fast, indexed)
- * - Historical state: RPC eth_call (Envio doesn't support time-travel)
+ * Uses RPC for all state queries (both current and historical):
+ * - State: RPC eth_call (reliable, no Envio quirks with filters)
  * - Events: Envio GraphQL (events have timestamps, no time-travel needed)
  */
 
@@ -11,6 +10,8 @@ import { StateRef, EventRef } from '../types/index.js';
 import { EnvioClient } from '../envio/client.js';
 import { resolveBlockByTimestamp } from '../envio/blocks.js';
 import {
+  readPosition,
+  readMarket,
   readPositionAtBlock,
   readMarketAtBlock,
   type PositionResult,
@@ -80,24 +81,47 @@ function extractFilters(ref: StateRef): { chainId?: number; marketId?: string; u
 /**
  * Create a Morpho-specific DataFetcher
  *
- * @param envio - EnvioClient instance for current state and events
+ * @param envio - EnvioClient instance for events
  * @param options - Fetcher options (chainId, verbose)
  */
 export function createMorphoFetcher(envio: EnvioClient, options: DataFetcherOptions): DataFetcher {
   const { chainId: defaultChainId, verbose = false } = options;
 
   /**
-   * Fetch current state from Envio
+   * Fetch current state from RPC (latest block)
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
-    if (verbose) {
-      logger.info({ entity: ref.entity_type, field: ref.field }, 'Fetching current state from Envio');
+    const filters = extractFilters(ref);
+    const chainId = filters.chainId ?? defaultChainId;
+    const marketId = filters.marketId;
+
+    if (!marketId) {
+      throw new Error('marketId filter required for state queries');
     }
-    return envio.fetchState(ref);
+
+    if (verbose) {
+      logger.info({ entity: ref.entity_type, field: ref.field, chainId }, 'Fetching current state from RPC');
+    }
+
+    if (ref.entity_type === 'Position') {
+      const user = filters.user;
+      if (!user) {
+        throw new Error('user filter required for Position queries');
+      }
+      const result = await readPosition(chainId, marketId, user);
+      return extractPositionField(result, ref.field);
+    }
+
+    if (ref.entity_type === 'Market') {
+      const result = await readMarket(chainId, marketId);
+      return extractMarketField(result, ref.field);
+    }
+
+    throw new Error(`Unknown entity type for RPC: ${ref.entity_type}`);
   }
 
   /**
-   * Fetch historical state from RPC
+   * Fetch historical state from RPC at specific block
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
     const filters = extractFilters(ref);
@@ -105,7 +129,7 @@ export function createMorphoFetcher(envio: EnvioClient, options: DataFetcherOpti
     const marketId = filters.marketId;
 
     if (!marketId) {
-      throw new Error('marketId filter required for historical state queries');
+      throw new Error('marketId filter required for state queries');
     }
 
     // Resolve timestamp to block number
@@ -137,9 +161,9 @@ export function createMorphoFetcher(envio: EnvioClient, options: DataFetcherOpti
 
   return {
     /**
-     * Fetch state using hybrid approach:
-     * - timestamp === undefined → Envio (current state)
-     * - timestamp !== undefined → RPC (historical state)
+     * Fetch state using RPC for both current and historical:
+     * - timestamp === undefined → RPC latest block
+     * - timestamp !== undefined → RPC at resolved block
      */
     fetchState: async (ref: StateRef, timestamp?: number): Promise<number> => {
       if (timestamp === undefined) {

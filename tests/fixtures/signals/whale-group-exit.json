@@ -4,26 +4,24 @@
   "definition": {
     "scope": {
       "chains": [1],
-      "markets": ["0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"]
+      "markets": ["0x64d65c9a2d91c36d56fbc42d69e979335320169b3df63bf92789e2c8883fcc64"]
     },
     "conditions": [
       {
         "type": "group",
         "addresses": [
-          "0xwhale1_alice",
-          "0xwhale2_bob",
-          "0xwhale3_carol",
-          "0xwhale4_dave",
-          "0xwhale5_eve"
+          "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB",
+          "0xdd0f28e19C1780eb6396170735D45153D261490d",
+          "0x974c8FBf4fd795F66B85B73ebC988A51F1A040a9"
         ],
-        "requirement": { "count": 3, "of": 5 },
+        "requirement": { "count": 2, "of": 3 },
         "condition": {
           "type": "change",
           "metric": "Morpho.Position.supplyShares",
           "direction": "decrease",
           "by": { "percent": 20 },
           "chain_id": 1,
-          "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+          "market_id": "0x64d65c9a2d91c36d56fbc42d69e979335320169b3df63bf92789e2c8883fcc64"
         }
       }
     ],

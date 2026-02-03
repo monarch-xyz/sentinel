@@ -103,26 +103,31 @@ function getMetricEntity(metricName: string): string {
 }
 
 /**
- * Validate required filters based on metric type
+ * Validate required filters based on metric type.
+ *
+ * For group conditions, address validation is skipped because the address
+ * is provided by the group evaluator at runtime, not at compile time.
  */
 function validateRequiredFilters(
   metricName: string,
   chainId?: number,
   marketId?: string,
-  address?: string
+  address?: string,
+  isGroupInner = false
 ): void {
   const entity = getMetricEntity(metricName);
-  
+
   // All metrics require chain_id
   if (chainId === undefined) {
     throw new Error(`chain_id is required for metric "${metricName}"`);
   }
-  
+
   if (entity === 'Position') {
     if (!marketId) {
       throw new Error(`market_id is required for Position metric "${metricName}"`);
     }
-    if (!address) {
+    // For group inner conditions, address is provided at eval time, not compile time
+    if (!address && !isGroupInner) {
       throw new Error(`address is required for Position metric "${metricName}"`);
     }
   } else if (entity === 'Market') {
@@ -141,6 +146,12 @@ function constant(value: number): Constant {
   return { type: 'constant', value };
 }
 
+/**
+ * Build filters for state/event refs.
+ *
+ * For group conditions, address is NOT included in filters at compile time.
+ * The group evaluator adds the user filter at evaluation time for each address.
+ */
 function buildFilters(chainId: number, marketId?: string, address?: string): Filter[] {
   const filters: Filter[] = [];
 
@@ -154,6 +165,7 @@ function buildFilters(chainId: number, marketId?: string, address?: string): Fil
   if (address) {
     filters.push({ field: 'user', op: 'eq', value: address });
   }
+  // For group conditions: NO user filter added here - group evaluator adds it at eval time
 
   return filters;
 }
@@ -280,16 +292,21 @@ function buildComputedExpression(
 // Condition Compilers
 // ============================================
 
+type CompileOptions = {
+  /** Compiling inner condition of a group (address provided at eval time) */
+  isGroupInner?: boolean;
+};
+
 /**
  * Compiles a threshold condition:
  * { type: 'threshold', metric: 'Morpho.Position.supplyShares', operator: '>', value: 1000, chain_id: 1, market_id: '0x...', address: '0x...' }
- * 
+ *
  * → { left: StateRef(supplyShares), operator: 'gt', right: Constant(1000) }
  */
-function compileThreshold(cond: ThresholdCondition): InternalCondition {
-  // Validate required filters
-  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address);
-  
+function compileThreshold(cond: ThresholdCondition, opts: CompileOptions = {}): InternalCondition {
+  // Validate required filters (address validation skipped for group inner conditions)
+  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address, opts.isGroupInner);
+
   let left: ExpressionNode;
 
   if (isChainedEventMetric(cond.metric)) {
@@ -302,7 +319,7 @@ function compileThreshold(cond: ThresholdCondition): InternalCondition {
     // Computed state metrics: e.g., Morpho.Market.utilization = borrow / supply
     left = buildComputedExpression(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
   } else {
-    // Simple state metric
+    // Simple state metric (address may be undefined for group inner conditions)
     left = buildStateRef(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
   }
 
@@ -317,16 +334,17 @@ function compileThreshold(cond: ThresholdCondition): InternalCondition {
 /**
  * Compiles a change condition:
  * { type: 'change', metric: 'Morpho.Position.supplyShares', direction: 'decrease', by: { percent: 10 }, chain_id: 1, market_id: '0x...', address: '0x...' }
- * 
+ *
  * For percent decrease: current < past * (1 - percent/100)
  * For percent increase: current > past * (1 + percent/100)
  * For absolute decrease: (past - current) > absolute
  * For absolute increase: (current - past) > absolute
  */
-function compileChange(cond: ChangeCondition): InternalCondition {
-  // Validate required filters
-  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address);
-  
+function compileChange(cond: ChangeCondition, opts: CompileOptions = {}): InternalCondition {
+  // Validate required filters (address validation skipped for group inner conditions)
+  validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address, opts.isGroupInner);
+
+  // For group inner conditions, address may be undefined - added at eval time
   const current = buildStateRef(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
   const past = buildStateRef(cond.metric, 'window_start', cond.chain_id, cond.market_id, cond.address);
 
@@ -446,11 +464,15 @@ function compileChange(cond: ChangeCondition): InternalCondition {
 
 /**
  * Compiles a group condition - returns a special structure that the evaluator
- * handles differently (evaluates per-address, then counts matches)
+ * handles differently (evaluates per-address, then counts matches).
+ *
+ * The inner condition is compiled WITHOUT an address filter - the group
+ * evaluator adds the user filter for each address at evaluation time.
  */
 function compileGroup(cond: GroupCondition): CompiledGroupCondition {
-  // Compile the inner condition (without address filter - we'll add it at eval time)
-  const innerCompiled = compileCondition(cond.condition);
+  // Compile the inner condition with isGroupInner=true
+  // This skips address validation and omits user from filters
+  const innerCompiled = compileCondition(cond.condition, { isGroupInner: true });
 
   // Group conditions can't be nested (inner must be a simple condition)
   if ('type' in innerCompiled && innerCompiled.type === 'group') {
@@ -507,12 +529,12 @@ function compileAggregate(cond: AggregateCondition): InternalCondition {
 /**
  * Compiles a user-friendly condition into an internal expression tree
  */
-export function compileCondition(cond: UserCondition): CompiledCondition {
+export function compileCondition(cond: UserCondition, opts: CompileOptions = {}): CompiledCondition {
   switch (cond.type) {
     case 'threshold':
-      return compileThreshold(cond);
+      return compileThreshold(cond, opts);
     case 'change':
-      return compileChange(cond);
+      return compileChange(cond, opts);
     case 'group':
       return compileGroup(cond);
     case 'aggregate':
@@ -531,7 +553,7 @@ export function compileConditions(
   logic: 'AND' | 'OR' = 'AND'
 ): { conditions: CompiledCondition[]; logic: 'AND' | 'OR' } {
   return {
-    conditions: conditions.map(compileCondition),
+    conditions: conditions.map((c) => compileCondition(c)),
     logic,
   };
 }

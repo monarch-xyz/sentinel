@@ -2,6 +2,7 @@ import { Signal, ComparisonOp } from '../types/index.js';
 import { EvalContext, evaluateNode, evaluateCondition, parseDuration } from './evaluator.js';
 import { EnvioClient } from '../envio/client.js';
 import { resolveBlockByTimestamp } from '../envio/blocks.js';
+import { createMorphoFetcher } from './morpho-fetcher.js';
 
 export interface SimulationRequest {
   signal: Signal;           // The signal to simulate
@@ -44,30 +45,27 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     resolveBlockByTimestamp(chainId, windowStart),
   ]);
   
-  // Create Envio client for data fetching
+  // Create Envio client (for events) and morpho fetcher (for state)
   const envioClient = new EnvioClient();
-  
+  const fetcher = createMorphoFetcher(envioClient, { chainId });
+
   // Create the evaluation context with simulated timestamps
   const context: EvalContext = {
     chainId,
     windowDuration: signal.window.duration,
     now: atTimestamp,
     windowStart,
-    
-    // Fetch state at a specific timestamp (or current if undefined)
+
+    // Fetch state via RPC (uses timestamp resolution internally)
     fetchState: async (ref, timestamp?) => {
-      // If no timestamp specified, use the simulated "current" block
-      if (timestamp === undefined) {
-        return envioClient.fetchState(ref, currentBlock);
-      }
-      // Otherwise resolve the timestamp to a block
-      const blockNumber = await resolveBlockByTimestamp(chainId, timestamp);
-      return envioClient.fetchState(ref, blockNumber);
+      // For simulation, we treat "current" as the simulated timestamp
+      const ts = timestamp ?? atTimestamp;
+      return fetcher.fetchState(ref, ts);
     },
-    
+
     // Fetch events in a time window
     fetchEvents: async (ref, start, end) => {
-      return envioClient.fetchEvents(ref, start, end);
+      return fetcher.fetchEvents(ref, start, end);
     },
   };
   

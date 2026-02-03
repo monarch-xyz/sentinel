@@ -29,6 +29,7 @@
 import { readFileSync } from 'fs';
 import { compileCondition, compileConditions, isGroupCondition, CompiledCondition } from '../engine/compiler.js';
 import { evaluateCondition, EvalContext } from '../engine/evaluator.js';
+import { StateRef } from '../types/index.js';
 import { SignalDefinition } from '../types/signal.js';
 import { EnvioClient } from '../envio/client.js';
 import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
@@ -225,25 +226,108 @@ async function main() {
     process.exit(1);
   }
 
-  // Check for group conditions
-  const hasGroup = compiledList.some(isGroupCondition);
-  if (hasGroup) {
-    const groupCond = compiledList.find(isGroupCondition);
-    if (groupCond && isGroupCondition(groupCond)) {
-      console.log('⚠️  Group conditions require per-address evaluation');
-      console.log('    Addresses:', groupCond.addresses.length);
-      console.log('    Requirement:', groupCond.requirement.count, 'of', groupCond.requirement.of);
+  // Check for group conditions - handle them specially
+  const groupConditions = compiledList.filter(isGroupCondition);
+  if (groupConditions.length > 0) {
+    for (const groupCond of groupConditions) {
+      console.log('📋 Group Condition:');
+      console.log(`    Addresses: ${groupCond.addresses.length}`);
+      console.log(`    Requirement: ${groupCond.requirement.count} of ${groupCond.requirement.of}`);
       console.log();
-      console.log('Compiled per-address condition:');
-      console.log(JSON.stringify(groupCond.perAddressCondition, null, 2));
+
+      if (args.verbose) {
+        console.log('Compiled per-address condition:');
+        console.log(JSON.stringify(groupCond.perAddressCondition, null, 2));
+        console.log();
+      }
     }
 
     if (args.dryRun) {
-      console.log('\n✓ Dry run complete (group condition)');
+      console.log('✓ Dry run complete (group condition)');
       process.exit(0);
     }
 
-    console.log('\n⚠️  Group evaluation not yet implemented in CLI');
+    // Evaluate group conditions
+    console.log(`Evaluating with window=${args.window}, chain=${args.chainId}...`);
+    console.log();
+
+    const now = Date.now();
+    const windowMs = parseDuration(args.window);
+    const windowStart = now - windowMs;
+
+    const envio = new EnvioClient(config.envio.endpoint);
+
+    for (const groupCond of groupConditions) {
+      console.log(`--- Evaluating group: ${groupCond.requirement.count} of ${groupCond.addresses.length} ---`);
+
+      const results: { address: string; result: boolean }[] = [];
+
+      for (const address of groupCond.addresses) {
+        // Create fetcher for this evaluation
+        const fetcher = createMorphoFetcher(envio, {
+          chainId: args.chainId,
+          verbose: args.verbose,
+        });
+
+        const context: EvalContext = {
+          chainId: args.chainId,
+          windowDuration: args.window,
+          now,
+          windowStart,
+          fetchState: async (ref, ts) => {
+            // For group conditions, the compiled ref doesn't have user filter
+            // We add it here for Position metrics
+            const refWithAddress: StateRef =
+              ref.entity_type === 'Position'
+                ? {
+                    ...ref,
+                    filters: [...ref.filters, { field: 'user', op: 'eq' as const, value: address }],
+                  }
+                : ref;
+            const value = await fetcher.fetchState(refWithAddress, ts);
+            if (args.verbose) {
+              const source = ts === undefined ? 'RPC (current)' : 'RPC (historical)';
+              console.log(`    [${address.slice(0, 8)}...] fetchState(${ref.entity_type}.${ref.field}, ${ref.snapshot ?? 'current'}) [${source}] = ${value}`);
+            }
+            return value;
+          },
+          fetchEvents: async (ref, start, end) => {
+            const value = await fetcher.fetchEvents(ref, start, end);
+            if (args.verbose) {
+              console.log(`    [${address.slice(0, 8)}...] fetchEvents(${ref.event_type}.${ref.field}) = ${value}`);
+            }
+            return value;
+          },
+        };
+
+        try {
+          const cond = groupCond.perAddressCondition;
+          const result = await evaluateCondition(cond.left, cond.operator, cond.right, context);
+          results.push({ address, result });
+
+          const icon = result ? '✅' : '⭕';
+          console.log(`  ${icon} ${address}: ${result ? 'TRIGGERED' : 'not triggered'}`);
+        } catch (e) {
+          console.log(`  ❌ ${address}: Error - ${e instanceof Error ? e.message : e}`);
+          results.push({ address, result: false });
+        }
+      }
+
+      const triggeredCount = results.filter(r => r.result).length;
+      const required = groupCond.requirement.count;
+      const groupResult = triggeredCount >= required;
+
+      console.log();
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`Triggered: ${triggeredCount} of ${groupCond.addresses.length} (need ${required})`);
+      if (groupResult) {
+        console.log('✅ GROUP TRIGGERED: Requirement met');
+      } else {
+        console.log('⭕ GROUP NOT TRIGGERED: Requirement not met');
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+
     process.exit(0);
   }
 
@@ -283,7 +367,7 @@ async function main() {
     fetchState: async (ref, ts) => {
       const value = await fetcher.fetchState(ref, ts);
       if (args.verbose) {
-        const source = ts === undefined ? 'Envio (current)' : 'RPC (historical)';
+        const source = ts === undefined ? 'RPC (current)' : 'RPC (historical)';
         console.log(`  fetchState(${ref.entity_type}.${ref.field}, ${ref.snapshot ?? 'current'}) [${source}] = ${value}`);
       }
       return value;
