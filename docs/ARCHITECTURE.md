@@ -87,11 +87,20 @@ Extensible mapping of metric names to data sources.
 
 ### 4. EnvioClient (`src/envio/client.ts`)
 
-GraphQL client for fetching blockchain data.
+GraphQL client for fetching **current state** and **events** from Envio.
 
-- Supports time-travel queries via block number
+- ⚠️ **Does NOT support time-travel** (no `block: {number: X}`)
+- ⚠️ **Does NOT support `_aggregate`** - we aggregate in-memory
 - Batch queries for efficiency
 - Throws `EnvioQueryError` on failures (no silent zeros)
+
+### 4b. RpcClient (`src/rpc/client.ts`) - TODO
+
+Direct RPC client for **historical state** queries.
+
+- Uses `eth_call` with `blockNumber` parameter
+- Required for `ChangeCondition` (compares current vs past)
+- Reads Morpho contract directly via viem
 
 ### 5. SignalEvaluator (`src/engine/condition.ts`)
 
@@ -134,17 +143,31 @@ interface Condition {
 
 ### Snapshot Options (StateRef)
 
-| Value | Meaning |
-|-------|---------|
-| `"current"` | Latest block |
-| `"window_start"` | Block at start of signal's window |
-| `"7d"`, `"2h"` | State N time ago |
+| Value | Meaning | Data Source |
+|-------|---------|-------------|
+| `"current"` | Latest block | Envio GraphQL |
+| `"window_start"` | Block at start of signal's window | **RPC eth_call** |
+| `"7d"`, `"2h"` | State N time ago | **RPC eth_call** |
+
+> ⚠️ **Note:** Envio does not support historical state queries. Any `snapshot` other than `"current"` requires RPC fallback.
 
 ---
 
 ## Metric Reference
 
 All metrics use qualified names: `{Protocol}.{Entity}.{field}`
+
+### Data Source by Metric Type
+
+| Metric Type | Example | Current State | Historical State |
+|-------------|---------|---------------|------------------|
+| Position | `Morpho.Position.supplyShares` | Envio | **RPC** |
+| Market | `Morpho.Market.totalSupplyAssets` | Envio | **RPC** |
+| Event | `Morpho.Event.Supply.assets` | Envio | Envio (timestamp filter) |
+| Flow | `Morpho.Flow.netSupply` | Envio | Envio (timestamp filter) |
+| Computed | `Morpho.Market.utilization` | Envio | **RPC** |
+
+> **Key insight:** Events don't need time-travel because they have timestamps. State needs time-travel because it's a snapshot.
 
 ### State Metrics (Entity Properties)
 

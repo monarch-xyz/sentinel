@@ -1,70 +1,115 @@
-# ⚠️ CRITICAL ISSUE: Envio Does NOT Support Time-Travel
+# ⚠️ Data Source Limitations & Migration
 
-**Discovered:** 2026-02-03
-**Status:** BLOCKING
+**Discovered:** 2026-02-03  
+**Status:** RESOLVED (with workaround)
 
-## Problem
+## Summary
 
-The Envio indexer does NOT support `block: {number: X}` argument for historical queries. Our entire "change detection" feature relies on comparing current state vs past state.
+Two Envio limitations discovered:
 
-```graphql
-# THIS DOES NOT WORK
-Market(where: {...}, block: {number: 12345678}) { ... }
-```
+1. **No time-travel queries** - `block: {number: X}` not supported
+2. **No `_aggregate` in production** - must aggregate in-memory after fetching rows
 
-Error: `'Market' has no argument named 'block'`
+## Decision: Hybrid Data Strategy
 
-## Impact
+| Data Type | Source | Method |
+|-----------|--------|--------|
+| **Current state** | Envio GraphQL | Query Position/Market entities |
+| **Historical state** | RPC `eth_call` | Read contract at past block |
+| **Events (aggregated)** | Envio GraphQL | Fetch rows → in-memory aggregation |
+| **Block resolution** | RPC | Already implemented in `blocks.ts` |
 
-- ❌ `ChangeCondition` (position dropped X%) - BROKEN
-- ❌ `snapshot: "window_start"` - BROKEN  
-- ❌ Any historical state comparison - BROKEN
-- ✅ `ThresholdCondition` on current state - WORKS
-- ✅ `EventRef` aggregations (sum of events in window) - WORKS
+## What Still Works
 
-## Options
+- ✅ `ThresholdCondition` on current state (Envio)
+- ✅ `EventRef` aggregations (Envio events + in-memory sum/avg/count)
+- ✅ Block number resolution (RPC binary search)
+- ✅ `ChangeCondition` **with RPC fallback for historical state**
 
-### Option 1: Direct RPC Time-Travel (Recommended Short-Term)
-Use `eth_call` with block number to read contract state directly.
+## What Needed Fixing
 
-**Pros:** Works immediately, accurate
-**Cons:** Slow (1 RPC per state query), rate limits
+### 1. State Time-Travel → RPC Fallback
+
+The `EnvioClient.fetchState()` with `blockNumber` param doesn't work via Envio.
+
+**Solution:** Create `RpcClient` that reads Morpho contract state directly:
 
 ```typescript
-// Read Morpho contract state at historical block
-const result = await publicClient.readContract({
-  address: MORPHO_ADDRESS,
-  abi: morphoAbi,
-  functionName: 'position',
-  args: [marketId, user],
-  blockNumber: historicalBlock,
-});
+// src/rpc/client.ts
+async function readPositionAtBlock(
+  chainId: number,
+  marketId: string,
+  user: string,
+  blockNumber: number
+): Promise<{ supplyShares: bigint; borrowShares: bigint; collateral: bigint }> {
+  const client = getPublicClient(chainId);
+  return await client.readContract({
+    address: MORPHO_ADDRESSES[chainId],
+    abi: morphoAbi,
+    functionName: 'position',
+    args: [marketId, user],
+    blockNumber: BigInt(blockNumber),
+  });
+}
 ```
 
-### Option 2: Build Snapshot Storage
-Periodically snapshot state to our PostgreSQL DB.
+### 2. Aggregation → In-Memory
 
-**Pros:** Fast queries, full control
-**Cons:** Storage costs, sync complexity, delayed data
+Already implemented in `client.ts:aggregateInMemory()` ✅
 
-### Option 3: Reconstruct from Events
-Calculate historical state by replaying events backwards.
+Envio returns raw event rows, we aggregate locally:
+```typescript
+// Already working in EnvioClient
+private aggregateInMemory(rows: any[], ref: EventRef): number {
+  const values = rows.map(r => Number(r[ref.field]));
+  switch (ref.aggregation) {
+    case 'sum': return values.reduce((a, b) => a + b, 0);
+    case 'count': return rows.length;
+    // ...
+  }
+}
+```
 
-**Pros:** Uses existing Envio data
-**Cons:** Complex, may miss edge cases, slow for long windows
+## Why Envio Is Still Valuable
 
-### Option 4: Simplify Feature Set
-Only support current-state conditions, no historical comparisons.
+Even without time-travel and aggregation:
 
-**Pros:** Works now
-**Cons:** Severely limits usefulness
+1. **Event indexing** - Don't need to scan logs ourselves
+2. **Multi-chain** - Single GraphQL vs 7 RPCs
+3. **Entity relationships** - Position → Market linking pre-computed
+4. **Filtering** - Complex where clauses on indexed data
 
-## Decision
+## Architecture After Fix
 
-TBD - Need to discuss with team.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         FLARE                               │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   REST API   │    │   COMPILER   │    │   WORKER     │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│                             │                              │
+│                    ┌────────▼────────┐                     │
+│                    │   EVALUATOR     │                     │
+│                    └────────┬────────┘                     │
+│            ┌────────────────┼────────────────┐             │
+│            ▼                ▼                ▼             │
+│   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐     │
+│   │ EnvioClient │   │  RpcClient  │   │ BlockResolver│     │
+│   │ (current +  │   │ (historical │   │ (timestamp→  │     │
+│   │  events)    │   │   state)    │   │   block)     │     │
+│   └──────┬──────┘   └──────┬──────┘   └──────┬──────┘     │
+└──────────┼─────────────────┼─────────────────┼─────────────┘
+           │                 │                 │
+           ▼                 ▼                 ▼
+    ┌────────────┐    ┌────────────┐    ┌────────────┐
+    │   ENVIO    │    │  RPC NODES │    │  RPC NODES │
+    │  INDEXER   │    │  (archive) │    │  (latest)  │
+    └────────────┘    └────────────┘    └────────────┘
+```
 
 ## Lessons Learned
 
 1. **VERIFY ASSUMPTIONS** - Don't assume features exist without testing
 2. **Test with real data early** - Would have caught this day 1
-3. **Document data source limitations** in ARCHITECTURE.md
+3. **Document data source limitations** - Now in this file

@@ -60,8 +60,11 @@ User DSL → Compiler → Expression Tree → Evaluator → Envio → Result →
 ```bash
 pnpm install
 docker compose up -d    # PostgreSQL + Redis
-pnpm db:migrate
+
+pnpm db:migrate # Run postgres migration in Docker
+
 pnpm dev               # Start all services
+
 pnpm test              # Run tests
 ```
 

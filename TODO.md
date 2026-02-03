@@ -1,5 +1,50 @@
 # 📋 Flare Implementation TODO
 
+## 🚨 URGENT: RPC State Fallback Migration (2026-02-03)
+
+Envio does NOT support:
+1. Time-travel queries (`block: {number: X}`)
+2. `_aggregate` functions in production
+
+See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
+
+### Migration Tasks
+
+- [ ] **1. Create RpcClient** (`src/rpc/client.ts`)
+  - [ ] Add viem as dependency (`pnpm add viem`)
+  - [ ] Create `getPublicClient(chainId)` with RPC endpoints from `blocks.ts`
+  - [ ] Implement `readPositionAtBlock(chainId, marketId, user, blockNumber)`
+  - [ ] Implement `readMarketAtBlock(chainId, marketId, blockNumber)`
+  - [ ] Add Morpho ABI (just the `position` and `market` view functions)
+
+- [ ] **2. Create DataFetcher abstraction** (`src/engine/fetcher.ts`)
+  - [ ] Interface: `fetchState(ref: StateRef, blockNumber?: number): Promise<number>`
+  - [ ] Routes: `snapshot === 'current'` → Envio, else → RPC
+  - [ ] Unit tests for routing logic
+
+- [ ] **3. Update evaluator to use DataFetcher**
+  - [ ] Replace direct EnvioClient calls with DataFetcher
+  - [ ] Update `EvaluationContext` to use new fetcher
+  - [ ] Ensure `snapshot: 'window_start'` works via RPC
+
+- [ ] **4. Remove broken code from EnvioClient**
+  - [ ] Remove `block: {number: X}` from GraphQL queries
+  - [ ] Remove `fetchStateAtTimestamp()` (now handled by DataFetcher)
+  - [ ] Keep: `fetchState()` for current state only
+  - [ ] Keep: `fetchEvents()` with in-memory aggregation
+
+- [ ] **5. Update tests**
+  - [ ] Mock RPC calls in evaluator tests
+  - [ ] Test ChangeCondition with RPC fallback
+  - [ ] Integration test: real RPC + Envio
+
+- [ ] **6. Update ARCHITECTURE.md**
+  - [ ] Document hybrid data strategy
+  - [ ] Update diagrams to show RPC + Envio
+  - [ ] Remove references to Envio time-travel
+
+---
+
 ## Phase 0: DSL Hardening (2026-02-03) ✅
 - [x] Centralized `parseDuration` utility (`src/utils/duration.ts`)
 - [x] Explicit division-by-zero error handling (`EvaluationError`)
@@ -28,10 +73,11 @@
 - [x] **Envio Client** (`src/envio/client.ts`)
     - [x] GraphQL request logic
     - [x] Batching support (hoisting queries)
-    - [x] Time-travel queries (block height support)
+    - [x] ~~Time-travel queries (block height support)~~ ⚠️ BROKEN - Envio doesn't support this
     - [x] Entity types: Position, Market, MorphoEvent
+    - [x] In-memory aggregation (Envio doesn't support `_aggregate`)
 - [x] **Block Resolver** (`src/envio/blocks.ts`)
-    - [x] Logic to convert timestamps to block heights (time-travel)
+    - [x] Logic to convert timestamps to block heights (for RPC calls)
     - [x] Binary search with backwards estimation from latest block
     - [x] Support for fast chains (Arbitrum <1s blocks)
 - [x] **Condition Evaluator** (`src/engine/evaluator.ts`)
