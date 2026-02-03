@@ -44,7 +44,7 @@ X-API-Key: your-api-key
     "conditions": [
       {
         "type": "threshold",
-        "metric": "market_utilization",
+        "metric": "Morpho.Market.utilization",
         "operator": ">",
         "value": 0.9
       }
@@ -185,16 +185,16 @@ X-API-Key: your-api-key
   "triggers": [
     {
       "timestamp": "2026-01-15T10:30:00Z",
-      "conditions_met": ["threshold:market_utilization"],
+      "conditions_met": ["threshold:Morpho.Market.utilization"],
       "values": {
-        "market_utilization": 0.94
+        "Morpho.Market.utilization": 0.94
       }
     },
     {
       "timestamp": "2026-01-22T14:00:00Z",
-      "conditions_met": ["threshold:market_utilization"],
+      "conditions_met": ["threshold:Morpho.Market.utilization"],
       "values": {
-        "market_utilization": 0.97
+        "Morpho.Market.utilization": 0.97
       }
     }
   ],
@@ -231,8 +231,8 @@ X-API-Key: your-api-key
       "id": "log-uuid",
       "signal_id": "signal-uuid",
       "triggered_at": "2026-02-02T10:30:00Z",
-      "conditions_met": ["threshold:market_utilization"],
-      "values": { "market_utilization": 0.94 },
+      "conditions_met": ["threshold:Morpho.Market.utilization"],
+      "values": { "Morpho.Market.utilization": 0.94 },
       "webhook_status": 200,
       "webhook_response_time_ms": 150
     }
@@ -285,16 +285,16 @@ When a signal triggers, Flare sends a POST request to your webhook URL:
   "conditions_met": [
     {
       "type": "threshold",
-      "metric": "market_utilization",
-      "description": "market_utilization > 0.9",
+      "metric": "Morpho.Market.utilization",
+      "description": "Morpho.Market.utilization > 0.9",
       "actual_value": 0.94,
       "threshold": 0.9
     }
   ],
   "context": {
-    "market_total_supply": "50000000000000000000000",
-    "market_total_borrow": "47000000000000000000000",
-    "market_utilization": 0.94
+    "Morpho.Market.totalSupplyAssets": "50000000000000000000000",
+    "Morpho.Market.totalBorrowAssets": "47000000000000000000000",
+    "Morpho.Market.utilization": 0.94
   }
 }
 ```

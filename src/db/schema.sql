@@ -97,8 +97,8 @@ CREATE INDEX IF NOT EXISTS idx_notification_log_failed
 
 -- ============================================================================
 -- SNAPSHOT_BLOCKS TABLE
--- Caches timestamp-to-block mappings for time-travel queries
--- Enables historical state lookups without repeatedly querying block explorers
+-- Caches timestamp-to-block mappings for RPC historical state queries
+-- Envio does not support time-travel; we use RPC eth_call with block numbers
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS snapshot_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

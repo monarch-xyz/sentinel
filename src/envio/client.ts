@@ -1,7 +1,6 @@
 import { GraphQLClient } from 'graphql-request';
 import { config } from '../config/index.js';
 import { EventRef, StateRef, Filter } from '../types/index.js';
-import { resolveBlockByTimestamp } from './blocks.js';
 import pino from 'pino';
 
 const pinoFactory = (pino as any).default || pino;
@@ -27,7 +26,6 @@ export class EnvioQueryError extends Error {
 export interface StateQuery {
   type: 'state';
   ref: StateRef;
-  blockNumber?: number;
   alias: string;
 }
 
@@ -124,13 +122,14 @@ export class EnvioClient {
 
   /**
    * Build a state query fragment for batching
+   * Note: Envio does NOT support time-travel (block: {number: X}).
+   * For historical state, use RPC via src/rpc/client.ts instead.
    */
   private buildStateQueryFragment(query: StateQuery): { fragment: string; variables: Record<string, any> } {
     const where = this.translateFilters(query.ref.filters);
-    const blockArg = query.blockNumber ? `, block: {number: ${query.blockNumber}}` : '';
 
     return {
-      fragment: `${query.alias}: ${query.ref.entity_type}(where: $${query.alias}_where, limit: 1${blockArg}) {
+      fragment: `${query.alias}: ${query.ref.entity_type}(where: $${query.alias}_where, limit: 1) {
         ${query.ref.field}
       }`,
       variables: { [`${query.alias}_where`]: where }
@@ -250,24 +249,17 @@ export class EnvioClient {
   }
 
   /**
-   * Fetch state at a specific block number
+   * Fetch current state from Envio.
+   * Note: Envio does NOT support historical state queries.
+   * For historical state, use RPC via src/rpc/client.ts instead.
    */
-  async fetchState(ref: StateRef, blockNumber?: number): Promise<number> {
+  async fetchState(ref: StateRef): Promise<number> {
     const result = await this.batchQueries([{
       type: 'state',
       ref,
-      blockNumber,
       alias: 'result'
     }]);
     return result['result'];
-  }
-
-  /**
-   * Fetch state at a specific timestamp using block resolution
-   */
-  async fetchStateAtTimestamp(ref: StateRef, chainId: number, timestampMs: number): Promise<number> {
-    const blockNumber = await resolveBlockByTimestamp(chainId, timestampMs);
-    return this.fetchState(ref, blockNumber);
   }
 
   /**
@@ -285,17 +277,16 @@ export class EnvioClient {
   }
 
   /**
-   * Fetch raw positions without aggregation
+   * Fetch raw positions without aggregation (current state only).
+   * Note: Envio does NOT support historical queries. Use RPC for historical state.
    */
-  async fetchPositions(chainId: number, filters: Filter[], blockNumber?: number): Promise<Position[]> {
+  async fetchPositions(chainId: number, filters: Filter[]): Promise<Position[]> {
     const where = this.translateFilters(filters);
     where['chainId'] = { _eq: chainId };
 
-    const blockArg = blockNumber ? `, block: {number: ${blockNumber}}` : '';
-
     const query = `
       query GetPositions($where: Position_bool_exp!) {
-        Position(where: $where${blockArg}) {
+        Position(where: $where) {
           id
           chainId
           user
@@ -318,17 +309,16 @@ export class EnvioClient {
   }
 
   /**
-   * Fetch raw markets without aggregation
+   * Fetch raw markets without aggregation (current state only).
+   * Note: Envio does NOT support historical queries. Use RPC for historical state.
    */
-  async fetchMarkets(chainId: number, filters: Filter[] = [], blockNumber?: number): Promise<Market[]> {
+  async fetchMarkets(chainId: number, filters: Filter[] = []): Promise<Market[]> {
     const where = this.translateFilters(filters);
     where['chainId'] = { _eq: chainId };
 
-    const blockArg = blockNumber ? `, block: {number: ${blockNumber}}` : '';
-
     const query = `
       query GetMarkets($where: Market_bool_exp!) {
-        Market(where: $where${blockArg}) {
+        Market(where: $where) {
           id
           chainId
           loanToken

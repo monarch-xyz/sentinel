@@ -1,10 +1,10 @@
 /**
  * Flare Database Schema
- * 
+ *
  * Tables:
  * - signals: User-defined monitoring signals with DSL definitions
  * - notification_log: Audit trail of triggered notifications
- * - snapshot_blocks: Cached timestamp-to-block mappings for time-travel
+ * - snapshot_blocks: Cached timestamp-to-block mappings for RPC historical queries
  * - evaluation_cache: Optional cache for expensive query results
  */
 
@@ -58,7 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_notification_log_failed ON notification_log(webho
 
 -- ============================================================================
 -- SNAPSHOT_BLOCKS TABLE
--- Caches timestamp-to-block mappings for time-travel queries
+-- Caches timestamp-to-block mappings for RPC historical state queries
+-- (Envio does not support time-travel; we use RPC eth_call with block numbers)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS snapshot_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

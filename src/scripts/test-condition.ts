@@ -30,10 +30,14 @@ import { readFileSync } from 'fs';
 import { compileCondition, isGroupCondition, CompiledCondition } from '../engine/compiler.js';
 import { evaluateCondition, EvalContext } from '../engine/evaluator.js';
 import { EnvioClient } from '../envio/client.js';
-import { resolveBlockByTimestamp } from '../envio/blocks.js';
+import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
 import { parseDuration } from '../utils/duration.js';
 import { Condition as UserCondition } from '../types/signal.js';
 import { config } from '../config/index.js';
+import pino from 'pino';
+
+const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
+const logger = pinoFactory({ name: 'test-condition' });
 
 // ============================================
 // Argument Parsing
@@ -204,38 +208,31 @@ async function main() {
   const windowMs = parseDuration(args.window);
   const windowStart = now - windowMs;
 
-  let windowStartBlock: number;
-  try {
-    console.log('⏳ Resolving block number for window start...');
-    const startTime = Date.now();
-    windowStartBlock = await resolveBlockByTimestamp(args.chainId, windowStart);
-    const elapsed = Date.now() - startTime;
-    console.log(`✓ Window start block: ${windowStartBlock} (resolved in ${elapsed}ms)`);
-    console.log();
-  } catch (e) {
-    console.error('❌ Failed to resolve block number:', e instanceof Error ? e.message : e);
-    process.exit(1);
-  }
-
+  // Create Envio client and Morpho-specific data fetcher
   const envio = new EnvioClient(config.envio.endpoint);
+  const fetcher = createMorphoFetcher(envio, {
+    chainId: args.chainId,
+    verbose: args.verbose,
+  });
 
+  // Wrap fetcher with verbose logging if requested
   const context: EvalContext = {
     chainId: args.chainId,
     windowDuration: args.window,
     now,
     windowStart,
     fetchState: async (ref, ts) => {
-      const block = ts === windowStart ? windowStartBlock : undefined;
-      const value = await envio.fetchState(ref, block);
+      const value = await fetcher.fetchState(ref, ts);
       if (args.verbose) {
-        console.log(`  fetchState(${ref.entity_type}.${ref.field}, ${ref.snapshot || 'current'}) = ${value}`);
+        const source = ts === undefined ? 'Envio (current)' : 'RPC (historical)';
+        console.log(`  fetchState(${ref.entity_type}.${ref.field}, ${ref.snapshot ?? 'current'}) [${source}] = ${value}`);
       }
       return value;
     },
     fetchEvents: async (ref, start, end) => {
-      const value = await envio.fetchEvents(ref, start, end);
+      const value = await fetcher.fetchEvents(ref, start, end);
       if (args.verbose) {
-        console.log(`  fetchEvents(${ref.event_type}.${ref.field}, ${ref.aggregation}) = ${value}`);
+        console.log(`  fetchEvents(${ref.event_type}.${ref.field}, ${ref.aggregation}) [Envio] = ${value}`);
       }
       return value;
     },

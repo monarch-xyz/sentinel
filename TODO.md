@@ -10,38 +10,41 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 
 ### Migration Tasks
 
-- [ ] **1. Create RpcClient** (`src/rpc/client.ts`)
-  - [ ] Add viem as dependency (`pnpm add viem`)
-  - [ ] Create `getPublicClient(chainId)` with RPC endpoints from `blocks.ts`
-  - [ ] Implement `readPositionAtBlock(chainId, marketId, user, blockNumber)`
-  - [ ] Implement `readMarketAtBlock(chainId, marketId, blockNumber)`
-  - [ ] Add Morpho ABI (just the `position` and `market` view functions)
+- [x] **1. Create RpcClient** (`src/rpc/client.ts`) ✅
+  - [ ] Add viem as dependency (`pnpm add viem`) ← **USER TODO**
+  - [x] Create `getPublicClient(chainId)` with RPC endpoint env vars
+  - [x] Implement `readPositionAtBlock(chainId, marketId, user, blockNumber)`
+  - [x] Implement `readMarketAtBlock(chainId, marketId, blockNumber)`
+  - [x] Add Morpho ABI (`src/rpc/abi.ts`) with `position` and `market` view functions
 
-- [ ] **2. Create DataFetcher abstraction** (`src/engine/fetcher.ts`)
-  - [ ] Interface: `fetchState(ref: StateRef, blockNumber?: number): Promise<number>`
-  - [ ] Routes: `snapshot === 'current'` → Envio, else → RPC
+- [x] **2. Create DataFetcher abstraction** ✅
+  - [x] `src/engine/fetcher.ts` — protocol-agnostic `DataFetcher` interface
+  - [x] `src/engine/morpho-fetcher.ts` — Morpho-specific implementation
+    - Routes: `timestamp === undefined` → Envio, else → resolve block + RPC
+    - Extracts fields from RPC results (Position, Market)
+  - [x] `condition.ts` now takes `DataFetcher` (protocol-agnostic)
+  - [x] Updated `test-condition.ts`, `processor.ts`, `simulate.ts` to use `createMorphoFetcher`
   - [ ] Unit tests for routing logic
 
-- [ ] **3. Update evaluator to use DataFetcher**
-  - [ ] Replace direct EnvioClient calls with DataFetcher
-  - [ ] Update `EvaluationContext` to use new fetcher
-  - [ ] Ensure `snapshot: 'window_start'` works via RPC
+- [x] **3. Remove broken code from EnvioClient** ✅
+  - [x] Remove `block: {number: X}` from GraphQL queries (never worked)
+  - [x] Remove `fetchStateAtTimestamp()`
+  - [x] Keep: `fetchState()` for current state only
+  - [x] Keep: `fetchEvents()` with in-memory aggregation
 
-- [ ] **4. Remove broken code from EnvioClient**
-  - [ ] Remove `block: {number: X}` from GraphQL queries
-  - [ ] Remove `fetchStateAtTimestamp()` (now handled by DataFetcher)
-  - [ ] Keep: `fetchState()` for current state only
-  - [ ] Keep: `fetchEvents()` with in-memory aggregation
-
-- [ ] **5. Update tests**
+- [ ] **4. Update tests**
+  - [x] Remove broken time-travel tests from envio.test.ts
+  - [ ] Add RPC client unit tests
   - [ ] Mock RPC calls in evaluator tests
   - [ ] Test ChangeCondition with RPC fallback
   - [ ] Integration test: real RPC + Envio
 
-- [ ] **6. Update ARCHITECTURE.md**
-  - [ ] Document hybrid data strategy
-  - [ ] Update diagrams to show RPC + Envio
-  - [ ] Remove references to Envio time-travel
+- [x] **5. Update documentation** ✅ (2026-02-03)
+  - [x] Updated ARCHITECTURE.md diagram to show RPC + Envio
+  - [x] Updated DESIGN_DECISIONS.md to describe hybrid strategy
+  - [x] Updated README.md to remove "time-travel" claim
+  - [x] Updated API.md to use qualified metric names
+  - [x] Updated schema comments to clarify RPC usage
 
 ---
 

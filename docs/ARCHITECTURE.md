@@ -24,16 +24,21 @@ Flare is a **composable signal monitoring service** for DeFi. Users define condi
 │                    │    Engine)     │                      │
 │                    └────────┬───────┘                      │
 │                             │                              │
-│                    ┌────────▼────────┐                     │
-│                    │  EnvioClient    │                     │
-│                    │  (GraphQL)      │                     │
-│                    └────────┬────────┘                     │
-└─────────────────────────────┼──────────────────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  ENVIO INDEXER    │
-                    │  (7 chains)       │
-                    └───────────────────┘
+│              ┌──────────────┴──────────────┐               │
+│              ▼                             ▼               │
+│    ┌──────────────────┐          ┌──────────────────┐      │
+│    │   EnvioClient    │          │    RpcClient     │      │
+│    │   (GraphQL)      │          │   (eth_call)     │      │
+│    │                  │          │                  │      │
+│    │ • Current state  │          │ • Historical     │      │
+│    │ • Events         │          │   state          │      │
+│    └────────┬─────────┘          └────────┬─────────┘      │
+└─────────────┼──────────────────────────────┼───────────────┘
+              │                              │
+    ┌─────────▼─────────┐          ┌─────────▼─────────┐
+    │  ENVIO INDEXER    │          │   RPC ENDPOINTS   │
+    │  (7 chains)       │          │   (per chain)     │
+    └───────────────────┘          └───────────────────┘
 ```
 
 ---
@@ -298,7 +303,7 @@ Aggregate values across scope.
    ↓
 5. SignalEvaluator orchestrates:
    a. Parse window duration → windowStart timestamp
-   b. Resolve timestamps → block numbers (BlockResolver)
+   b. Resolve timestamps → block numbers (for RPC historical queries)
    c. Build EvalContext with fetch functions
    d. Call evaluateCondition(left, op, right, context)
    ↓

@@ -1,8 +1,18 @@
-import { evaluateCondition, EvalContext, EvaluationError } from './evaluator.js';
-import { Signal, Condition } from '../types/index.js';
-import { EnvioClient } from '../envio/client.js';
-import { resolveBlockByTimestamp } from '../envio/blocks.js';
+/**
+ * SignalEvaluator - Orchestrates signal evaluation
+ *
+ * This module is protocol-agnostic. Protocol-specific data fetching
+ * is handled by DataFetcher implementations (e.g., MorphoDataFetcher).
+ */
+
+import { evaluateCondition, EvalContext } from './evaluator.js';
+import { Signal } from '../types/index.js';
 import { parseDuration } from '../utils/duration.js';
+import type { DataFetcher } from './fetcher.js';
+import pino from 'pino';
+
+const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
+const logger = pinoFactory({ name: 'signal-evaluator' });
 
 export interface SignalEvaluationResult {
   signalId: string;
@@ -15,28 +25,33 @@ export interface SignalEvaluationResult {
 }
 
 export class SignalEvaluator {
-  private envio: EnvioClient;
+  private fetcher: DataFetcher;
 
-  constructor(envio: EnvioClient) {
-    this.envio = envio;
+  /**
+   * Create a SignalEvaluator with a protocol-specific DataFetcher
+   *
+   * @param fetcher - DataFetcher implementation (e.g., from createMorphoFetcher)
+   */
+  constructor(fetcher: DataFetcher) {
+    this.fetcher = fetcher;
   }
 
   async evaluate(signal: Signal): Promise<SignalEvaluationResult> {
     const now = Date.now();
+    const defaultChainId = signal.chains[0] ?? 1;
 
     try {
       const durationMs = parseDuration(signal.window.duration);
       const windowStart = now - durationMs;
 
-      const windowStartBlock = await resolveBlockByTimestamp(signal.chains[0] || 1, windowStart);
-
       const context: EvalContext = {
-        chainId: signal.chains[0] || 1,
+        chainId: defaultChainId,
         windowDuration: signal.window.duration,
         now,
         windowStart,
-        fetchState: (ref, ts) => this.envio.fetchState(ref, ts === windowStart ? windowStartBlock : undefined),
-        fetchEvents: (ref, start, end) => this.envio.fetchEvents(ref, start, end),
+        // Delegate to the protocol-specific DataFetcher
+        fetchState: (ref, ts) => this.fetcher.fetchState(ref, ts),
+        fetchEvents: (ref, start, end) => this.fetcher.fetchEvents(ref, start, end),
       };
 
       const triggered = await evaluateCondition(
@@ -54,6 +69,7 @@ export class SignalEvaluator {
       };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
+      logger.error({ signalId: signal.id, error }, 'Signal evaluation failed');
       return {
         signalId: signal.id,
         triggered: false,

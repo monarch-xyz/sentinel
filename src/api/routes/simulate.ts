@@ -1,6 +1,7 @@
 import express from 'express';
 import { SignalRepository } from '../../db/index.js';
 import { SignalEvaluator } from '../../engine/condition.js';
+import { createMorphoFetcher } from '../../engine/morpho-fetcher.js';
 import { EnvioClient } from '../../envio/client.js';
 import { resolveBlockByTimestamp } from '../../envio/blocks.js';
 import { z } from 'zod';
@@ -10,7 +11,8 @@ const logger = (pino as any)() as pino.Logger;
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
 const envio = new EnvioClient();
-const evaluator = new SignalEvaluator(envio);
+const fetcher = createMorphoFetcher(envio, { chainId: 1 });
+const evaluator = new SignalEvaluator(fetcher);
 
 const SimulateSchema = z.object({
   start_time: z.string().datetime(),

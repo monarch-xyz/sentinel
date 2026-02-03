@@ -12,13 +12,8 @@ vi.mock('graphql-request', () => {
   };
 });
 
-// Mock the block resolver
-vi.mock('../../src/envio/blocks.js', () => ({
-  resolveBlockByTimestamp: vi.fn().mockImplementation((chainId: number, timestampMs: number) => {
-    // Simple mock: return timestamp / 12000 for Ethereum-like chains
-    return Math.floor(timestampMs / 12000);
-  }),
-}));
+// Note: block resolver mock removed - no longer used by EnvioClient
+// Historical state queries now use RPC (src/rpc/client.ts) instead
 
 describe('EnvioClient', () => {
   let client: EnvioClient;
@@ -74,23 +69,8 @@ describe('EnvioClient', () => {
       );
     });
 
-    it('handles block number for time-travel queries', async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ supplyShares: '500' }]
-      });
-
-      await client.fetchState({
-        type: 'state',
-        entity_type: 'Position',
-        filters: [{ field: 'user', op: 'eq', value: '0x123' }],
-        field: 'supplyShares'
-      }, 1000000);
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining('block: {number: 1000000}'),
-        expect.any(Object)
-      );
-    });
+    // Note: time-travel test removed - Envio doesn't support block params
+    // Historical state queries now use RPC (src/rpc/client.ts)
 
     it('returns 0 when entity not found', async () => {
       mockRequest.mockResolvedValue({ result: [] });
@@ -117,31 +97,8 @@ describe('EnvioClient', () => {
     });
   });
 
-  describe('fetchStateAtTimestamp', () => {
-    it('resolves timestamp to block and fetches state', async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ supplyShares: '2000' }]
-      });
-
-      const timestampMs = 1200000000; // Should resolve to block 100000
-      const result = await client.fetchStateAtTimestamp(
-        {
-          type: 'state',
-          entity_type: 'Position',
-          filters: [{ field: 'user', op: 'eq', value: '0x123' }],
-          field: 'supplyShares'
-        },
-        1, // chainId
-        timestampMs
-      );
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining('block: {number: 100000}'),
-        expect.any(Object)
-      );
-      expect(result).toBe(2000);
-    });
-  });
+  // Note: fetchStateAtTimestamp tests removed - function removed from EnvioClient
+  // Historical state queries now use RPC (src/rpc/client.ts)
 
   describe('fetchEvents', () => {
     it('aggregates raw events in-memory with sum', async () => {
@@ -476,32 +433,8 @@ describe('EnvioClient', () => {
       await expect(client.batchQueries(queries)).rejects.toThrow(EnvioQueryError);
     });
 
-    it('includes block number in state query with time-travel', async () => {
-      mockRequest.mockResolvedValue({
-        historicalPosition: [{ supplyShares: '3000' }]
-      });
-
-      const queries: BatchQuery[] = [
-        {
-          type: 'state',
-          ref: {
-            type: 'state',
-            entity_type: 'Position',
-            filters: [{ field: 'user', op: 'eq', value: '0x123' }],
-            field: 'supplyShares'
-          },
-          blockNumber: 15000000,
-          alias: 'historicalPosition'
-        }
-      ];
-
-      await client.batchQueries(queries);
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining('block: {number: 15000000}'),
-        expect.any(Object)
-      );
-    });
+    // Note: time-travel batch query test removed - Envio doesn't support block params
+    // Historical state queries now use RPC (src/rpc/client.ts)
   });
 
   describe('fetchPositions', () => {
@@ -538,16 +471,8 @@ describe('EnvioClient', () => {
       );
     });
 
-    it('includes block number for historical positions', async () => {
-      mockRequest.mockResolvedValue({ Position: [] });
-
-      await client.fetchPositions(1, [], 15000000);
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining('block: {number: 15000000}'),
-        expect.any(Object)
-      );
-    });
+    // Note: historical positions test removed - Envio doesn't support block params
+    // Historical state queries now use RPC (src/rpc/client.ts)
 
     it('returns empty array on error', async () => {
       mockRequest.mockRejectedValue(new Error('GraphQL error'));

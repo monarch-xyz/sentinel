@@ -2,7 +2,7 @@
 
 > **Composable Signal Monitoring for DeFi — by Monarch**
 
-Flare enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Flare handles the evaluation, time-travel queries, and webhook delivery.
+Flare enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Flare handles the evaluation, historical state queries, and webhook delivery.
 
 ## Quick Example
 
@@ -52,7 +52,7 @@ Morpho.Event.Supply.assets      # Event aggregations
 
 ### Architecture
 ```
-User DSL → Compiler → Expression Tree → Evaluator → Envio → Result → Webhook
+User DSL → Compiler → Expression Tree → Evaluator → Envio/RPC → Result → Webhook
 ```
 
 ## Development

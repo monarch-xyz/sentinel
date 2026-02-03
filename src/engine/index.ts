@@ -6,6 +6,12 @@ export type { EvalContext } from './evaluator.js';
 export { SignalEvaluator } from './condition.js';
 export type { SignalEvaluationResult } from './condition.js';
 
+// DataFetcher abstraction
+export type { DataFetcher, DataFetcherOptions } from './fetcher.js';
+
+// Morpho-specific implementation
+export { createMorphoFetcher } from './morpho-fetcher.js';
+
 export {
   compileCondition,
   compileConditions,

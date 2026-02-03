@@ -1,6 +1,7 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { pool } from '../db/index.js';
 import { SignalEvaluator } from '../engine/condition.js';
+import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
 import { EnvioClient } from '../envio/client.js';
 import { dispatchNotification } from './notifier.js';
 import { connection } from './connection.js';
@@ -14,7 +15,10 @@ export const signalQueue = new Queue(QUEUE_NAME, { connection });
 
 export const setupWorker = () => {
   const envio = new EnvioClient();
-  const evaluator = new SignalEvaluator(envio);
+  // Note: chainId is resolved per-signal in the evaluate() method
+  // We create a default fetcher here; the SignalEvaluator will use the signal's chain
+  const fetcher = createMorphoFetcher(envio, { chainId: 1 });
+  const evaluator = new SignalEvaluator(fetcher);
 
   const worker = new Worker(QUEUE_NAME, async (job: Job) => {
     const { signalId } = job.data;
