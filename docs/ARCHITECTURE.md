@@ -419,3 +419,21 @@ pnpm test:condition --verbose --inline '...'
 | `src/utils/duration.ts` | Duration parsing |
 | `src/utils/validation.ts` | Input validation |
 | `src/scripts/test-condition.ts` | CLI condition tester |
+
+---
+
+## Supported Chains
+
+| Chain | ID | Block Time | Status |
+|-------|-----|------------|--------|
+| Ethereum | 1 | ~12s | ✅ Live |
+| Base | 8453 | ~2s | ✅ Live |
+| Polygon | 137 | ~2s | ✅ Live |
+| Arbitrum | 42161 | ~0.25s | ✅ Live |
+| Monad | 10143 | ~0.5s | 🔜 Pending |
+| Unichain | 130 | ~2s | 🔜 Pending |
+| Hyperliquid | 999 | ~1s | 🔜 Pending |
+
+**Custom RPC:** Set `RPC_URL_{chainId}` env var (e.g., `RPC_URL_1=https://...`).
+
+**Add new chain:** Update `CHAIN_CONFIGS` in `src/envio/blocks.ts`.

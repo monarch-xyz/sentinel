@@ -28,11 +28,10 @@ Flare enables sophisticated, multi-condition monitoring of blockchain data. User
 
 | Doc | Purpose |
 |-----|---------|
-| [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | Full technical reference, DSL syntax, metrics, evaluation flow |
-| [**API.md**](./docs/API.md) | REST API endpoints and examples |
-| [**GETTING_STARTED.md**](./docs/GETTING_STARTED.md) | Local development setup |
-| [**DESIGN_DECISIONS.md**](./docs/DESIGN_DECISIONS.md) | Architecture decision log |
-| [**SUPPORTED_CHAINS.md**](./docs/SUPPORTED_CHAINS.md) | Chain IDs and RPC configuration |
+| [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | DSL reference, metrics, evaluation flow, supported chains |
+| [**API.md**](./docs/API.md) | REST API endpoints |
+| [**GETTING_STARTED.md**](./docs/GETTING_STARTED.md) | Local setup |
+| [**DESIGN_DECISIONS.md**](./docs/DESIGN_DECISIONS.md) | Technical decisions |
 
 ## Key Concepts
 
