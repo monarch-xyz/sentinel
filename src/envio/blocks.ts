@@ -196,7 +196,37 @@ async function getBlock(
 }
 
 /**
- * Estimate block number from timestamp using average block time
+ * Estimate block number from timestamp by working BACKWARDS from latest block.
+ * This is more accurate because block times can change over a chain's lifetime
+ * (e.g., Ethereum pre/post-merge went from ~13s to ~12s).
+ * 
+ * @param latestBlock - The current latest block (number + timestamp)
+ * @param targetTimestampSec - The target timestamp to find
+ * @param avgBlockTimeMs - Average block time in milliseconds
+ */
+function estimateBlockFromLatest(
+  latestBlock: { number: number; timestamp: number },
+  targetTimestampSec: number,
+  avgBlockTimeMs: number
+): number {
+  // Calculate time difference from latest block (going backwards)
+  const timeDiffSec = latestBlock.timestamp - targetTimestampSec;
+  
+  if (timeDiffSec <= 0) {
+    // Target is at or after latest block
+    return latestBlock.number;
+  }
+  
+  // Estimate how many blocks back we need to go
+  const blocksBack = Math.floor((timeDiffSec * 1000) / avgBlockTimeMs);
+  const estimatedBlock = latestBlock.number - blocksBack;
+  
+  // Don't go below 0
+  return Math.max(0, estimatedBlock);
+}
+
+/**
+ * @deprecated Use estimateBlockFromLatest instead - kept for fallback
  */
 function estimateBlockNumber(chainId: number, timestampSec: number): number {
   const config = CHAIN_CONFIGS[chainId];
@@ -235,13 +265,17 @@ async function binarySearchBlock(
     return latestBlock.number;
   }
 
-  // Start with an estimate
+  // Start with an estimate working BACKWARDS from latest block
+  // This is more accurate as block times can change over chain lifetime
   let low = 0;
   let high = latestBlock.number;
-  let estimate = estimateBlockNumber(chainId, targetTimestampSec);
+  const estimate = estimateBlockFromLatest(
+    latestBlock,
+    targetTimestampSec,
+    config.avgBlockTimeMs
+  );
 
-  // Clamp estimate
-  estimate = Math.max(0, Math.min(estimate, latestBlock.number));
+  // Clamp estimate (should already be valid, but safety first)
 
   // Use estimate as starting point for binary search bounds
   const block = await getBlock(chainId, estimate);
