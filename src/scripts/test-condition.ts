@@ -27,8 +27,9 @@
  */
 
 import { readFileSync } from 'fs';
-import { compileCondition, isGroupCondition, CompiledCondition } from '../engine/compiler.js';
+import { compileCondition, compileConditions, isGroupCondition, CompiledCondition } from '../engine/compiler.js';
 import { evaluateCondition, EvalContext } from '../engine/evaluator.js';
+import { SignalDefinition } from '../types/signal.js';
 import { EnvioClient } from '../envio/client.js';
 import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
 import { parseDuration } from '../utils/duration.js';
@@ -90,11 +91,15 @@ function printHelp() {
 Flare Condition Tester
 
 Usage:
-  pnpm tsx src/scripts/test-condition.ts [options] <condition.json>
-  pnpm tsx src/scripts/test-condition.ts [options] --inline '<json>'
+  pnpm test:condition [options] <file.json>
+  pnpm test:condition [options] --inline '<json>'
+
+Accepts either:
+  - Single condition: { "type": "threshold", ... }
+  - Full signal: { "definition": { "conditions": [...], "logic": "AND" } }
 
 Options:
-  --inline <json>   Pass condition JSON directly
+  --inline <json>   Pass JSON directly
   --window <dur>    Time window (default: 1h). Examples: 30m, 1h, 7d
   --chain <id>      Chain ID (default: 1 for Ethereum)
   --dry-run         Show compiled AST without executing
@@ -102,28 +107,37 @@ Options:
   --help, -h        Show this help
 
 Examples:
-  # Simple threshold check
-  pnpm tsx src/scripts/test-condition.ts --inline '{
+  # Single threshold check
+  pnpm test:condition --inline '{
     "type": "threshold",
     "metric": "Morpho.Market.utilization",
     "operator": ">",
-    "value": 0.9
+    "value": 0.9,
+    "chain_id": 1,
+    "market_id": "0x..."
   }'
 
-  # Check net supply flow over 7 days
-  pnpm tsx src/scripts/test-condition.ts --window 7d --inline '{
-    "type": "threshold",
-    "metric": "Morpho.Flow.netSupply",
-    "operator": "<",
-    "value": 0
+  # Multi-condition AND signal (from file)
+  pnpm test:condition tests/fixtures/signals/supply-drop-and-borrow-stable.json
+
+  # Inline multi-condition with AND logic
+  pnpm test:condition --window 7d --inline '{
+    "conditions": [
+      { "type": "change", "metric": "Morpho.Market.totalSupplyAssets", "direction": "decrease", "by": { "percent": 15 }, "chain_id": 1, "market_id": "0x..." },
+      { "type": "change", "metric": "Morpho.Market.totalBorrowAssets", "direction": "increase", "by": { "percent": 5 }, "chain_id": 1, "market_id": "0x..." }
+    ],
+    "logic": "AND",
+    "window": { "duration": "7d" }
   }'
 
   # 20% position drop for specific address
-  pnpm tsx src/scripts/test-condition.ts --window 7d --inline '{
+  pnpm test:condition --window 7d --inline '{
     "type": "change",
     "metric": "Morpho.Position.supplyShares",
     "direction": "decrease",
     "by": { "percent": 20 },
+    "chain_id": 1,
+    "market_id": "0x...",
     "address": "0x..."
   }'
 `);
@@ -148,51 +162,96 @@ async function main() {
     process.exit(1);
   }
 
-  let userCondition: UserCondition;
+  let parsed: unknown;
   try {
-    userCondition = JSON.parse(conditionJson);
+    parsed = JSON.parse(conditionJson);
   } catch (e) {
     console.error('Error: Invalid JSON');
     console.error(e);
     process.exit(1);
   }
 
+  // Detect if this is a full signal definition or a single condition
+  const isSignalDefinition = (obj: unknown): obj is { definition: SignalDefinition } | SignalDefinition => {
+    if (typeof obj !== 'object' || obj === null) return false;
+    // Full signal with wrapper: { name, definition: { conditions, ... } }
+    if ('definition' in obj && typeof (obj as { definition: unknown }).definition === 'object') {
+      const def = (obj as { definition: { conditions?: unknown } }).definition;
+      return 'conditions' in def && Array.isArray(def.conditions);
+    }
+    // Just the definition: { conditions: [...], logic: 'AND' }
+    return 'conditions' in obj && Array.isArray((obj as { conditions: unknown }).conditions);
+  };
+
+  let userConditions: UserCondition[];
+  let logic: 'AND' | 'OR' = 'AND';
+  let signalName: string | undefined;
+
+  if (isSignalDefinition(parsed)) {
+    // Extract from signal definition
+    const def = 'definition' in parsed ? parsed.definition : parsed as SignalDefinition;
+    userConditions = def.conditions;
+    logic = def.logic ?? 'AND';
+    signalName = 'name' in parsed ? (parsed as { name: string }).name : undefined;
+    // Override window from signal if not specified on CLI
+    if (def.window?.duration && args.window === '1h') {
+      args.window = def.window.duration;
+    }
+  } else {
+    // Single condition
+    userConditions = [parsed as UserCondition];
+  }
+
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🔥 Flare Condition Tester');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log();
-  console.log('Input Condition:');
-  console.log(JSON.stringify(userCondition, null, 2));
+  if (signalName) {
+    console.log(`Signal: ${signalName}`);
+  }
+  console.log(`Conditions: ${userConditions.length} (logic: ${logic})`);
+  console.log();
+  console.log('Input:');
+  console.log(JSON.stringify(userConditions, null, 2));
   console.log();
 
-  // Compile condition
-  let compiled: CompiledCondition;
+  // Compile conditions
+  let compiledList: CompiledCondition[];
   try {
-    compiled = compileCondition(userCondition);
+    const result = compileConditions(userConditions, logic);
+    compiledList = result.conditions;
   } catch (e) {
     console.error('❌ Compilation Error:', e instanceof Error ? e.message : e);
     process.exit(1);
   }
 
-  if (isGroupCondition(compiled)) {
-    console.log('⚠️  Group conditions require per-address evaluation');
-    console.log('    Addresses:', compiled.addresses.length);
-    console.log('    Requirement:', compiled.requirement.count, 'of', compiled.requirement.of);
-    console.log();
-    console.log('Compiled per-address condition:');
-    console.log(JSON.stringify(compiled.perAddressCondition, null, 2));
-    
+  // Check for group conditions
+  const hasGroup = compiledList.some(isGroupCondition);
+  if (hasGroup) {
+    const groupCond = compiledList.find(isGroupCondition);
+    if (groupCond && isGroupCondition(groupCond)) {
+      console.log('⚠️  Group conditions require per-address evaluation');
+      console.log('    Addresses:', groupCond.addresses.length);
+      console.log('    Requirement:', groupCond.requirement.count, 'of', groupCond.requirement.of);
+      console.log();
+      console.log('Compiled per-address condition:');
+      console.log(JSON.stringify(groupCond.perAddressCondition, null, 2));
+    }
+
     if (args.dryRun) {
       console.log('\n✓ Dry run complete (group condition)');
       process.exit(0);
     }
-    
+
     console.log('\n⚠️  Group evaluation not yet implemented in CLI');
     process.exit(0);
   }
 
-  console.log('Compiled AST:');
-  console.log(JSON.stringify(compiled, null, 2));
+  console.log(`Compiled AST (${compiledList.length} conditions):`);
+  for (let i = 0; i < compiledList.length; i++) {
+    console.log(`\n[${i + 1}] ${userConditions[i].type}:`);
+    console.log(JSON.stringify(compiledList[i], null, 2));
+  }
   console.log();
 
   if (args.dryRun) {
@@ -239,22 +298,51 @@ async function main() {
   };
 
   try {
-    const result = await evaluateCondition(
-      compiled.left,
-      compiled.operator,
-      compiled.right,
-      context
-    );
+    // Evaluate each condition
+    const results: { index: number; type: string; result: boolean }[] = [];
+
+    for (let i = 0; i < compiledList.length; i++) {
+      const compiled = compiledList[i];
+      // Type guard: compiled must have left/operator/right for non-group conditions
+      if (!('left' in compiled) || !('operator' in compiled) || !('right' in compiled)) {
+        throw new Error(`Condition ${i + 1} has unexpected structure`);
+      }
+
+      if (args.verbose) {
+        console.log(`\n--- Evaluating condition ${i + 1}/${compiledList.length} (${userConditions[i].type}) ---`);
+      }
+
+      const result = await evaluateCondition(
+        compiled.left,
+        compiled.operator,
+        compiled.right,
+        context
+      );
+
+      results.push({ index: i + 1, type: userConditions[i].type, result });
+    }
+
+    // Apply logic
+    const finalResult = logic === 'AND'
+      ? results.every(r => r.result)
+      : results.some(r => r.result);
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    if (result) {
-      console.log('✅ TRIGGERED: Condition evaluates to TRUE');
+    console.log('Results:');
+    for (const r of results) {
+      const icon = r.result ? '✅' : '⭕';
+      console.log(`  ${icon} Condition ${r.index} (${r.type}): ${r.result ? 'TRUE' : 'FALSE'}`);
+    }
+    console.log();
+    console.log(`Logic: ${logic}`);
+    if (finalResult) {
+      console.log('✅ TRIGGERED: Signal evaluates to TRUE');
     } else {
-      console.log('⭕ NOT TRIGGERED: Condition evaluates to FALSE');
+      console.log('⭕ NOT TRIGGERED: Signal evaluates to FALSE');
     }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    process.exit(result ? 0 : 1);
+    process.exit(0);
   } catch (e) {
     console.error('❌ Evaluation Error:', e instanceof Error ? e.message : e);
     process.exit(1);

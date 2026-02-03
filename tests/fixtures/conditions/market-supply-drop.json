@@ -1,0 +1,9 @@
+{
+  "description": "Market total supply dropped 15%+ over window",
+  "type": "change",
+  "metric": "Morpho.Market.totalSupplyAssets",
+  "direction": "decrease",
+  "by": { "percent": 15 },
+  "chain_id": 1,
+  "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+}

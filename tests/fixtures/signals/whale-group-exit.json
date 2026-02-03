@@ -1,0 +1,32 @@
+{
+  "name": "Whale Group Exit",
+  "description": "Triggers when 3 of 5 tracked whales reduce position by 20%+",
+  "definition": {
+    "scope": {
+      "chains": [1],
+      "markets": ["0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"]
+    },
+    "conditions": [
+      {
+        "type": "group",
+        "addresses": [
+          "0xwhale1_alice",
+          "0xwhale2_bob",
+          "0xwhale3_carol",
+          "0xwhale4_dave",
+          "0xwhale5_eve"
+        ],
+        "requirement": { "count": 3, "of": 5 },
+        "condition": {
+          "type": "change",
+          "metric": "Morpho.Position.supplyShares",
+          "direction": "decrease",
+          "by": { "percent": 20 },
+          "chain_id": 1,
+          "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+        }
+      }
+    ],
+    "window": { "duration": "7d" }
+  }
+}

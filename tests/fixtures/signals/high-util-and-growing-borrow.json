@@ -1,0 +1,30 @@
+{
+  "name": "High Utilization + Growing Borrow",
+  "description": "Already high utilization AND borrow still increasing - risk of hitting limits",
+  "definition": {
+    "scope": {
+      "chains": [1],
+      "markets": ["0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"]
+    },
+    "conditions": [
+      {
+        "type": "threshold",
+        "metric": "Morpho.Market.utilization",
+        "operator": ">",
+        "value": 0.85,
+        "chain_id": 1,
+        "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+      },
+      {
+        "type": "change",
+        "metric": "Morpho.Market.totalBorrowAssets",
+        "direction": "increase",
+        "by": { "percent": 10 },
+        "chain_id": 1,
+        "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+      }
+    ],
+    "logic": "AND",
+    "window": { "duration": "24h" }
+  }
+}

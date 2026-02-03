@@ -1,0 +1,30 @@
+{
+  "name": "Supply Drop OR High Utilization",
+  "description": "Triggers if EITHER supply drops 20%+ OR utilization exceeds 90%",
+  "definition": {
+    "scope": {
+      "chains": [1],
+      "markets": ["0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"]
+    },
+    "conditions": [
+      {
+        "type": "change",
+        "metric": "Morpho.Market.totalSupplyAssets",
+        "direction": "decrease",
+        "by": { "percent": 20 },
+        "chain_id": 1,
+        "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+      },
+      {
+        "type": "threshold",
+        "metric": "Morpho.Market.utilization",
+        "operator": ">",
+        "value": 0.9,
+        "chain_id": 1,
+        "market_id": "0x973b23002efe233943715a2dfb98b66a0434d4b192b00bb4924230b3916433f7"
+      }
+    ],
+    "logic": "OR",
+    "window": { "duration": "7d" }
+  }
+}
