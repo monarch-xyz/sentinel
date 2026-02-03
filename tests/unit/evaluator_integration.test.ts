@@ -13,6 +13,13 @@ vi.mock('../../src/envio/client.js', () => {
   };
 });
 
+// Mock block resolver to avoid real network calls
+vi.mock('../../src/envio/blocks.js', () => {
+  return {
+    resolveBlockByTimestamp: vi.fn().mockResolvedValue(19000000), // Mock block number
+  };
+});
+
 describe('SignalEvaluator Integration', () => {
   let evaluator: SignalEvaluator;
   let mockEnvio: any;
