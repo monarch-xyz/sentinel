@@ -122,7 +122,7 @@ describe('EnvioClient', () => {
         expect.stringContaining('Morpho_Supply'),
         expect.objectContaining({
           result_where: expect.objectContaining({
-            user: { _eq: '0x123' },
+            onBehalf: { _eq: '0x123' },
             timestamp: { _gte: 1700000000, _lte: 1700003600 }
           })
         })
@@ -559,7 +559,7 @@ describe('EnvioClient', () => {
         expect.stringContaining('Morpho_Supply'),
         expect.objectContaining({
           where: {
-            user: { _eq: '0x123' },
+            onBehalf: { _eq: '0x123' },
             chainId: { _eq: 1 },
             timestamp: { _gte: 1700000000, _lte: 1700003600 }
           }

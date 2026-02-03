@@ -1,0 +1,26 @@
+{
+  "name": "Supply Event Burst",
+  "description": "Triggers if total supply events from the listed addresses exceed 25 within 6h",
+  "definition": {
+    "scope": {
+      "chains": [1],
+      "addresses": [
+        "0xA",
+        "0xB",
+        "0xC"
+      ]
+    },
+    "window": { "duration": "6h" },
+    "logic": "AND",
+    "conditions": [
+      {
+        "type": "aggregate",
+        "aggregation": "sum",
+        "metric": "Morpho.Event.Supply.count",
+        "operator": ">",
+        "value": 25,
+        "chain_id": 1
+      }
+    ]
+  }
+}

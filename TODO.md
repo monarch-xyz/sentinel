@@ -54,16 +54,19 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 - [x] Fail-loud on Envio query errors (`EnvioQueryError`)
 - [x] Expression depth validation (`src/utils/validation.ts`)
 - [x] Conclusive/inconclusive evaluation results
+- [x] DSL-first compiler + versioned AST storage (`src/engine/compile-signal.ts`)
 - [x] **Unified type system** — `src/engine/compiler.ts` transforms user DSL → expression tree
     - [x] ThresholdCondition → StateRef/EventRef comparison
     - [x] ChangeCondition → current vs past expression
-    - [x] GroupCondition → CompiledGroupCondition for N-of-M evaluation
-    - [x] AggregateCondition → aggregated state comparison
+    - [x] GroupCondition → CompiledGroupCondition + evaluator
+    - [x] AggregateCondition → CompiledAggregateCondition + evaluator
     - [x] Special handling for computed metrics (e.g., Morpho.Market.utilization)
+- [x] Multi-condition logic (`AND` / `OR`) in evaluator
 - [x] **Extensible Metric Registry** (`src/engine/metrics.ts`)
     - [x] Qualified names: `Morpho.Position.supplyShares`, `Morpho.Market.utilization`
     - [x] Legacy aliases for backwards compatibility
     - [x] Easy to add new protocols/entities
+    - [x] Event count metrics (e.g., `Morpho.Event.Supply.count`)
 - [x] **Doc Consolidation**
     - [x] `ARCHITECTURE.md` — single source of truth for DSL, metrics, flow
     - [x] Archived redundant docs (DESIGN.md, DSL.md, QUERY_SYSTEM.md)

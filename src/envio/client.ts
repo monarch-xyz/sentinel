@@ -140,7 +140,7 @@ export class EnvioClient {
    * Build an event query fragment for batching
    */
   private buildEventQueryFragment(query: EventQuery): { fragment: string; variables: Record<string, any> } {
-    const where = this.translateFilters(query.ref.filters);
+    const where = this.translateFilters(this.remapEventFilters(query.ref.filters));
     const entityName = query.ref.event_type.startsWith('Morpho_')
       ? query.ref.event_type
       : `Morpho_${query.ref.event_type}`;
@@ -156,6 +156,24 @@ export class EnvioClient {
       }`,
       variables: { [`${query.alias}_where`]: where }
     };
+  }
+
+  /**
+   * Remap event filter fields to match indexer schema differences.
+   */
+  private remapEventFilters(filters: Filter[]): Filter[] {
+    const marketField = config.envio.eventMarketField;
+    const userField = config.envio.eventUserField;
+
+    return filters.map((filter) => {
+      if (filter.field === 'marketId' && marketField !== 'marketId') {
+        return { ...filter, field: marketField };
+      }
+      if (filter.field === 'user' && userField !== 'user') {
+        return { ...filter, field: userField };
+      }
+      return filter;
+    });
   }
 
   /**
@@ -355,7 +373,7 @@ export class EnvioClient {
     endTimeMs: number,
     filters: Filter[] = []
   ): Promise<MorphoEvent[]> {
-    const where = this.translateFilters(filters);
+    const where = this.translateFilters(this.remapEventFilters(filters));
     const entityName = eventType.startsWith('Morpho_') ? eventType : `Morpho_${eventType}`;
 
     where['chainId'] = { _eq: chainId };

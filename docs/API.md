@@ -41,6 +41,7 @@ X-API-Key: your-api-key
       "markets": ["0x..."]
     },
     "window": { "duration": "1h" },
+    "logic": "AND",
     "conditions": [
       {
         "type": "threshold",
@@ -67,6 +68,52 @@ X-API-Key: your-api-key
   "is_active": true,
   "created_at": "2026-02-02T15:30:00Z",
   "updated_at": "2026-02-02T15:30:00Z"
+}
+```
+
+### Condition Logic
+
+`logic` controls how multiple conditions combine:
+- `AND` (default): all conditions must be true
+- `OR`: at least one condition must be true
+
+### Group Condition Example
+
+```json
+{
+  "scope": { "chains": [1], "markets": ["0x..."] },
+  "window": { "duration": "1h" },
+  "conditions": [
+    {
+      "type": "group",
+      "addresses": ["0xA", "0xB", "0xC"],
+      "requirement": { "count": 2, "of": 3 },
+      "condition": {
+        "type": "change",
+        "metric": "Morpho.Position.supplyShares",
+        "direction": "decrease",
+        "by": { "percent": 20 }
+      }
+    }
+  ]
+}
+```
+
+### Aggregate Condition Example
+
+```json
+{
+  "scope": { "chains": [1], "markets": ["0xM1", "0xM2"] },
+  "window": { "duration": "1h" },
+  "conditions": [
+    {
+      "type": "aggregate",
+      "aggregation": "sum",
+      "metric": "Morpho.Market.totalBorrowAssets",
+      "operator": ">",
+      "value": 1000000
+    }
+  ]
 }
 ```
 

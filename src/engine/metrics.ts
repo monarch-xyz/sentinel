@@ -126,11 +126,23 @@ export const METRIC_REGISTRY: Record<string, MetricDef> = {
     field: 'assets',
     aggregation: 'sum',
   },
+  'Morpho.Event.Supply.count': {
+    kind: 'event',
+    eventType: 'Morpho_Supply',
+    field: 'id',
+    aggregation: 'count',
+  },
   'Morpho.Event.Withdraw.assets': {
     kind: 'event',
     eventType: 'Morpho_Withdraw',
     field: 'assets',
     aggregation: 'sum',
+  },
+  'Morpho.Event.Withdraw.count': {
+    kind: 'event',
+    eventType: 'Morpho_Withdraw',
+    field: 'id',
+    aggregation: 'count',
   },
   'Morpho.Event.Borrow.assets': {
     kind: 'event',
@@ -138,11 +150,23 @@ export const METRIC_REGISTRY: Record<string, MetricDef> = {
     field: 'assets',
     aggregation: 'sum',
   },
+  'Morpho.Event.Borrow.count': {
+    kind: 'event',
+    eventType: 'Morpho_Borrow',
+    field: 'id',
+    aggregation: 'count',
+  },
   'Morpho.Event.Repay.assets': {
     kind: 'event',
     eventType: 'Morpho_Repay',
     field: 'assets',
     aggregation: 'sum',
+  },
+  'Morpho.Event.Repay.count': {
+    kind: 'event',
+    eventType: 'Morpho_Repay',
+    field: 'id',
+    aggregation: 'count',
   },
   'Morpho.Event.Liquidate.repaidAssets': {
     kind: 'event',
@@ -150,11 +174,23 @@ export const METRIC_REGISTRY: Record<string, MetricDef> = {
     field: 'repaidAssets',
     aggregation: 'sum',
   },
+  'Morpho.Event.Liquidate.repaidCount': {
+    kind: 'event',
+    eventType: 'Morpho_Liquidate',
+    field: 'id',
+    aggregation: 'count',
+  },
   'Morpho.Event.Liquidate.seizedAssets': {
     kind: 'event',
     eventType: 'Morpho_Liquidate',
     field: 'seizedAssets',
     aggregation: 'sum',
+  },
+  'Morpho.Event.Liquidate.seizedCount': {
+    kind: 'event',
+    eventType: 'Morpho_Liquidate',
+    field: 'id',
+    aggregation: 'count',
   },
 
   // ============================================

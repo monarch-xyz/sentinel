@@ -27,9 +27,10 @@
  */
 
 import { readFileSync } from 'fs';
-import { compileCondition, compileConditions, isGroupCondition, CompiledCondition } from '../engine/compiler.js';
-import { evaluateCondition, EvalContext } from '../engine/evaluator.js';
-import { StateRef } from '../types/index.js';
+import { compileConditions, CompiledCondition } from '../engine/compiler.js';
+import { evaluateConditionSet, type EvaluatableSignal } from '../engine/condition.js';
+import { EvalContext } from '../engine/evaluator.js';
+import { compileSignalDefinition } from '../engine/compile-signal.js';
 import { SignalDefinition } from '../types/signal.js';
 import { EnvioClient } from '../envio/client.js';
 import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
@@ -121,16 +122,6 @@ Examples:
   # Multi-condition AND signal (from file)
   pnpm test:condition tests/fixtures/signals/supply-drop-and-borrow-stable.json
 
-  # Inline multi-condition with AND logic
-  pnpm test:condition --window 7d --inline '{
-    "conditions": [
-      { "type": "change", "metric": "Morpho.Market.totalSupplyAssets", "direction": "decrease", "by": { "percent": 15 }, "chain_id": 1, "market_id": "0x..." },
-      { "type": "change", "metric": "Morpho.Market.totalBorrowAssets", "direction": "increase", "by": { "percent": 5 }, "chain_id": 1, "market_id": "0x..." }
-    ],
-    "logic": "AND",
-    "window": { "duration": "7d" }
-  }'
-
   # 20% position drop for specific address
   pnpm test:condition --window 7d --inline '{
     "type": "change",
@@ -187,6 +178,8 @@ async function main() {
   let userConditions: UserCondition[];
   let logic: 'AND' | 'OR' = 'AND';
   let signalName: string | undefined;
+  let compiledFromSignal = false;
+  let compiledSignal: EvaluatableSignal | undefined;
 
   if (isSignalDefinition(parsed)) {
     // Extract from signal definition
@@ -198,6 +191,15 @@ async function main() {
     if (def.window?.duration && args.window === '1h') {
       args.window = def.window.duration;
     }
+    const compiled = compileSignalDefinition(def);
+    compiledFromSignal = true;
+    compiledSignal = {
+      id: signalName ?? 'inline-signal',
+      chains: compiled.ast.chains,
+      window: compiled.ast.window,
+      conditions: compiled.ast.conditions,
+      logic: compiled.ast.logic,
+    };
   } else {
     // Single condition
     userConditions = [parsed as UserCondition];
@@ -219,116 +221,16 @@ async function main() {
   // Compile conditions
   let compiledList: CompiledCondition[];
   try {
-    const result = compileConditions(userConditions, logic);
-    compiledList = result.conditions;
+    if (compiledFromSignal && compiledSignal) {
+      compiledList = compiledSignal.conditions ?? [];
+      logic = compiledSignal.logic ?? logic;
+    } else {
+      const result = compileConditions(userConditions, logic);
+      compiledList = result.conditions;
+    }
   } catch (e) {
     console.error('❌ Compilation Error:', e instanceof Error ? e.message : e);
     process.exit(1);
-  }
-
-  // Check for group conditions - handle them specially
-  const groupConditions = compiledList.filter(isGroupCondition);
-  if (groupConditions.length > 0) {
-    for (const groupCond of groupConditions) {
-      console.log('📋 Group Condition:');
-      console.log(`    Addresses: ${groupCond.addresses.length}`);
-      console.log(`    Requirement: ${groupCond.requirement.count} of ${groupCond.requirement.of}`);
-      console.log();
-
-      if (args.verbose) {
-        console.log('Compiled per-address condition:');
-        console.log(JSON.stringify(groupCond.perAddressCondition, null, 2));
-        console.log();
-      }
-    }
-
-    if (args.dryRun) {
-      console.log('✓ Dry run complete (group condition)');
-      process.exit(0);
-    }
-
-    // Evaluate group conditions
-    console.log(`Evaluating with window=${args.window}, chain=${args.chainId}...`);
-    console.log();
-
-    const now = Date.now();
-    const windowMs = parseDuration(args.window);
-    const windowStart = now - windowMs;
-
-    const envio = new EnvioClient(config.envio.endpoint);
-
-    for (const groupCond of groupConditions) {
-      console.log(`--- Evaluating group: ${groupCond.requirement.count} of ${groupCond.addresses.length} ---`);
-
-      const results: { address: string; result: boolean }[] = [];
-
-      for (const address of groupCond.addresses) {
-        // Create fetcher for this evaluation
-        const fetcher = createMorphoFetcher(envio, {
-          chainId: args.chainId,
-          verbose: args.verbose,
-        });
-
-        const context: EvalContext = {
-          chainId: args.chainId,
-          windowDuration: args.window,
-          now,
-          windowStart,
-          fetchState: async (ref, ts) => {
-            // For group conditions, the compiled ref doesn't have user filter
-            // We add it here for Position metrics
-            const refWithAddress: StateRef =
-              ref.entity_type === 'Position'
-                ? {
-                    ...ref,
-                    filters: [...ref.filters, { field: 'user', op: 'eq' as const, value: address }],
-                  }
-                : ref;
-            const value = await fetcher.fetchState(refWithAddress, ts);
-            if (args.verbose) {
-              const source = ts === undefined ? 'RPC (current)' : 'RPC (historical)';
-              console.log(`    [${address.slice(0, 8)}...] fetchState(${ref.entity_type}.${ref.field}, ${ref.snapshot ?? 'current'}) [${source}] = ${value}`);
-            }
-            return value;
-          },
-          fetchEvents: async (ref, start, end) => {
-            const value = await fetcher.fetchEvents(ref, start, end);
-            if (args.verbose) {
-              console.log(`    [${address.slice(0, 8)}...] fetchEvents(${ref.event_type}.${ref.field}) = ${value}`);
-            }
-            return value;
-          },
-        };
-
-        try {
-          const cond = groupCond.perAddressCondition;
-          const result = await evaluateCondition(cond.left, cond.operator, cond.right, context);
-          results.push({ address, result });
-
-          const icon = result ? '✅' : '⭕';
-          console.log(`  ${icon} ${address}: ${result ? 'TRIGGERED' : 'not triggered'}`);
-        } catch (e) {
-          console.log(`  ❌ ${address}: Error - ${e instanceof Error ? e.message : e}`);
-          results.push({ address, result: false });
-        }
-      }
-
-      const triggeredCount = results.filter(r => r.result).length;
-      const required = groupCond.requirement.count;
-      const groupResult = triggeredCount >= required;
-
-      console.log();
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(`Triggered: ${triggeredCount} of ${groupCond.addresses.length} (need ${required})`);
-      if (groupResult) {
-        console.log('✅ GROUP TRIGGERED: Requirement met');
-      } else {
-        console.log('⭕ GROUP NOT TRIGGERED: Requirement not met');
-      }
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
-
-    process.exit(0);
   }
 
   console.log(`Compiled AST (${compiledList.length} conditions):`);
@@ -387,29 +289,16 @@ async function main() {
 
     for (let i = 0; i < compiledList.length; i++) {
       const compiled = compiledList[i];
-      // Type guard: compiled must have left/operator/right for non-group conditions
-      if (!('left' in compiled) || !('operator' in compiled) || !('right' in compiled)) {
-        throw new Error(`Condition ${i + 1} has unexpected structure`);
-      }
 
       if (args.verbose) {
-        console.log(`\n--- Evaluating condition ${i + 1}/${compiledList.length} (${userConditions[i].type}) ---`);
+        console.log(`\n--- Evaluating condition ${i + 1}/${compiledList.length} (${userConditions[i]?.type ?? 'condition'}) ---`);
       }
 
-      const result = await evaluateCondition(
-        compiled.left,
-        compiled.operator,
-        compiled.right,
-        context
-      );
-
-      results.push({ index: i + 1, type: userConditions[i].type, result });
+      const result = await evaluateConditionSet([compiled], 'AND', context);
+      results.push({ index: i + 1, type: userConditions[i]?.type ?? 'condition', result });
     }
 
-    // Apply logic
-    const finalResult = logic === 'AND'
-      ? results.every(r => r.result)
-      : results.some(r => r.result);
+    const finalResult = await evaluateConditionSet(compiledList, logic, context);
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('Results:');

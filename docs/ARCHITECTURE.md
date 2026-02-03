@@ -116,7 +116,7 @@ Orchestrates the full evaluation flow:
 
 ## Expression Tree (Internal AST)
 
-All conditions compile to this structure:
+Threshold/change conditions compile to this structure:
 
 ```typescript
 type ExpressionNode = 
@@ -131,7 +131,21 @@ interface Condition {
   operator: "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
   right: ExpressionNode;
 }
+
+type CompiledCondition =
+  | Condition
+  | { type: "group"; addresses: string[]; requirement: { count: number; of: number }; perAddressCondition: Condition }
+  | { type: "aggregate"; aggregation: "sum" | "avg" | "min" | "max" | "count"; metric: string; operator: "gt" | "gte" | "lt" | "lte" | "eq" | "neq"; value: number; chainId: number; marketIds?: string[]; addresses?: string[] };
+
+interface CompiledSignalDefinition {
+  chains: number[];
+  window: { duration: string };
+  conditions: CompiledCondition[];
+  logic: "AND" | "OR";
+}
 ```
+
+Group/aggregate conditions are evaluated across the **scope** (markets/addresses) and do not duplicate those lists inside every condition.
 
 ### Node Types
 
@@ -194,6 +208,7 @@ Morpho.Market.utilization         # totalBorrow / totalSupply
 
 ```
 Morpho.Event.Supply.assets        # sum(Supply.assets)
+Morpho.Event.Supply.count         # count(Supply events)
 Morpho.Event.Withdraw.assets      # sum(Withdraw.assets)
 Morpho.Event.Borrow.assets        # sum(Borrow.assets)
 Morpho.Event.Repay.assets         # sum(Repay.assets)

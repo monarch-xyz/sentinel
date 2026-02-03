@@ -4,6 +4,7 @@ import {
   compileConditions,
   isGroupCondition,
   isSimpleCondition,
+  CompiledAggregateCondition,
   CompiledGroupCondition,
 } from '../../src/engine/compiler.js';
 import {
@@ -351,15 +352,14 @@ describe('Compiler', () => {
         chain_id: 1,
       };
 
-      const result = compileCondition(userCondition) as InternalCondition;
+      const result = compileCondition(userCondition) as CompiledAggregateCondition;
 
+      expect(result.type).toBe('aggregate');
+      expect(result.aggregation).toBe('sum');
+      expect(result.metric).toBe('Morpho.Market.totalSupplyAssets');
       expect(result.operator).toBe('gt');
-      expect(result.left).toMatchObject({
-        type: 'state',
-        entity_type: 'Market',
-        field: 'totalSupplyAssets',
-      });
-      expect(result.right).toEqual({ type: 'constant', value: 10000000 });
+      expect(result.value).toBe(10000000);
+      expect(result.chainId).toBe(1);
     });
   });
 
