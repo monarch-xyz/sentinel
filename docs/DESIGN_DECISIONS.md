@@ -42,8 +42,100 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 | `AggregateCondition` | Aggregated `StateRef` compared to `Constant` |
 
 **Special cases:**
-- `market_utilization` → computed as `totalBorrow / totalSupply`
+- `Morpho.Market.utilization` → computed as `totalBorrow / totalSupply`
 - Group conditions return `CompiledGroupCondition` for special evaluator handling
+
+### Decision 6: Remove Legacy Metric Aliases
+**Problem:** Having both `supply_assets` and `Morpho.Position.supplyShares` creates confusion.  
+**Fix:** Removed all legacy aliases. Only qualified names are valid.  
+**Rationale:** Cleaner API, explicit protocol namespacing, easier to extend.
+
+**Migration from legacy names:**
+| Legacy Name | New Qualified Name |
+|-------------|-------------------|
+| `supply_assets` | `Morpho.Position.supplyShares` |
+| `supply_shares` | `Morpho.Position.supplyShares` |
+| `borrow_assets` | `Morpho.Position.borrowShares` |
+| `borrow_shares` | `Morpho.Position.borrowShares` |
+| `collateral_assets` | `Morpho.Position.collateral` |
+| `market_total_supply` | `Morpho.Market.totalSupplyAssets` |
+| `market_total_borrow` | `Morpho.Market.totalBorrowAssets` |
+| `market_utilization` | `Morpho.Market.utilization` |
+| `net_supply_flow` | `Morpho.Flow.netSupply` |
+| `net_borrow_flow` | `Morpho.Flow.netBorrow` |
+| `liquidation_volume` | `Morpho.Event.Liquidate.repaidAssets` |
+
+### Decision 7: Chained Event Metrics
+**Problem:** Users want `netSupply = Supply - Withdraw` but couldn't express event combinations.  
+**Fix:** Added `chained_event` metric type in registry. Compiler builds expression trees automatically.  
+**Example:** `Morpho.Flow.netSupply` compiles to `EventRef(Supply) - EventRef(Withdraw)`.
+
+---
+
+## 📖 Example: "Alert when position drops 20%"
+
+This walkthrough shows how a user condition flows through each component.
+
+### Step 1: User writes DSL
+```json
+{
+  "type": "change",
+  "metric": "supply_assets",
+  "direction": "decrease",
+  "by": { "percent": 20 },
+  "address": "0xwhale..."
+}
+```
+
+### Step 2: Compiler transforms → Expression Tree
+`src/engine/compiler.ts` → `compileChange()`
+
+```
+Condition:
+  left: StateRef(Position.supplyShares, snapshot="current", user="0xwhale")
+  operator: "lt"
+  right: Expression(
+    operator: "mul"
+    left: StateRef(Position.supplyShares, snapshot="window_start", user="0xwhale")
+    right: Constant(0.8)   ← (1 - 0.20)
+  )
+```
+
+**Logic:** `current < past * 0.8` means "current is less than 80% of past" = 20% drop.
+
+### Step 3: Evaluator recursively evaluates
+`src/engine/evaluator.ts` → `evaluateNode()`
+
+```
+1. evaluateNode(right.left)  → fetchState(window_start) → 1000 tokens
+2. evaluateNode(right.right) → constant → 0.8
+3. evaluateNode(right)       → 1000 * 0.8 = 800
+4. evaluateNode(left)        → fetchState(current) → 750 tokens
+5. evaluateCondition()       → 750 < 800 → TRUE ✓
+```
+
+### Step 4: EnvioClient fetches data
+`src/envio/client.ts` → `fetchState()`
+
+```graphql
+# For current state
+query { Position(where: {user: {_eq: "0xwhale"}}) { supplyShares } }
+
+# For window_start (time-travel via block number)
+query { Position(where: {user: {_eq: "0xwhale"}}, block: {number: 12345678}) { supplyShares } }
+```
+
+### Step 5: Result
+```json
+{
+  "signalId": "sig-123",
+  "triggered": true,
+  "timestamp": 1706886000000,
+  "conclusive": true
+}
+```
+
+→ Webhook fires with alert payload.
 
 ---
 

@@ -17,3 +17,13 @@ export type {
   CompiledGroupCondition,
   CompilationContext,
 } from './compiler.js';
+
+export {
+  METRIC_REGISTRY,
+  getMetric,
+  isValidMetric,
+  getMetricsByProtocol,
+  listMetrics,
+  getMetricsByKind,
+} from './metrics.js';
+export type { MetricDef, StateMetricDef, EventMetricDef, ComputedMetricDef, ChainedEventMetricDef } from './metrics.js';

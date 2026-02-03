@@ -12,6 +12,14 @@
     - [x] GroupCondition → CompiledGroupCondition for N-of-M evaluation
     - [x] AggregateCondition → aggregated state comparison
     - [x] Special handling for computed metrics (e.g., market_utilization)
+- [x] **Extensible Metric Registry** (`src/engine/metrics.ts`)
+    - [x] Qualified names: `Morpho.Position.supplyShares`, `Morpho.Market.utilization`
+    - [x] Legacy aliases for backwards compatibility
+    - [x] Easy to add new protocols/entities
+- [x] **Doc Consolidation**
+    - [x] `ARCHITECTURE.md` — single source of truth for DSL, metrics, flow
+    - [x] Archived redundant docs (DESIGN.md, DSL.md, QUERY_SYSTEM.md)
+    - [x] Updated README with clear doc links
 
 ## Phase 1: Core Engine & Data
 - [x] Initial scaffold & Git repo

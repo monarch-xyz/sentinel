@@ -32,23 +32,22 @@ export interface TimeWindow {
 // Metrics
 // ============================================
 
-export type MetricType =
-  // Position metrics (per address per market)
-  | 'supply_assets'
-  | 'supply_shares'
-  | 'borrow_assets'
-  | 'borrow_shares'
-  | 'collateral_assets'
-  // Market metrics (aggregate)
-  | 'market_total_supply'
-  | 'market_total_borrow'
-  | 'market_utilization'
-  | 'market_borrow_rate'
-  // Flow metrics (event-based)
-  | 'net_supply_flow'
-  | 'net_borrow_flow'
-  | 'liquidation_volume'
-  | 'event_count';
+/**
+ * Metric names follow the pattern: {Protocol}.{Entity}.{field}
+ * 
+ * Available metrics (see src/engine/metrics.ts for full list):
+ * - Morpho.Position.supplyShares
+ * - Morpho.Position.borrowShares
+ * - Morpho.Position.collateral
+ * - Morpho.Market.totalSupplyAssets
+ * - Morpho.Market.totalBorrowAssets
+ * - Morpho.Market.utilization (computed: borrow/supply)
+ * - Morpho.Event.Supply.assets
+ * - Morpho.Event.Withdraw.assets
+ * - Morpho.Flow.netSupply (chained: Supply - Withdraw)
+ * - Morpho.Flow.netBorrow (chained: Borrow - Repay)
+ */
+export type MetricType = string;
 
 // ============================================
 // Conditions

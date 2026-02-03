@@ -12,14 +12,14 @@ import {
   GroupCondition,
   AggregateCondition,
 } from '../../src/types/signal.js';
-import { Condition as InternalCondition } from '../../src/types/index.js';
+import { Condition as InternalCondition, BinaryExpression } from '../../src/types/index.js';
 
 describe('Compiler', () => {
   describe('compileCondition - threshold', () => {
     it('compiles simple threshold condition', () => {
       const userCondition: ThresholdCondition = {
         type: 'threshold',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         operator: '>',
         value: 1000000,
       };
@@ -36,7 +36,7 @@ describe('Compiler', () => {
     it('compiles threshold with address filter', () => {
       const userCondition: ThresholdCondition = {
         type: 'threshold',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         operator: '>=',
         value: 500000,
         address: '0xwhale123',
@@ -57,7 +57,7 @@ describe('Compiler', () => {
     it('compiles threshold with market filter', () => {
       const userCondition: ThresholdCondition = {
         type: 'threshold',
-        metric: 'market_total_supply',
+        metric: 'Morpho.Market.totalSupplyAssets',
         operator: '<',
         value: 10000000,
         market_id: '0xmarket123',
@@ -75,10 +75,10 @@ describe('Compiler', () => {
       });
     });
 
-    it('compiles market_utilization as computed expression', () => {
+    it('compiles Morpho.Market.utilization as computed expression', () => {
       const userCondition: ThresholdCondition = {
         type: 'threshold',
-        metric: 'market_utilization',
+        metric: 'Morpho.Market.utilization',
         operator: '>',
         value: 0.9,
       };
@@ -102,6 +102,35 @@ describe('Compiler', () => {
       });
     });
 
+    it('compiles chained event metric (netSupply = Supply - Withdraw)', () => {
+      const userCondition: ThresholdCondition = {
+        type: 'threshold',
+        metric: 'Morpho.Flow.netSupply',
+        operator: '<',
+        value: 0,
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      // Should compile to: Supply.assets - Withdraw.assets < 0
+      expect(result.operator).toBe('lt');
+      const leftExpr = result.left as BinaryExpression;
+      expect(leftExpr.type).toBe('expression');
+      expect(leftExpr.operator).toBe('sub');
+      expect(leftExpr.left).toMatchObject({
+        type: 'event',
+        event_type: 'Morpho_Supply',
+        field: 'assets',
+        aggregation: 'sum',
+      });
+      expect(leftExpr.right).toMatchObject({
+        type: 'event',
+        event_type: 'Morpho_Withdraw',
+        field: 'assets',
+        aggregation: 'sum',
+      });
+    });
+
     it('maps all comparison operators correctly', () => {
       const operators: Array<{ input: '>' | '<' | '>=' | '<=' | '==' | '!='; expected: string }> = [
         { input: '>', expected: 'gt' },
@@ -115,7 +144,7 @@ describe('Compiler', () => {
       for (const { input, expected } of operators) {
         const result = compileCondition({
           type: 'threshold',
-          metric: 'supply_assets',
+          metric: 'Morpho.Position.supplyShares',
           operator: input,
           value: 100,
         }) as InternalCondition;
@@ -129,7 +158,7 @@ describe('Compiler', () => {
     it('compiles percent decrease condition', () => {
       const userCondition: ChangeCondition = {
         type: 'change',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         direction: 'decrease',
         by: { percent: 10 },
       };
@@ -156,7 +185,7 @@ describe('Compiler', () => {
     it('compiles percent increase condition', () => {
       const userCondition: ChangeCondition = {
         type: 'change',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         direction: 'increase',
         by: { percent: 20 },
       };
@@ -175,7 +204,7 @@ describe('Compiler', () => {
     it('compiles absolute decrease condition', () => {
       const userCondition: ChangeCondition = {
         type: 'change',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         direction: 'decrease',
         by: { absolute: 1000000 },
       };
@@ -196,7 +225,7 @@ describe('Compiler', () => {
     it('compiles absolute increase condition', () => {
       const userCondition: ChangeCondition = {
         type: 'change',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         direction: 'increase',
         by: { absolute: 500000 },
       };
@@ -216,7 +245,7 @@ describe('Compiler', () => {
     it('includes address filter in change condition', () => {
       const userCondition: ChangeCondition = {
         type: 'change',
-        metric: 'supply_assets',
+        metric: 'Morpho.Position.supplyShares',
         direction: 'decrease',
         by: { percent: 10 },
         address: '0xuser123',
@@ -242,7 +271,7 @@ describe('Compiler', () => {
         requirement: { count: 3, of: 5 },
         condition: {
           type: 'threshold',
-          metric: 'supply_assets',
+          metric: 'Morpho.Position.supplyShares',
           operator: '<',
           value: 1000,
         },
@@ -267,7 +296,7 @@ describe('Compiler', () => {
         requirement: { count: 2, of: 3 },
         condition: {
           type: 'change',
-          metric: 'supply_assets',
+          metric: 'Morpho.Position.supplyShares',
           direction: 'decrease',
           by: { percent: 10 },
         },
@@ -291,7 +320,7 @@ describe('Compiler', () => {
           requirement: { count: 1, of: 1 },
           condition: {
             type: 'threshold',
-            metric: 'supply_assets',
+            metric: 'Morpho.Position.supplyShares',
             operator: '>',
             value: 100,
           },
@@ -307,7 +336,7 @@ describe('Compiler', () => {
       const userCondition: AggregateCondition = {
         type: 'aggregate',
         aggregation: 'sum',
-        metric: 'market_total_supply',
+        metric: 'Morpho.Market.totalSupplyAssets',
         operator: '>',
         value: 10000000,
       };
@@ -329,13 +358,13 @@ describe('Compiler', () => {
       const conditions = [
         {
           type: 'threshold' as const,
-          metric: 'supply_assets' as const,
+          metric: 'Morpho.Position.supplyShares' as const,
           operator: '>' as const,
           value: 1000,
         },
         {
           type: 'threshold' as const,
-          metric: 'market_utilization' as const,
+          metric: 'Morpho.Market.utilization' as const,
           operator: '>' as const,
           value: 0.9,
         },
@@ -351,7 +380,7 @@ describe('Compiler', () => {
       const conditions = [
         {
           type: 'threshold' as const,
-          metric: 'supply_assets' as const,
+          metric: 'Morpho.Position.supplyShares' as const,
           operator: '<' as const,
           value: 100,
         },
@@ -366,7 +395,7 @@ describe('Compiler', () => {
       const conditions = [
         {
           type: 'threshold' as const,
-          metric: 'supply_assets' as const,
+          metric: 'Morpho.Position.supplyShares' as const,
           operator: '>' as const,
           value: 1000,
         },

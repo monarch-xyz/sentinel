@@ -28,6 +28,8 @@ import {
   SignalScope,
 } from '../types/signal.js';
 
+import { getMetric, MetricDef, isValidMetric, ChainedEventMetricDef, EventMetricDef, ComputedMetricDef } from './metrics.js';
+
 /**
  * Result of compiling a group condition - needs special handling
  * because it evaluates multiple addresses independently
@@ -68,37 +70,18 @@ const OPERATOR_MAP: Record<ComparisonOperator, ComparisonOp> = {
 };
 
 // ============================================
-// Metric to Entity/Field Mapping
+// Metric Resolution (uses registry)
 // ============================================
 
-interface MetricMapping {
-  entityType: string;
-  field: string;
-  isEvent?: boolean;
-  eventType?: string;
-  aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max';
+function resolveMetric(metricName: string): MetricDef {
+  const metric = getMetric(metricName);
+  if (!metric) {
+    throw new Error(
+      `Unknown metric: "${metricName}". Use qualified names like "Morpho.Position.supplyShares" or legacy names like "supply_assets".`
+    );
+  }
+  return metric;
 }
-
-const METRIC_MAPPINGS: Record<MetricType, MetricMapping> = {
-  // Position metrics (per address per market)
-  supply_assets: { entityType: 'Position', field: 'supplyShares' },
-  supply_shares: { entityType: 'Position', field: 'supplyShares' },
-  borrow_assets: { entityType: 'Position', field: 'borrowShares' },
-  borrow_shares: { entityType: 'Position', field: 'borrowShares' },
-  collateral_assets: { entityType: 'Position', field: 'collateral' },
-
-  // Market metrics (aggregate)
-  market_total_supply: { entityType: 'Market', field: 'totalSupplyAssets' },
-  market_total_borrow: { entityType: 'Market', field: 'totalBorrowAssets' },
-  market_utilization: { entityType: 'Market', field: '_computed_utilization' }, // Special handling
-  market_borrow_rate: { entityType: 'Market', field: 'borrowRate' },
-
-  // Flow metrics (event-based)
-  net_supply_flow: { entityType: 'Event', field: 'assets', isEvent: true, eventType: 'Supply', aggregation: 'sum' },
-  net_borrow_flow: { entityType: 'Event', field: 'assets', isEvent: true, eventType: 'Borrow', aggregation: 'sum' },
-  liquidation_volume: { entityType: 'Event', field: 'assets', isEvent: true, eventType: 'Liquidate', aggregation: 'sum' },
-  event_count: { entityType: 'Event', field: 'id', isEvent: true, eventType: 'Supply', aggregation: 'count' },
-};
 
 // ============================================
 // Helper Functions
@@ -108,11 +91,7 @@ function constant(value: number): Constant {
   return { type: 'constant', value };
 }
 
-function buildFilters(
-  metric: MetricType,
-  marketId?: string,
-  address?: string
-): Filter[] {
+function buildFilters(marketId?: string, address?: string): Filter[] {
   const filters: Filter[] = [];
 
   if (marketId) {
@@ -127,39 +106,116 @@ function buildFilters(
 }
 
 function buildStateRef(
-  metric: MetricType,
+  metricName: string,
   snapshot: 'current' | 'window_start' | string,
   marketId?: string,
   address?: string
 ): StateRef {
-  const mapping = METRIC_MAPPINGS[metric];
+  const metric = resolveMetric(metricName);
+
+  if (metric.kind !== 'state') {
+    throw new Error(`Metric "${metricName}" is not a state metric (got ${metric.kind})`);
+  }
 
   return {
     type: 'state',
-    entity_type: mapping.entityType,
-    filters: buildFilters(metric, marketId, address),
-    field: mapping.field,
+    entity_type: metric.entity,
+    filters: buildFilters(marketId, address),
+    field: metric.field,
     snapshot,
   };
 }
 
 function buildEventRef(
-  metric: MetricType,
+  metricName: string,
   marketId?: string,
   address?: string
 ): EventRef {
-  const mapping = METRIC_MAPPINGS[metric];
+  const metric = resolveMetric(metricName);
 
-  if (!mapping.isEvent || !mapping.eventType) {
-    throw new Error(`Metric ${metric} is not an event-based metric`);
+  if (metric.kind !== 'event') {
+    throw new Error(`Metric "${metricName}" is not an event metric (got ${metric.kind})`);
   }
 
   return {
     type: 'event',
-    event_type: mapping.eventType,
-    filters: buildFilters(metric, marketId, address),
-    field: mapping.field,
-    aggregation: mapping.aggregation || 'sum',
+    event_type: metric.eventType,
+    filters: buildFilters(marketId, address),
+    field: metric.field,
+    aggregation: metric.aggregation,
+  };
+}
+
+function isComputedMetric(metricName: string): boolean {
+  const metric = getMetric(metricName);
+  return metric?.kind === 'computed';
+}
+
+function isEventMetric(metricName: string): boolean {
+  const metric = getMetric(metricName);
+  return metric?.kind === 'event';
+}
+
+function isChainedEventMetric(metricName: string): boolean {
+  const metric = getMetric(metricName);
+  return metric?.kind === 'chained_event';
+}
+
+/**
+ * Builds an expression for a chained event metric (e.g., netSupply = Supply - Withdraw)
+ */
+function buildChainedEventExpression(
+  metricName: string,
+  marketId?: string,
+  address?: string
+): BinaryExpression {
+  const metric = getMetric(metricName);
+
+  if (!metric || metric.kind !== 'chained_event') {
+    throw new Error(`Metric "${metricName}" is not a chained event metric`);
+  }
+
+  const [leftMetric, rightMetric] = metric.operands;
+  const leftEvent = buildEventRef(leftMetric, marketId, address);
+  const rightEvent = buildEventRef(rightMetric, marketId, address);
+
+  return {
+    type: 'expression',
+    operator: metric.operation,
+    left: leftEvent,
+    right: rightEvent,
+  };
+}
+
+/**
+ * Builds an expression for a computed state metric (e.g., utilization = borrow / supply)
+ */
+function buildComputedExpression(
+  metricName: string,
+  snapshot: 'current' | 'window_start' | string,
+  marketId?: string,
+  address?: string
+): BinaryExpression {
+  const metric = getMetric(metricName);
+
+  if (!metric || metric.kind !== 'computed') {
+    throw new Error(`Metric "${metricName}" is not a computed metric`);
+  }
+
+  const [leftMetric, rightMetric] = metric.operands;
+  const leftState = buildStateRef(leftMetric, snapshot, marketId, address);
+  const rightState = buildStateRef(rightMetric, snapshot, marketId, address);
+
+  const operatorMap: Record<string, 'add' | 'sub' | 'mul' | 'div'> = {
+    ratio: 'div',
+    difference: 'sub',
+  };
+
+  return {
+    type: 'expression',
+    operator: operatorMap[metric.computation] || 'div',
+    left: leftState,
+    right: rightState,
   };
 }
 
@@ -169,27 +225,24 @@ function buildEventRef(
 
 /**
  * Compiles a threshold condition:
- * { type: 'threshold', metric: 'supply_assets', operator: '>', value: 1000 }
+ * { type: 'threshold', metric: 'Morpho.Position.supplyShares', operator: '>', value: 1000 }
  * 
- * → { left: StateRef(supply_assets), operator: 'gt', right: Constant(1000) }
+ * → { left: StateRef(supplyShares), operator: 'gt', right: Constant(1000) }
  */
 function compileThreshold(cond: ThresholdCondition): InternalCondition {
-  const mapping = METRIC_MAPPINGS[cond.metric];
   let left: ExpressionNode;
 
-  if (mapping.isEvent) {
+  if (isChainedEventMetric(cond.metric)) {
+    // Chained events: e.g., Morpho.Flow.netSupply = Supply - Withdraw
+    left = buildChainedEventExpression(cond.metric, cond.market_id, cond.address);
+  } else if (isEventMetric(cond.metric)) {
+    // Single event aggregation
     left = buildEventRef(cond.metric, cond.market_id, cond.address);
-  } else if (cond.metric === 'market_utilization') {
-    // Special case: utilization = totalBorrow / totalSupply
-    const borrow = buildStateRef('market_total_borrow', 'current', cond.market_id);
-    const supply = buildStateRef('market_total_supply', 'current', cond.market_id);
-    left = {
-      type: 'expression',
-      operator: 'div',
-      left: borrow,
-      right: supply,
-    };
+  } else if (isComputedMetric(cond.metric)) {
+    // Computed state metrics: e.g., Morpho.Market.utilization = borrow / supply
+    left = buildComputedExpression(cond.metric, 'current', cond.market_id, cond.address);
   } else {
+    // Simple state metric
     left = buildStateRef(cond.metric, 'current', cond.market_id, cond.address);
   }
 
@@ -356,14 +409,18 @@ function compileGroup(cond: GroupCondition): CompiledGroupCondition {
  * This creates an event-based aggregation across the scope
  */
 function compileAggregate(cond: AggregateCondition): InternalCondition {
-  const mapping = METRIC_MAPPINGS[cond.metric];
+  const metric = resolveMetric(cond.metric);
+
+  if (metric.kind !== 'state') {
+    throw new Error(`Aggregate conditions currently only support state metrics, got ${metric.kind}`);
+  }
 
   // For aggregate conditions, we use the state directly (the indexer pre-aggregates market totals)
   const left: StateRef = {
     type: 'state',
-    entity_type: mapping.entityType,
+    entity_type: metric.entity,
     filters: [],
-    field: mapping.field,
+    field: metric.field,
     snapshot: 'current',
   };
 

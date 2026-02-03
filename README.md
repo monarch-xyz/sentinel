@@ -2,55 +2,69 @@
 
 > **Composable Signal Monitoring for DeFi — by Monarch**
 
-Flare enables sophisticated, multi-condition monitoring of blockchain data. It's designed to be protocol-agnostic, efficient, and highly extensible.
+Flare enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Flare handles the evaluation, time-travel queries, and webhook delivery.
 
-## 🚀 API Usage
+## Quick Example
 
-Flare exposes a REST API for managing signals. All requests require an `X-API-Key`.
-
-### Create a Signal
-`POST /api/v1/signals`
+"Alert when a whale's position drops 20% over 7 days":
 
 ```json
 {
   "name": "Whale Position Drop",
   "chains": [1],
   "window": { "duration": "7d" },
-  "condition": {
-    "type": "condition",
-    "operator": "lt",
-    "left": {
-      "type": "event",
-      "event_type": "Withdraw",
-      "filters": [{"field": "user", "op": "eq", "value": "0xwhale..."}],
-      "field": "assets",
-      "aggregation": "sum"
-    },
-    "right": { "type": "constant", "value": 1000000000000 }
-  },
+  "conditions": [{
+    "type": "change",
+    "metric": "Morpho.Position.supplyShares",
+    "direction": "decrease",
+    "by": { "percent": 20 },
+    "address": "0xwhale..."
+  }],
   "webhook_url": "https://your-webhook.com/alerts"
 }
 ```
 
-## 🧩 Defining the DSL
+## Documentation
 
-Flare uses a tree-based DSL composed of four primitives:
+| Doc | Purpose |
+|-----|---------|
+| [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | Full technical reference, DSL syntax, metrics, evaluation flow |
+| [**API.md**](./docs/API.md) | REST API endpoints and examples |
+| [**GETTING_STARTED.md**](./docs/GETTING_STARTED.md) | Local development setup |
+| [**DESIGN_DECISIONS.md**](./docs/DESIGN_DECISIONS.md) | Architecture decision log |
+| [**SUPPORTED_CHAINS.md**](./docs/SUPPORTED_CHAINS.md) | Chain IDs and RPC configuration |
 
-1. **EventRef**: Aggregates events over the time window.
-   - `Supply`, `Withdraw`, `Borrow`, etc.
-2. **StateRef**: Reads entity state at `current` or `window_start`.
-   - `Position.supply_assets`, `Market.total_supply`, etc.
-3. **Expression**: Composable math operations (`add`, `sub`, `mul`, `div`).
-   - Example: `Supply.assets - Withdraw.assets`
-4. **Condition**: Compares two expressions using operators (`gt`, `lt`, `eq`, etc.).
+## Key Concepts
 
-## 🏗️ Architecture
+### Metrics (Extensible)
+```
+Morpho.Position.supplyShares    # User positions
+Morpho.Market.totalSupplyAssets # Market aggregates
+Morpho.Market.utilization       # Computed metrics
+Morpho.Event.Supply.assets      # Event aggregations
+```
 
-- **Data Source**: Envio GraphQL (Supports time-travel queries via block height).
-- **Execution**: Recursive tree-walker for expression evaluation.
-- **Scaling**: BullMQ-based job distribution for workers.
-- **Notifications**: Pure Webhook architecture. Telegram/Discord are handled via external tunnels.
+### Condition Types
+- **Threshold** — value > X
+- **Change** — value changed by X%
+- **Group** — N of M addresses meet condition
+- **Aggregate** — sum/avg across scope
 
-## 🛠️ Development
+### Architecture
+```
+User DSL → Compiler → Expression Tree → Evaluator → Envio → Result → Webhook
+```
 
-See [GETTING_STARTED.md](./docs/GETTING_STARTED.md) for local setup and [DESIGN.md](./docs/DESIGN.md) for full technical RFC.
+## Development
+
+```bash
+pnpm install
+docker compose up -d    # PostgreSQL + Redis
+pnpm db:migrate
+pnpm dev               # Start all services
+pnpm test              # Run tests
+```
+
+## Status
+
+See [TODO.md](./TODO.md) for implementation progress.

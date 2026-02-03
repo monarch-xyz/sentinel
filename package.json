@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "test:integration": "vitest run tests/integration/"
+    "test:integration": "vitest run tests/integration/",
+    "test:condition": "tsx src/scripts/test-condition.ts"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",
