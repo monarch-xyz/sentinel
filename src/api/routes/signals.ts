@@ -1,21 +1,49 @@
 import express from 'express';
 import { SignalRepository } from '../../db/index.js';
 import { CreateSignalSchema, UpdateSignalSchema } from '../validators.js';
+import { compileSignalDefinition } from '../../engine/compile-signal.js';
+import { ValidationError } from '../../utils/validation.js';
 import pino from 'pino';
 
 const logger = (pino as any)() as pino.Logger;
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
 
+function parseDefinition(definition: unknown): unknown {
+  if (typeof definition !== 'string') return definition;
+  try {
+    return JSON.parse(definition);
+  } catch {
+    return definition;
+  }
+}
+
+function formatSignalForResponse(signal: any) {
+  const rawDefinition = parseDefinition(signal.definition);
+  const definition =
+    rawDefinition && typeof rawDefinition === 'object' && 'dsl' in (rawDefinition as any)
+      ? (rawDefinition as any).dsl
+      : rawDefinition;
+
+  return {
+    ...signal,
+    definition,
+  };
+}
+
 // Create Signal
 router.post('/', async (req, res) => {
   try {
     const validated = CreateSignalSchema.parse(req.body);
-    const signal = await repo.create(validated);
-    res.status(201).json(signal);
+    const compiled = compileSignalDefinition(validated.definition);
+    const signal = await repo.create({ ...validated, definition: compiled });
+    res.status(201).json(formatSignalForResponse(signal));
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return res.status(400).json({ error: 'Validation failed', details: error.errors });
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.message, field: error.field });
     }
     logger.error({ error: error.message }, 'Failed to create signal');
     res.status(500).json({ error: 'Internal server error' });
@@ -27,7 +55,7 @@ router.get('/', async (req, res) => {
   try {
     const activeOnly = req.query.active === 'true';
     const signals = await repo.list(activeOnly);
-    res.json(signals);
+    res.json(signals.map(formatSignalForResponse));
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -38,7 +66,7 @@ router.get('/:id', async (req, res) => {
   try {
     const signal = await repo.getById(req.params.id);
     if (!signal) return res.status(404).json({ error: 'Signal not found' });
-    res.json(signal);
+    res.json(formatSignalForResponse(signal));
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -58,12 +86,18 @@ router.delete('/:id', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const validated = UpdateSignalSchema.parse(req.body);
-    const signal = await repo.update(req.params.id, validated);
+    const payload = validated.definition
+      ? { ...validated, definition: compileSignalDefinition(validated.definition) }
+      : validated;
+    const signal = await repo.update(req.params.id, payload);
     if (!signal) return res.status(404).json({ error: 'Signal not found' });
-    res.json(signal);
+    res.json(formatSignalForResponse(signal));
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return res.status(400).json({ error: 'Validation failed', details: error.errors });
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.message, field: error.field });
     }
     logger.error({ error: error.message }, 'Failed to update signal');
     res.status(500).json({ error: 'Internal server error' });
@@ -77,7 +111,7 @@ router.patch('/:id/toggle', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Signal not found' });
 
     const signal = await repo.update(req.params.id, { is_active: !existing.is_active });
-    res.json(signal);
+    res.json(formatSignalForResponse(signal));
   } catch (error: any) {
     logger.error({ error: error.message }, 'Failed to toggle signal');
     res.status(500).json({ error: 'Internal server error' });

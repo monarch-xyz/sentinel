@@ -2,6 +2,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import { pool } from '../db/index.js';
 import { SignalEvaluator } from '../engine/condition.js';
 import { createMorphoFetcher } from '../engine/morpho-fetcher.js';
+import { normalizeStoredDefinition } from '../engine/compile-signal.js';
 import { EnvioClient } from '../envio/client.js';
 import { dispatchNotification } from './notifier.js';
 import { connection } from './connection.js';
@@ -29,7 +30,28 @@ export const setupWorker = () => {
       const signal = rows[0];
       if (!signal || !signal.is_active) return;
 
-      const result = await evaluator.evaluate(signal);
+      const rawDefinition =
+        typeof signal.definition === 'string' ? JSON.parse(signal.definition) : signal.definition;
+      const storedDefinition = normalizeStoredDefinition(rawDefinition);
+      const evalSignal = {
+        id: signal.id,
+        name: signal.name,
+        description: signal.description,
+        chains: storedDefinition.ast.chains,
+        window: storedDefinition.ast.window,
+        condition: storedDefinition.ast.condition,
+        conditions: storedDefinition.ast.conditions,
+        logic: storedDefinition.ast.logic,
+        webhook_url: signal.webhook_url,
+        cooldown_minutes: signal.cooldown_minutes,
+        is_active: signal.is_active,
+        last_triggered_at: signal.last_triggered_at,
+        last_evaluated_at: signal.last_evaluated_at,
+      };
+
+      const evalStart = Date.now();
+      const result = await evaluator.evaluate(evalSignal as any);
+      const evaluationDurationMs = Date.now() - evalStart;
       
       if (result.triggered) {
         logger.info({ signalId }, 'Signal triggered! Sending notification');
@@ -43,7 +65,7 @@ export const setupWorker = () => {
             signal_id: signal.id,
             signal_name: signal.name,
             triggered_at: new Date(result.timestamp).toISOString(),
-            scope: signal.definition.chains,
+            scope: storedDefinition.dsl?.scope ?? { chains: storedDefinition.ast.chains },
             conditions_met: [], 
             context: {}
           };
@@ -56,8 +78,8 @@ export const setupWorker = () => {
           );
 
           await pool.query(
-            'INSERT INTO notification_log (signal_id, triggered_at, payload, webhook_status, duration_ms) VALUES ($1, NOW(), $2, $3, $4)',
-            [signalId, JSON.stringify(payload), notifyResult.status, notifyResult.durationMs]
+            'INSERT INTO notification_log (signal_id, triggered_at, payload, webhook_status, evaluation_duration_ms, delivery_duration_ms) VALUES ($1, NOW(), $2, $3, $4, $5)',
+            [signalId, JSON.stringify(payload), notifyResult.status, evaluationDurationMs, notifyResult.durationMs]
           );
         } else {
           logger.info({ signalId }, 'Signal triggered but in cooldown');

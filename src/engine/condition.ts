@@ -5,14 +5,220 @@
  * is handled by DataFetcher implementations (e.g., MorphoDataFetcher).
  */
 
-import { evaluateCondition, EvalContext } from './evaluator.js';
-import { Signal } from '../types/index.js';
+import { evaluateCondition, evaluateNode, EvalContext } from './evaluator.js';
+import {
+  Condition as AstCondition,
+  ComparisonOp,
+  ExpressionNode,
+  EventRef,
+  Filter,
+  StateRef,
+} from '../types/index.js';
+import {
+  buildMetricExpression,
+  isSimpleCondition,
+  type CompiledAggregateCondition,
+  type CompiledCondition,
+} from './compiler.js';
+import { getMetric } from './metrics.js';
 import { parseDuration } from '../utils/duration.js';
 import type { DataFetcher } from './fetcher.js';
 import pino from 'pino';
 
 const pinoFactory = (pino as unknown as { default: typeof pino }).default ?? pino;
 const logger = pinoFactory({ name: 'signal-evaluator' });
+
+function getMetricEntity(metricName: string): 'Position' | 'Market' | 'Event' | 'Unknown' {
+  const metric = getMetric(metricName);
+  if (!metric) return 'Unknown';
+  if (metric.kind === 'state') return metric.entity as 'Position' | 'Market';
+  if (metric.kind === 'computed') {
+    return getMetricEntity(metric.operands[0]);
+  }
+  if (metric.kind === 'event' || metric.kind === 'chained_event') return 'Event';
+  return 'Unknown';
+}
+
+function upsertUserFilter(filters: Filter[], address: string): Filter[] {
+  const next = filters.filter((filter) => filter.field !== 'user');
+  next.push({ field: 'user', op: 'eq', value: address });
+  return next;
+}
+
+function applyUserFilterToNode(node: ExpressionNode, address: string): ExpressionNode {
+  switch (node.type) {
+    case 'constant':
+      return node;
+    case 'state':
+      return { ...node, filters: upsertUserFilter(node.filters, address) };
+    case 'event':
+      return { ...node, filters: upsertUserFilter(node.filters, address) };
+    case 'expression':
+      return {
+        ...node,
+        left: applyUserFilterToNode(node.left, address),
+        right: applyUserFilterToNode(node.right, address),
+      };
+    default:
+      return node;
+  }
+}
+
+function compareValues(left: number, operator: ComparisonOp, right: number): boolean {
+  switch (operator) {
+    case 'gt':
+      return left > right;
+    case 'gte':
+      return left >= right;
+    case 'lt':
+      return left < right;
+    case 'lte':
+      return left <= right;
+    case 'eq':
+      return left === right;
+    case 'neq':
+      return left !== right;
+    default:
+      return false;
+  }
+}
+
+function aggregateValues(values: number[], aggregation: CompiledAggregateCondition['aggregation']): number {
+  if (values.length === 0) return 0;
+  switch (aggregation) {
+    case 'sum':
+      return values.reduce((acc, value) => acc + value, 0);
+    case 'avg':
+      return values.reduce((acc, value) => acc + value, 0) / values.length;
+    case 'min':
+      return Math.min(...values);
+    case 'max':
+      return Math.max(...values);
+    case 'count':
+      return values.length;
+    default:
+      return 0;
+  }
+}
+
+function buildAggregateTargets(cond: CompiledAggregateCondition): Array<{ marketId?: string; address?: string }> {
+  const metricEntity = getMetricEntity(cond.metric);
+  const marketIds = cond.marketIds && cond.marketIds.length > 0 ? cond.marketIds : undefined;
+  const addresses = cond.addresses && cond.addresses.length > 0 ? cond.addresses : undefined;
+
+  if (metricEntity === 'Market') {
+    if (!marketIds) return [];
+    return marketIds.map((marketId) => ({ marketId }));
+  }
+
+  if (metricEntity === 'Position') {
+    if (!marketIds || !addresses) return [];
+    const targets: Array<{ marketId?: string; address?: string }> = [];
+    for (const marketId of marketIds) {
+      for (const address of addresses) {
+        targets.push({ marketId, address });
+      }
+    }
+    return targets;
+  }
+
+  const targets: Array<{ marketId?: string; address?: string }> = [];
+  const marketsForEvents = marketIds ?? [undefined];
+  const addressesForEvents = addresses ?? [undefined];
+  for (const marketId of marketsForEvents) {
+    for (const address of addressesForEvents) {
+      targets.push({ marketId, address });
+    }
+  }
+  return targets;
+}
+
+async function evaluateAggregateCondition(
+  cond: CompiledAggregateCondition,
+  context: EvalContext
+): Promise<boolean> {
+  const targets = buildAggregateTargets(cond);
+  if (targets.length === 0) {
+    throw new Error('Aggregate condition has no targets to evaluate');
+  }
+
+  const values: number[] = [];
+
+  for (const target of targets) {
+    const expression = buildMetricExpression(
+      cond.metric,
+      'current',
+      cond.chainId,
+      target.marketId,
+      target.address
+    );
+    const value = await evaluateNode(expression, context);
+    values.push(value);
+  }
+
+  const aggregated = aggregateValues(values, cond.aggregation);
+  return compareValues(aggregated, cond.operator, cond.value);
+}
+
+async function evaluateGroupCondition(
+  cond: Extract<CompiledCondition, { type: 'group' }>,
+  context: EvalContext
+): Promise<boolean> {
+  let triggeredCount = 0;
+  const total = cond.addresses.length;
+  const required = cond.requirement.count;
+
+  for (let i = 0; i < total; i++) {
+    const address = cond.addresses[i];
+    const left = applyUserFilterToNode(cond.perAddressCondition.left, address);
+    const right = applyUserFilterToNode(cond.perAddressCondition.right, address);
+    const triggered = await evaluateCondition(left, cond.perAddressCondition.operator, right, context);
+
+    if (triggered) {
+      triggeredCount += 1;
+      if (triggeredCount >= required) return true;
+    }
+
+    const remaining = total - (i + 1);
+    if (triggeredCount + remaining < required) return false;
+  }
+
+  return triggeredCount >= required;
+}
+
+async function evaluateCompiledCondition(cond: CompiledCondition, context: EvalContext): Promise<boolean> {
+  if (isSimpleCondition(cond)) {
+    return evaluateCondition(cond.left, cond.operator, cond.right, context);
+  }
+  if (cond.type === 'group') {
+    return evaluateGroupCondition(cond, context);
+  }
+  return evaluateAggregateCondition(cond, context);
+}
+
+export async function evaluateConditionSet(
+  conditions: CompiledCondition[],
+  logic: 'AND' | 'OR',
+  context: EvalContext
+): Promise<boolean> {
+  if (conditions.length === 0) {
+    throw new Error('No conditions provided for evaluation');
+  }
+
+  if (logic === 'AND') {
+    for (const condition of conditions) {
+      const triggered = await evaluateCompiledCondition(condition, context);
+      if (!triggered) return false;
+    }
+    return true;
+  }
+
+  for (const condition of conditions) {
+    const triggered = await evaluateCompiledCondition(condition, context);
+    if (triggered) return true;
+  }
+  return false;
+}
 
 export interface SignalEvaluationResult {
   signalId: string;
@@ -22,6 +228,22 @@ export interface SignalEvaluationResult {
   error?: string;
   /** Whether the result is conclusive (false if data fetch failed) */
   conclusive: boolean;
+}
+
+export interface EvaluatableSignal {
+  id: string;
+  name?: string;
+  description?: string;
+  chains: number[];
+  window: { duration: string };
+  condition?: AstCondition;
+  conditions?: CompiledCondition[];
+  logic?: 'AND' | 'OR';
+  webhook_url?: string;
+  cooldown_minutes?: number;
+  is_active?: boolean;
+  last_triggered_at?: string | Date;
+  last_evaluated_at?: string | Date;
 }
 
 export class SignalEvaluator {
@@ -36,7 +258,7 @@ export class SignalEvaluator {
     this.fetcher = fetcher;
   }
 
-  async evaluate(signal: Signal): Promise<SignalEvaluationResult> {
+  async evaluate(signal: EvaluatableSignal): Promise<SignalEvaluationResult> {
     const now = Date.now();
     const defaultChainId = signal.chains[0] ?? 1;
 
@@ -54,12 +276,9 @@ export class SignalEvaluator {
         fetchEvents: (ref, start, end) => this.fetcher.fetchEvents(ref, start, end),
       };
 
-      const triggered = await evaluateCondition(
-        signal.condition.left,
-        signal.condition.operator,
-        signal.condition.right,
-        context
-      );
+      const conditions = signal.conditions ?? (signal.condition ? [signal.condition] : []);
+      const logic = signal.logic ?? 'AND';
+      const triggered = await evaluateConditionSet(conditions, logic, context);
 
       return {
         signalId: signal.id,

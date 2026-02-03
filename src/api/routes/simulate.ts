@@ -1,18 +1,14 @@
 import express from 'express';
 import { SignalRepository } from '../../db/index.js';
-import { SignalEvaluator } from '../../engine/condition.js';
-import { createMorphoFetcher } from '../../engine/morpho-fetcher.js';
-import { EnvioClient } from '../../envio/client.js';
+import { normalizeStoredDefinition } from '../../engine/compile-signal.js';
 import { resolveBlockByTimestamp } from '../../envio/blocks.js';
+import { parseDuration } from '../../utils/duration.js';
 import { z } from 'zod';
 import pino from 'pino';
 
 const logger = (pino as any)() as pino.Logger;
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
-const envio = new EnvioClient();
-const fetcher = createMorphoFetcher(envio, { chainId: 1 });
-const evaluator = new SignalEvaluator(fetcher);
 
 const SimulateSchema = z.object({
   start_time: z.string().datetime(),
@@ -27,6 +23,9 @@ router.post('/:id/simulate', async (req, res) => {
     
     if (!signal) return res.status(404).json({ error: 'Signal not found' });
 
+    const storedDefinition = normalizeStoredDefinition(signal.definition);
+    const compiled = storedDefinition.ast;
+
     const startTs = new Date(start_time).getTime();
     const endTs = new Date(end_time).getTime();
     const triggers = [];
@@ -36,10 +35,11 @@ router.post('/:id/simulate', async (req, res) => {
     // Simulate in steps
     for (let currentTs = startTs; currentTs <= endTs; currentTs += interval_ms) {
       // Manual context override for simulation
-      const durationMs = parseDuration(signal.definition.window.duration);
+      const durationMs = parseDuration(compiled.window.duration);
       const windowStart = currentTs - durationMs;
-      const currentBlock = await resolveBlockByTimestamp(signal.definition.chains[0] || 1, currentTs);
-      const windowStartBlock = await resolveBlockByTimestamp(signal.definition.chains[0] || 1, windowStart);
+      const chainId = compiled.chains[0] || 1;
+      const currentBlock = await resolveBlockByTimestamp(chainId, currentTs);
+      const windowStartBlock = await resolveBlockByTimestamp(chainId, windowStart);
 
       // Note: This is a simplified simulation loop
       // In a full impl, we'd pass a custom context to evaluator.evaluate()
@@ -63,19 +63,5 @@ router.post('/:id/simulate', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-// Simple duration parser helper
-function parseDuration(duration: string): number {
-  const match = duration.match(/^(\d+)([smhd])$/);
-  if (!match) return 3600000;
-  const value = parseInt(match[1]!, 10);
-  switch (match[2]) {
-    case 's': return value * 1000;
-    case 'm': return value * 60000;
-    case 'h': return value * 3600000;
-    case 'd': return value * 86400000;
-    default: return 3600000;
-  }
-}
 
 export default router;

@@ -1,5 +1,7 @@
-import { Signal, ComparisonOp } from '../types/index.js';
-import { EvalContext, evaluateNode, evaluateCondition, parseDuration } from './evaluator.js';
+import { Signal, ComparisonOp, Condition as AstCondition } from '../types/index.js';
+import { EvalContext, evaluateNode, parseDuration } from './evaluator.js';
+import { evaluateConditionSet } from './condition.js';
+import { isSimpleCondition, type CompiledCondition } from './compiler.js';
 import { EnvioClient } from '../envio/client.js';
 import { resolveBlockByTimestamp } from '../envio/blocks.js';
 import { createMorphoFetcher } from './morpho-fetcher.js';
@@ -12,9 +14,9 @@ export interface SimulationRequest {
 
 export interface SimulationResult {
   triggered: boolean;       // Did condition evaluate to true?
-  leftValue: number;        // Evaluated left side of condition
-  rightValue: number;       // Evaluated right side of condition
-  operator: ComparisonOp;   // The comparison operator
+  leftValue?: number;        // Evaluated left side of condition (single condition only)
+  rightValue?: number;       // Evaluated right side of condition (single condition only)
+  operator?: ComparisonOp;   // The comparison operator (single condition only)
   evaluatedAt: number;      // The timestamp used for evaluation
   windowStart: number;      // The calculated window start
   blockNumbers: {
@@ -69,19 +71,23 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     },
   };
   
-  // Evaluate both sides of the condition to get values
-  const [leftValue, rightValue] = await Promise.all([
-    evaluateNode(signal.condition.left, context),
-    evaluateNode(signal.condition.right, context),
-  ]);
-  
-  // Evaluate the full condition
-  const triggered = await evaluateCondition(
-    signal.condition.left,
-    signal.condition.operator,
-    signal.condition.right,
-    context
-  );
+  const conditions = signal.conditions ?? (signal.condition ? [signal.condition] : []);
+  const logic = signal.logic ?? 'AND';
+
+  let leftValue: number | undefined;
+  let rightValue: number | undefined;
+  let operator: ComparisonOp | undefined;
+
+  if (conditions.length === 1 && isSimpleCondition(conditions[0] as CompiledCondition)) {
+    const simple = conditions[0] as AstCondition;
+    [leftValue, rightValue] = await Promise.all([
+      evaluateNode(simple.left, context),
+      evaluateNode(simple.right, context),
+    ]);
+    operator = simple.operator;
+  }
+
+  const triggered = await evaluateConditionSet(conditions as CompiledCondition[], logic, context);
   
   const executionTimeMs = Date.now() - startTime;
   
@@ -89,7 +95,7 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     triggered,
     leftValue,
     rightValue,
-    operator: signal.condition.operator,
+    operator,
     evaluatedAt: atTimestamp,
     windowStart,
     blockNumbers: {

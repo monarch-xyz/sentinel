@@ -20,6 +20,7 @@ export {
 } from './compiler.js';
 export type {
   CompiledCondition,
+  CompiledAggregateCondition,
   CompiledGroupCondition,
   CompilationContext,
 } from './compiler.js';

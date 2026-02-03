@@ -43,9 +43,23 @@ export interface CompiledGroupCondition {
 }
 
 /**
+ * Result of compiling an aggregate condition - evaluated across scope.
+ */
+export interface CompiledAggregateCondition {
+  type: 'aggregate';
+  aggregation: AggregateCondition['aggregation'];
+  metric: MetricType;
+  operator: ComparisonOp;
+  value: number;
+  chainId: number;
+  marketIds?: string[];
+  addresses?: string[];
+}
+
+/**
  * A compiled condition - either a simple condition or a group
  */
-export type CompiledCondition = InternalCondition | CompiledGroupCondition;
+export type CompiledCondition = InternalCondition | CompiledGroupCondition | CompiledAggregateCondition;
 
 /**
  * Compilation context - provides scope information for building filters
@@ -288,6 +302,28 @@ function buildComputedExpression(
   };
 }
 
+/**
+ * Builds an expression for a metric (state, event, computed, chained).
+ */
+export function buildMetricExpression(
+  metricName: string,
+  snapshot: 'current' | 'window_start' | string,
+  chainId: number,
+  marketId?: string,
+  address?: string
+): ExpressionNode {
+  if (isChainedEventMetric(metricName)) {
+    return buildChainedEventExpression(metricName, chainId, marketId, address);
+  }
+  if (isEventMetric(metricName)) {
+    return buildEventRef(metricName, chainId, marketId, address);
+  }
+  if (isComputedMetric(metricName)) {
+    return buildComputedExpression(metricName, snapshot, chainId, marketId, address);
+  }
+  return buildStateRef(metricName, snapshot, chainId, marketId, address);
+}
+
 // ============================================
 // Condition Compilers
 // ============================================
@@ -343,6 +379,10 @@ function compileThreshold(cond: ThresholdCondition, opts: CompileOptions = {}): 
 function compileChange(cond: ChangeCondition, opts: CompileOptions = {}): InternalCondition {
   // Validate required filters (address validation skipped for group inner conditions)
   validateRequiredFilters(cond.metric, cond.chain_id, cond.market_id, cond.address, opts.isGroupInner);
+
+  if (cond.direction === 'any') {
+    throw new Error('Change direction "any" is not supported yet');
+  }
 
   // For group inner conditions, address may be undefined - added at eval time
   const current = buildStateRef(cond.metric, 'current', cond.chain_id, cond.market_id, cond.address);
@@ -493,32 +533,22 @@ function compileGroup(cond: GroupCondition): CompiledGroupCondition {
  * 
  * This creates an event-based aggregation across the scope
  */
-function compileAggregate(cond: AggregateCondition): InternalCondition {
+function compileAggregate(cond: AggregateCondition): CompiledAggregateCondition {
   // Validate chain_id is required
   if (cond.chain_id === undefined) {
     throw new Error(`chain_id is required for aggregate condition`);
   }
-  
-  const metric = resolveMetric(cond.metric);
 
-  if (metric.kind !== 'state') {
-    throw new Error(`Aggregate conditions currently only support state metrics, got ${metric.kind}`);
-  }
-
-  // For aggregate conditions, we use the state directly (the indexer pre-aggregates market totals)
-  const left: StateRef = {
-    type: 'state',
-    entity_type: metric.entity,
-    filters: buildFilters(cond.chain_id, cond.market_id),
-    field: metric.field,
-    snapshot: 'current',
-  };
+  resolveMetric(cond.metric);
 
   return {
-    type: 'condition',
-    left,
+    type: 'aggregate',
+    aggregation: cond.aggregation,
+    metric: cond.metric,
     operator: OPERATOR_MAP[cond.operator],
-    right: constant(cond.value),
+    value: cond.value,
+    chainId: cond.chain_id,
+    marketIds: cond.market_id ? [cond.market_id] : undefined,
   };
 }
 

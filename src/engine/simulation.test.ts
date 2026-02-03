@@ -15,14 +15,32 @@ vi.mock('../envio/blocks.js', () => ({
   resolveBlockByTimestamp: vi.fn(),
 }));
 
+vi.mock('../rpc/index.js', () => ({
+  readMarket: vi.fn(),
+  readMarketAtBlock: vi.fn(),
+  readPosition: vi.fn(),
+  readPositionAtBlock: vi.fn(),
+}));
+
 import { EnvioClient } from '../envio/client.js';
 import { resolveBlockByTimestamp } from '../envio/blocks.js';
+import { readMarketAtBlock } from '../rpc/index.js';
 
 describe('simulation', () => {
   const mockEnvioClient = {
     fetchState: vi.fn(),
     fetchEvents: vi.fn(),
   };
+
+  const createMarketResult = (overrides: Record<string, bigint> = {}) => ({
+    totalSupplyAssets: 0n,
+    totalSupplyShares: 0n,
+    totalBorrowAssets: 0n,
+    totalBorrowShares: 0n,
+    lastUpdate: 0n,
+    fee: 0n,
+    ...overrides,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -41,7 +59,7 @@ describe('simulation', () => {
       left: {
         type: 'state',
         entity_type: 'Market',
-        filters: [{ field: 'id', op: 'eq', value: 'test-market' }],
+        filters: [{ field: 'marketId', op: 'eq', value: 'test-market' }],
         field: 'totalBorrowAssets',
       },
       operator: 'gt',
@@ -65,10 +83,12 @@ describe('simulation', () => {
       // Mock block resolution
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000) // current block
-        .mockResolvedValueOnce(17990000); // window start block
+        .mockResolvedValueOnce(17990000) // window start block
+        .mockResolvedValue(17990000);
 
-      // Mock state fetch to return value above threshold
-      mockEnvioClient.fetchState.mockResolvedValue(2000000);
+      (readMarketAtBlock as any).mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 2000000n })
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
 
@@ -89,10 +109,12 @@ describe('simulation', () => {
 
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000)
-        .mockResolvedValueOnce(17990000);
+        .mockResolvedValueOnce(17990000)
+        .mockResolvedValue(17990000);
 
-      // Mock state fetch to return value below threshold
-      mockEnvioClient.fetchState.mockResolvedValue(500000);
+      (readMarketAtBlock as any).mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 500000n })
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
 
@@ -111,8 +133,11 @@ describe('simulation', () => {
 
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000)
-        .mockResolvedValueOnce(17900000);
-      mockEnvioClient.fetchState.mockResolvedValue(0);
+        .mockResolvedValueOnce(17900000)
+        .mockResolvedValue(17900000);
+      (readMarketAtBlock as any).mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 0n })
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
 
@@ -129,7 +154,7 @@ describe('simulation', () => {
           left: {
             type: 'state',
             entity_type: 'Market',
-            filters: [{ field: 'id', op: 'eq', value: 'test-market' }],
+            filters: [{ field: 'marketId', op: 'eq', value: 'test-market' }],
             field: 'totalBorrowAssets',
             snapshot: 'window_start', // Query at window start
           },
@@ -147,8 +172,11 @@ describe('simulation', () => {
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000) // current
         .mockResolvedValueOnce(17990000) // window start (for context)
-        .mockResolvedValueOnce(17990000); // window start (for state query)
-      mockEnvioClient.fetchState.mockResolvedValue(1500000);
+        .mockResolvedValueOnce(17990000) // window start (for state query)
+        .mockResolvedValue(17990000);
+      (readMarketAtBlock as any).mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 1500000n })
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
 
@@ -180,7 +208,8 @@ describe('simulation', () => {
 
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000)
-        .mockResolvedValueOnce(17990000);
+        .mockResolvedValueOnce(17990000)
+        .mockResolvedValue(17990000);
       mockEnvioClient.fetchEvents.mockResolvedValue(750000);
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
@@ -204,13 +233,13 @@ describe('simulation', () => {
             left: {
               type: 'state',
               entity_type: 'Market',
-              filters: [{ field: 'id', op: 'eq', value: 'test-market' }],
+              filters: [{ field: 'marketId', op: 'eq', value: 'test-market' }],
               field: 'totalBorrowAssets',
             },
             right: {
               type: 'state',
               entity_type: 'Market',
-              filters: [{ field: 'id', op: 'eq', value: 'test-market' }],
+              filters: [{ field: 'marketId', op: 'eq', value: 'test-market' }],
               field: 'totalSupplyAssets',
             },
           },
@@ -227,14 +256,12 @@ describe('simulation', () => {
 
       (resolveBlockByTimestamp as any)
         .mockResolvedValueOnce(18000000)
-        .mockResolvedValueOnce(17990000);
+        .mockResolvedValueOnce(17990000)
+        .mockResolvedValue(17990000);
       
-      // First call for totalBorrowAssets, second for totalSupplyAssets
-      mockEnvioClient.fetchState
-        .mockResolvedValueOnce(950000) // borrow
-        .mockResolvedValueOnce(1000000) // supply
-        .mockResolvedValueOnce(950000) // borrow (second evaluation for condition)
-        .mockResolvedValueOnce(1000000); // supply
+      (readMarketAtBlock as any).mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 950000n, totalSupplyAssets: 1000000n })
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId });
 
@@ -271,7 +298,8 @@ describe('simulation', () => {
 
         (resolveBlockByTimestamp as any)
           .mockResolvedValueOnce(18000000)
-          .mockResolvedValueOnce(17990000);
+          .mockResolvedValueOnce(17990000)
+          .mockResolvedValue(17990000);
 
         const result = await simulateSignal({ signal, atTimestamp: Date.now(), chainId: 1 });
 
@@ -359,7 +387,7 @@ describe('simulation', () => {
       // Track simulation calls (each simulateSignal = 2 fetchState calls)
       let simulationIndex = 0;
       
-      mockEnvioClient.fetchState.mockImplementation(async () => {
+      (readMarketAtBlock as any).mockImplementation(async () => {
         // Each simulation increments twice, so divide by 2 to get simulation number
         const simNum = Math.floor(simulationIndex / 2);
         simulationIndex++;
@@ -367,9 +395,9 @@ describe('simulation', () => {
         // Simulation 0 = end check → should trigger
         // Simulation 1 = start check → should NOT trigger
         // Simulation 2+ = binary search → all trigger to converge quickly
-        if (simNum === 0) return 2000000; // End triggers
-        if (simNum === 1) return 500000;  // Start doesn't trigger
-        return 2000000; // Binary search finds triggers
+        if (simNum === 0) return createMarketResult({ totalBorrowAssets: 2000000n }); // End triggers
+        if (simNum === 1) return createMarketResult({ totalBorrowAssets: 500000n });  // Start doesn't trigger
+        return createMarketResult({ totalBorrowAssets: 2000000n }); // Binary search finds triggers
       });
 
       const result = await findFirstTrigger(

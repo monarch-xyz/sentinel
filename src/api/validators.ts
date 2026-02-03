@@ -1,67 +1,74 @@
 import { z } from 'zod';
 
-export const FilterOpSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains']);
-
-export const FilterSchema = z.object({
-  field: z.string(),
-  op: FilterOpSchema,
-  value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
+const SignalScopeSchema = z.object({
+  chains: z.array(z.number().int().positive()).min(1),
+  markets: z.array(z.string()).optional(),
+  addresses: z.array(z.string()).optional(),
+  protocol: z.enum(['morpho', 'all']).optional(),
 });
 
-export const EventRefSchema = z.object({
-  type: z.literal('event'),
-  event_type: z.string(),
-  filters: z.array(FilterSchema),
-  field: z.string(),
-  aggregation: z.enum(['sum', 'count', 'avg', 'min', 'max']),
+const TimeWindowSchema = z.object({
+  duration: z.string(),
+  lookback_blocks: z.number().int().positive().optional(),
 });
 
-export const StateRefSchema = z.object({
-  type: z.literal('state'),
-  entity_type: z.string(),
-  filters: z.array(FilterSchema),
-  field: z.string(),
-  snapshot: z.enum(['current', 'window_start']).optional(),
-});
+const ComparisonOperatorSchema = z.enum(['>', '<', '>=', '<=', '==', '!=']);
 
-export const ConstantSchema = z.object({
-  type: z.literal('constant'),
+const ThresholdConditionSchema = z.object({
+  type: z.literal('threshold'),
+  metric: z.string(),
+  operator: ComparisonOperatorSchema,
   value: z.number(),
+  chain_id: z.number().int().positive().optional(),
+  market_id: z.string().optional(),
+  address: z.string().optional(),
 });
 
-export type ExpressionNodeSchemaType = z.ZodType<any>; // For recursion
+const ChangeConditionSchema = z.object({
+  type: z.literal('change'),
+  metric: z.string(),
+  direction: z.enum(['increase', 'decrease', 'any']),
+  by: z.union([
+    z.object({ percent: z.number() }),
+    z.object({ absolute: z.number() }),
+  ]),
+  chain_id: z.number().int().positive().optional(),
+  market_id: z.string().optional(),
+  address: z.string().optional(),
+});
 
-export const MathOpSchema = z.enum(['add', 'sub', 'mul', 'div']);
+const GroupConditionSchema = z.object({
+  type: z.literal('group'),
+  addresses: z.array(z.string()).min(1),
+  requirement: z.object({
+    count: z.number().int().positive(),
+    of: z.number().int().positive(),
+  }),
+  condition: z.lazy(() => ConditionSchema),
+});
 
-export const BinaryExpressionSchema: ExpressionNodeSchemaType = z.lazy(() => z.object({
-  type: z.literal('expression'),
-  operator: MathOpSchema,
-  left: ExpressionNodeSchema,
-  right: ExpressionNodeSchema,
-}));
+const AggregateConditionSchema = z.object({
+  type: z.literal('aggregate'),
+  aggregation: z.enum(['sum', 'avg', 'min', 'max', 'count']),
+  metric: z.string(),
+  operator: ComparisonOperatorSchema,
+  value: z.number(),
+  chain_id: z.number().int().positive().optional(),
+  market_id: z.string().optional(),
+});
 
-export const ExpressionNodeSchema = z.union([
-  EventRefSchema,
-  StateRefSchema,
-  ConstantSchema,
-  BinaryExpressionSchema,
+const ConditionSchema = z.union([
+  ThresholdConditionSchema,
+  ChangeConditionSchema,
+  GroupConditionSchema,
+  AggregateConditionSchema,
 ]);
 
-export const ComparisonOpSchema = z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'neq']);
-
-export const ConditionSchema = z.object({
-  type: z.literal('condition'),
-  left: ExpressionNodeSchema,
-  operator: ComparisonOpSchema,
-  right: ExpressionNodeSchema,
-});
-
-export const SignalDefinitionSchema = z.object({
-  chains: z.array(z.number()),
-  window: z.object({
-    duration: z.string(),
-  }),
-  condition: ConditionSchema,
+const SignalDefinitionSchema = z.object({
+  scope: SignalScopeSchema,
+  conditions: z.array(ConditionSchema).min(1),
+  logic: z.enum(['AND', 'OR']).optional(),
+  window: TimeWindowSchema,
 });
 
 export const CreateSignalSchema = z.object({
@@ -79,6 +86,6 @@ export const UpdateSignalSchema = z.object({
   webhook_url: z.string().url().optional(),
   cooldown_minutes: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
-}).refine(data => Object.keys(data).length > 0, {
+}).refine((data) => Object.keys(data).length > 0, {
   message: 'At least one field must be provided for update',
 });

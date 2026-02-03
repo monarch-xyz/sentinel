@@ -67,7 +67,9 @@ export interface Signal {
   window: {
     duration: string;
   };
-  condition: Condition;
+  condition?: Condition;
+  conditions?: Condition[];
+  logic?: 'AND' | 'OR';
   webhook_url: string;
   cooldown_minutes: number;
   is_active: boolean;
