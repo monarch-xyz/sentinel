@@ -206,10 +206,12 @@ async function main() {
 
   let windowStartBlock: number;
   try {
+    console.log('⏳ Resolving block number for window start...');
+    const startTime = Date.now();
     windowStartBlock = await resolveBlockByTimestamp(args.chainId, windowStart);
-    if (args.verbose) {
-      console.log(`  Window start block: ${windowStartBlock}`);
-    }
+    const elapsed = Date.now() - startTime;
+    console.log(`✓ Window start block: ${windowStartBlock} (resolved in ${elapsed}ms)`);
+    console.log();
   } catch (e) {
     console.error('❌ Failed to resolve block number:', e instanceof Error ? e.message : e);
     process.exit(1);
