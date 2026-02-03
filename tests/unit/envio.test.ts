@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EnvioClient, BatchQuery, StateQuery, EventQuery } from '../../src/envio/client.js';
+import { EnvioClient, BatchQuery, StateQuery, EventQuery, EnvioQueryError } from '../../src/envio/client.js';
 
 // Mock the GraphQL client
 const mockRequest = vi.fn();
@@ -105,17 +105,15 @@ describe('EnvioClient', () => {
       expect(result).toBe(0);
     });
 
-    it('returns 0 on GraphQL error', async () => {
+    it('throws EnvioQueryError on GraphQL error', async () => {
       mockRequest.mockRejectedValue(new Error('GraphQL error'));
 
-      const result = await client.fetchState({
+      await expect(client.fetchState({
         type: 'state',
         entity_type: 'Position',
         filters: [{ field: 'user', op: 'eq', value: '0x123' }],
         field: 'supplyShares'
-      });
-
-      expect(result).toBe(0);
+      })).rejects.toThrow(EnvioQueryError);
     });
   });
 
@@ -446,7 +444,7 @@ describe('EnvioClient', () => {
       expect(mockRequest).not.toHaveBeenCalled();
     });
 
-    it('returns zeros for all queries on error', async () => {
+    it('throws EnvioQueryError on batch query failure', async () => {
       mockRequest.mockRejectedValue(new Error('GraphQL error'));
 
       const queries: BatchQuery[] = [
@@ -475,12 +473,7 @@ describe('EnvioClient', () => {
         }
       ];
 
-      const results = await client.batchQueries(queries);
-
-      expect(results).toEqual({
-        q1: 0,
-        q2: 0
-      });
+      await expect(client.batchQueries(queries)).rejects.toThrow(EnvioQueryError);
     });
 
     it('includes block number in state query with time-travel', async () => {

@@ -449,7 +449,7 @@ describe('SignalEvaluator', () => {
       expect(result.triggered).toBe(true);
     });
 
-    it('defaults to 1h for invalid duration', async () => {
+    it('returns inconclusive result for invalid duration', async () => {
       const signal = createSignal(
         {
           type: 'condition',
@@ -462,7 +462,8 @@ describe('SignalEvaluator', () => {
 
       const evaluator = new SignalEvaluator(mockEnvioClient);
       const result = await evaluator.evaluate(signal);
-      expect(result.triggered).toBe(true);
+      expect(result.conclusive).toBe(false);
+      expect(result.error).toContain('Invalid duration format');
     });
   });
 

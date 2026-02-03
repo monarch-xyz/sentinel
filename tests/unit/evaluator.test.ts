@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateNode, EvalContext } from '../../src/engine/evaluator.js';
+import { evaluateNode, EvalContext, EvaluationError } from '../../src/engine/evaluator.js';
 import { ExpressionNode } from '../../src/types/index.js';
 
 describe('Evaluator', () => {
@@ -29,14 +29,14 @@ describe('Evaluator', () => {
     expect(result).toBe(42);
   });
 
-  it('handles division by zero', async () => {
+  it('throws EvaluationError on division by zero', async () => {
     const node: ExpressionNode = {
       type: 'expression',
       operator: 'div',
       left: { type: 'constant', value: 10 },
       right: { type: 'constant', value: 0 }
     };
-    const result = await evaluateNode(node, mockContext);
-    expect(result).toBe(0);
+    await expect(evaluateNode(node, mockContext)).rejects.toThrow(EvaluationError);
+    await expect(evaluateNode(node, mockContext)).rejects.toThrow('Division by zero');
   });
 });

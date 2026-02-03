@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateNode, evaluateCondition, parseDuration, EvalContext } from './evaluator.js';
+import { evaluateNode, evaluateCondition, parseDuration, EvalContext, EvaluationError } from './evaluator.js';
 import { ExpressionNode, Constant, BinaryExpression, StateRef, EventRef, ComparisonOp } from '../types/index.js';
 
 // Helper to create a mock context
@@ -47,11 +47,16 @@ describe('parseDuration', () => {
     expect(parseDuration('2w')).toBe(14 * 24 * 60 * 60 * 1000);
   });
 
+  it('parses seconds', () => {
+    expect(parseDuration('30s')).toBe(30 * 1000);
+    expect(parseDuration('1s')).toBe(1000);
+  });
+
   it('throws on invalid format', () => {
     expect(() => parseDuration('invalid')).toThrow('Invalid duration format');
-    expect(() => parseDuration('10s')).toThrow('Invalid duration format'); // seconds not supported
     expect(() => parseDuration('')).toThrow('Invalid duration format');
     expect(() => parseDuration('1')).toThrow('Invalid duration format');
+    expect(() => parseDuration('1x')).toThrow('Invalid duration format');
   });
 });
 
@@ -150,11 +155,12 @@ describe('evaluateNode', () => {
       expect(await evaluateNode(expr(constant(7), 'div', constant(2)), ctx)).toBe(3.5);
     });
 
-    it('returns 0 for division by zero', async () => {
+    it('throws EvaluationError for division by zero', async () => {
       const ctx = createMockContext();
-      expect(await evaluateNode(expr(constant(10), 'div', constant(0)), ctx)).toBe(0);
-      expect(await evaluateNode(expr(constant(0), 'div', constant(0)), ctx)).toBe(0);
-      expect(await evaluateNode(expr(constant(-10), 'div', constant(0)), ctx)).toBe(0);
+      await expect(evaluateNode(expr(constant(10), 'div', constant(0)), ctx))
+        .rejects.toThrow(EvaluationError);
+      await expect(evaluateNode(expr(constant(10), 'div', constant(0)), ctx))
+        .rejects.toThrow('Division by zero');
     });
 
     it('handles negative numbers', async () => {
@@ -196,12 +202,12 @@ describe('evaluateNode', () => {
       expect(await evaluateNode(result, ctx)).toBe(10);
     });
 
-    it('handles division by zero in nested expression', async () => {
+    it('throws on division by zero in nested expression', async () => {
       const ctx = createMockContext();
-      // (10 / 0) + 5 = 0 + 5 = 5
+      // (10 / 0) + 5 should throw, not silently return 5
       const divByZero = expr(constant(10), 'div', constant(0));
       const result = expr(divByZero, 'add', constant(5));
-      expect(await evaluateNode(result, ctx)).toBe(5);
+      await expect(evaluateNode(result, ctx)).rejects.toThrow(EvaluationError);
     });
   });
 
@@ -503,11 +509,11 @@ describe('evaluateCondition', () => {
       expect(await evaluateCondition(left, 'gt', right, ctx)).toBe(true);
     });
 
-    it('handles division by zero in condition', async () => {
+    it('throws on division by zero in condition', async () => {
       const ctx = createMockContext();
-      // (10 / 0) = 0 => 0 eq 0 => true
+      // (10 / 0) should throw, not silently evaluate
       const left = expr(constant(10), 'div', constant(0));
-      expect(await evaluateCondition(left, 'eq', constant(0), ctx)).toBe(true);
+      await expect(evaluateCondition(left, 'eq', constant(0), ctx)).rejects.toThrow(EvaluationError);
     });
 
     it('handles complex nested expressions in condition', async () => {

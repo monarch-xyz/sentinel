@@ -1,4 +1,22 @@
 import { ExpressionNode, StateRef, EventRef, ComparisonOp } from '../types/index.js';
+import { parseDuration } from '../utils/duration.js';
+
+// Re-export for backwards compatibility
+export { parseDuration } from '../utils/duration.js';
+
+/**
+ * Error thrown during expression evaluation
+ */
+export class EvaluationError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'DIVISION_BY_ZERO' | 'FETCH_FAILED' | 'INVALID_NODE',
+    public readonly node?: ExpressionNode
+  ) {
+    super(message);
+    this.name = 'EvaluationError';
+  }
+}
 
 export interface EvalContext {
   chainId: number;
@@ -8,26 +26,6 @@ export interface EvalContext {
   // Methods to be implemented for data fetching
   fetchState: (ref: StateRef, timestamp?: number) => Promise<number>;
   fetchEvents: (ref: EventRef, start: number, end: number) => Promise<number>;
-}
-
-/**
- * Parses a duration string (e.g., "2d", "7d", "1h", "30m") into milliseconds
- */
-export function parseDuration(duration: string): number {
-  const match = duration.match(/^(\d+)(m|h|d|w)$/);
-  if (!match) throw new Error(`Invalid duration format: ${duration}`);
-  
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  
-  const multipliers: Record<string, number> = {
-    'm': 60 * 1000,           // minutes
-    'h': 60 * 60 * 1000,      // hours  
-    'd': 24 * 60 * 60 * 1000, // days
-    'w': 7 * 24 * 60 * 60 * 1000, // weeks
-  };
-  
-  return value * multipliers[unit];
 }
 
 /**
@@ -69,9 +67,29 @@ export async function evaluateNode(node: ExpressionNode, context: EvalContext): 
         case 'add': return left + right;
         case 'sub': return left - right;
         case 'mul': return left * right;
-        case 'div': return right === 0 ? 0 : left / right;
+        case 'div': 
+          if (right === 0) {
+            throw new EvaluationError(
+              'Division by zero in expression',
+              'DIVISION_BY_ZERO',
+              node
+            );
+          }
+          return left / right;
+        default:
+          throw new EvaluationError(
+            `Unknown operator: ${(node as any).operator}`,
+            'INVALID_NODE',
+            node
+          );
       }
     }
+    default:
+      throw new EvaluationError(
+        `Unknown node type: ${(node as any).type}`,
+        'INVALID_NODE',
+        node
+      );
   }
 }
 

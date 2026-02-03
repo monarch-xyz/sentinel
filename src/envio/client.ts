@@ -8,6 +8,20 @@ const pinoFactory = (pino as any).default || pino;
 const logger = pinoFactory();
 
 /**
+ * Error thrown when Envio queries fail.
+ * Callers should handle this explicitly rather than receiving silent zeros.
+ */
+export class EnvioQueryError extends Error {
+  constructor(
+    message: string,
+    public readonly queryCount: number
+  ) {
+    super(message);
+    this.name = 'EnvioQueryError';
+  }
+}
+
+/**
  * Query types for batching
  */
 export interface StateQuery {
@@ -200,12 +214,11 @@ export class EnvioClient {
       return results;
     } catch (error: any) {
       logger.error({ error: error.message, queryCount: queries.length }, 'Envio batch query failed');
-      // Return zeros for all queries on failure
-      const results: BatchResult = {};
-      for (const query of queries) {
-        results[query.alias] = 0;
-      }
-      return results;
+      // Propagate error - do NOT silently return zeros
+      throw new EnvioQueryError(
+        `Envio batch query failed: ${error.message}`,
+        queries.length
+      );
     }
   }
 

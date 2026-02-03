@@ -1,6 +1,19 @@
 # 📋 Flare Implementation TODO
 
-## Phase 1: Core Engine & Data (Current)
+## Phase 0: DSL Hardening (2026-02-03) ✅
+- [x] Centralized `parseDuration` utility (`src/utils/duration.ts`)
+- [x] Explicit division-by-zero error handling (`EvaluationError`)
+- [x] Fail-loud on Envio query errors (`EnvioQueryError`)
+- [x] Expression depth validation (`src/utils/validation.ts`)
+- [x] Conclusive/inconclusive evaluation results
+- [x] **Unified type system** — `src/engine/compiler.ts` transforms user DSL → expression tree
+    - [x] ThresholdCondition → StateRef/EventRef comparison
+    - [x] ChangeCondition → current vs past expression
+    - [x] GroupCondition → CompiledGroupCondition for N-of-M evaluation
+    - [x] AggregateCondition → aggregated state comparison
+    - [x] Special handling for computed metrics (e.g., market_utilization)
+
+## Phase 1: Core Engine & Data
 - [x] Initial scaffold & Git repo
 - [x] Core recursive `evaluateNode` engine
 - [x] Initial unit tests for evaluator
