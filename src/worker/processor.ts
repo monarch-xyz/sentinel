@@ -71,23 +71,28 @@ export const setupWorker = () => {
               signal_id: signal.id,
               signal_name: signal.name,
               triggered_at: new Date(result.timestamp).toISOString(),
-              scope: storedDefinition.ast.chains,
+              scope: storedDefinition.dsl?.scope ?? { chains: storedDefinition.ast.chains },
               conditions_met: [],
               context: {},
             };
 
             const notifyResult = await dispatchNotification(signal.webhook_url, payload);
+            const retryCount = Math.max(0, (notifyResult.attempts ?? 1) - 1);
 
-            await pool.query("UPDATE signals SET last_triggered_at = NOW() WHERE id = $1", [
-              signalId,
-            ]);
+            if (notifyResult.success) {
+              await pool.query("UPDATE signals SET last_triggered_at = NOW() WHERE id = $1", [
+                signalId,
+              ]);
+            }
 
             await pool.query(
-              "INSERT INTO notification_log (signal_id, triggered_at, payload, webhook_status, evaluation_duration_ms, delivery_duration_ms) VALUES ($1, NOW(), $2, $3, $4, $5)",
+              "INSERT INTO notification_log (signal_id, triggered_at, payload, webhook_status, error_message, retry_count, evaluation_duration_ms, delivery_duration_ms) VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7)",
               [
                 signalId,
                 JSON.stringify(payload),
                 notifyResult.status,
+                notifyResult.error ?? null,
+                retryCount,
                 evaluationDurationMs,
                 notifyResult.durationMs,
               ],

@@ -10,7 +10,7 @@ const payload: WebhookPayload = {
   signal_id: "signal-1",
   signal_name: "Test Signal",
   triggered_at: "2025-01-01T00:00:00.000Z",
-  scope: [1],
+  scope: { chains: [1] },
   conditions_met: [],
   context: {},
 };
@@ -41,7 +41,10 @@ describe("Webhook signing", () => {
 
     const options = mockedAxios.post.mock.calls[0][2];
     const payloadJson = JSON.stringify(payload);
-    const digest = createHmac("sha256", "test-secret").update(payloadJson).digest("hex");
+    const timestamp = options.headers["X-Flare-Timestamp"];
+    const digest = createHmac("sha256", "test-secret")
+      .update(`${timestamp}.${payloadJson}`)
+      .digest("hex");
 
     expect(options.headers).toMatchObject({
       "X-Flare-Signature": `sha256=${digest}`,

@@ -324,6 +324,10 @@ Content-Type: application/json
 
 Note: `left_value`/`right_value`/`operator` are only present when the signal has a single simple condition.
 
+Limits:
+- Max steps: `MAX_SIMULATION_STEPS` (default 2000)
+- Rate limit: `SIMULATE_RATE_LIMIT` requests/min per IP (default 60)
+
 **Compact Response**
 
 Set `compact: true` to return only trigger timestamps:
@@ -403,8 +407,10 @@ Content-Type: application/json
 
 Webhook behavior:
 - Timeout: 10 seconds
-- Retries: not implemented yet
+- Retries: up to `WEBHOOK_MAX_RETRIES` (default 3) with exponential backoff
 - Expected response: 2xx
+- Idempotency: `Idempotency-Key: <signal_id>:<triggered_at>`
+- Signature: `X-Flare-Signature` and `X-Flare-Timestamp` (if `WEBHOOK_SECRET` is set). Signature is `sha256=HMAC(secret, "<timestamp>.<payload>")`.
 
 ---
 

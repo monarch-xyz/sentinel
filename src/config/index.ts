@@ -30,6 +30,10 @@ export const config = {
   // Envio
   envio: {
     endpoint: process.env.ENVIO_ENDPOINT ?? "",
+    validateSchema:
+      process.env.ENVIO_VALIDATE_SCHEMA !== undefined
+        ? process.env.ENVIO_VALIDATE_SCHEMA === "true"
+        : process.env.NODE_ENV !== "test",
   },
 
   // Webhook

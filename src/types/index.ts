@@ -90,7 +90,11 @@ export interface WebhookPayload {
   signal_id: string;
   signal_name: string;
   triggered_at: string;
-  scope: number[];
+  scope: {
+    chains: number[];
+    markets?: string[];
+    addresses?: string[];
+  };
   conditions_met: ConditionResult[];
   context: Record<string, unknown>;
 }

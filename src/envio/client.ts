@@ -103,12 +103,61 @@ export interface MorphoEvent {
 
 export class EnvioClient {
   private client: GraphQLClient;
+  private static filterSchemaCache = new Map<string, Set<string> | null>();
 
   constructor(endpoint: string = config.envio.endpoint) {
     if (!endpoint) {
       throw new Error("Envio endpoint not configured");
     }
     this.client = new GraphQLClient(endpoint);
+  }
+
+  private normalizeEventEntityName(eventType: string): string {
+    return eventType.startsWith("Morpho_") ? eventType : `Morpho_${eventType}`;
+  }
+
+  private async loadEventFilterSchema(eventType: string): Promise<Set<string> | null> {
+    const entityName = this.normalizeEventEntityName(eventType);
+    if (EnvioClient.filterSchemaCache.has(entityName)) {
+      return EnvioClient.filterSchemaCache.get(entityName) ?? null;
+    }
+
+    const query = `
+      query IntrospectEventFilters($name: String!) {
+        __type(name: $name) {
+          inputFields { name }
+        }
+      }
+    `;
+
+    try {
+      const result = await this.client.request<{ __type?: { inputFields?: { name: string }[] } }>(
+        query,
+        { name: `${entityName}_bool_exp` },
+      );
+
+      const fields = new Set<string>(
+        result.__type?.inputFields?.map((field) => field.name) ?? [],
+      );
+      EnvioClient.filterSchemaCache.set(entityName, fields);
+      return fields;
+    } catch {
+      EnvioClient.filterSchemaCache.set(entityName, null);
+      logger.warn({ eventType }, "Envio schema introspection failed; skipping filter validation");
+      return null;
+    }
+  }
+
+  private async validateEventFilterFields(eventType: string, filters: Filter[]): Promise<void> {
+    if (!config.envio.validateSchema || filters.length === 0) return;
+    const fields = await this.loadEventFilterSchema(eventType);
+    if (!fields) return;
+
+    for (const filter of filters) {
+      if (!fields.has(filter.field)) {
+        throw new Error(`Event filter field "${filter.field}" not found in ${eventType}_bool_exp`);
+      }
+    }
   }
 
   /**
@@ -159,10 +208,8 @@ export class EnvioClient {
     fragment: string;
     variables: Record<string, GraphQLFilterValue>;
   } {
-    const where = this.translateFilters(this.remapEventFilters(query.ref.filters));
-    const entityName = query.ref.event_type.startsWith("Morpho_")
-      ? query.ref.event_type
-      : `Morpho_${query.ref.event_type}`;
+    const where = this.translateFilters(query.ref.filters);
+    const entityName = this.normalizeEventEntityName(query.ref.event_type);
 
     where.timestamp = {
       _gte: Math.floor(query.startTimeMs / 1000),
@@ -201,9 +248,7 @@ export class EnvioClient {
         const entityName =
           q.type === "state"
             ? q.ref.entity_type
-            : q.ref.event_type.startsWith("Morpho_")
-              ? q.ref.event_type
-              : `Morpho_${q.ref.event_type}`;
+            : this.normalizeEventEntityName(q.ref.event_type);
         return `$${q.alias}_where: ${entityName}_bool_exp!`;
       })
       .join(", ");
@@ -215,10 +260,27 @@ export class EnvioClient {
   async batchQueries(queries: BatchQuery[]): Promise<BatchResult> {
     if (queries.length === 0) return {};
 
+    const normalizedQueries: BatchQuery[] = [];
+    for (const query of queries) {
+      if (query.type === "event") {
+        const remappedFilters = this.remapEventFilters(query.ref.filters);
+        await this.validateEventFilterFields(query.ref.event_type, remappedFilters);
+        normalizedQueries.push({
+          ...query,
+          ref: {
+            ...query.ref,
+            filters: remappedFilters,
+          },
+        });
+      } else {
+        normalizedQueries.push(query);
+      }
+    }
+
     const fragments: string[] = [];
     let variables: Record<string, GraphQLFilterValue> = {};
 
-    for (const query of queries) {
+    for (const query of normalizedQueries) {
       const built =
         query.type === "state"
           ? this.buildStateQueryFragment(query)
@@ -228,7 +290,7 @@ export class EnvioClient {
       variables = { ...variables, ...built.variables };
     }
 
-    const variableDefs = this.buildVariableDefinitions(queries);
+    const variableDefs = this.buildVariableDefinitions(normalizedQueries);
     const batchQuery = `
       query BatchQuery(${variableDefs}) {
         ${fragments.join("\n        ")}
@@ -239,7 +301,7 @@ export class EnvioClient {
       const data = (await this.client.request(batchQuery, variables)) as GraphQLResponse;
       const results: BatchResult = {};
 
-      for (const query of queries) {
+      for (const query of normalizedQueries) {
         const rows = (data[query.alias] || []) as GraphQLRow[];
 
         if (query.type === "state") {
@@ -397,8 +459,10 @@ export class EnvioClient {
     endTimeMs: number,
     filters: Filter[] = [],
   ): Promise<MorphoEvent[]> {
-    const where = this.translateFilters(this.remapEventFilters(filters));
-    const entityName = eventType.startsWith("Morpho_") ? eventType : `Morpho_${eventType}`;
+    const remappedFilters = this.remapEventFilters(filters);
+    await this.validateEventFilterFields(eventType, remappedFilters);
+    const where = this.translateFilters(remappedFilters);
+    const entityName = this.normalizeEventEntityName(eventType);
 
     where.chainId = { _eq: chainId };
     where.timestamp = {

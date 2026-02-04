@@ -17,14 +17,15 @@ vi.mock("../rpc/index.js", () => ({
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
 import { readMarketAtBlock } from "../rpc/index.js";
 import { createMorphoFetcher } from "./morpho-fetcher.js";
-import type { EventFetcher } from "./fetcher.js";
+import type { DataFetcher } from "./fetcher.js";
 
 // Type the mocked functions
 const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
 const mockedReadMarketAtBlock = vi.mocked(readMarketAtBlock);
 
 describe("simulation", () => {
-  const mockEventFetcher: EventFetcher = {
+  const mockEventFetcher: DataFetcher = {
+    fetchState: vi.fn(),
     fetchEvents: vi.fn(),
   };
 

@@ -5,10 +5,26 @@ import { normalizeStoredDefinition } from "../../engine/compile-signal.js";
 import { findFirstTrigger, simulateSignalOverTime } from "../../engine/simulation.js";
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 const logger = createLogger("api:simulate");
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
+const MAX_SIMULATION_STEPS = Number.parseInt(
+  process.env.MAX_SIMULATION_STEPS ?? "2000",
+  10,
+);
+const SIMULATE_RATE_LIMIT = Number.parseInt(
+  process.env.SIMULATE_RATE_LIMIT ?? "60",
+  10,
+);
+
+router.use(
+  rateLimit({
+    windowMs: 60_000,
+    max: SIMULATE_RATE_LIMIT,
+  }),
+);
 
 const SimulateSchema = z.object({
   start_time: z.string().datetime(),
@@ -36,6 +52,20 @@ router.post("/:id/simulate", async (req, res) => {
     const startTs = new Date(start_time).getTime();
     const endTs = new Date(end_time).getTime();
     const chainId = compiled.chains[0] || 1;
+
+    if (Number.isNaN(startTs) || Number.isNaN(endTs) || startTs >= endTs) {
+      return res
+        .status(400)
+        .json({ error: "Invalid range", details: "start_time must be before end_time" });
+    }
+
+    const steps = Math.floor((endTs - startTs) / interval_ms) + 1;
+    if (steps > MAX_SIMULATION_STEPS) {
+      return res.status(400).json({
+        error: "Range too large",
+        details: `Requested ${steps} steps exceeds limit ${MAX_SIMULATION_STEPS}`,
+      });
+    }
 
     logger.info({ signalId: signal.id, start_time, end_time, interval_ms }, "Starting simulation");
 
@@ -109,6 +139,12 @@ router.post("/:id/first-trigger", async (req, res) => {
     const startTs = new Date(start_time).getTime();
     const endTs = new Date(end_time).getTime();
     const chainId = compiled.chains[0] || 1;
+
+    if (Number.isNaN(startTs) || Number.isNaN(endTs) || startTs >= endTs) {
+      return res
+        .status(400)
+        .json({ error: "Invalid range", details: "start_time must be before end_time" });
+    }
 
     logger.info(
       { signalId: signal.id, start_time, end_time, precision_ms },
