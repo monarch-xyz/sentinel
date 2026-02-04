@@ -1,4 +1,4 @@
-import { Signal, ComparisonOp, Condition as AstCondition } from '../types/index.js';
+import { ComparisonOp, Condition as AstCondition } from '../types/index.js';
 import { EvalContext, evaluateNode, parseDuration } from './evaluator.js';
 import { evaluateConditionSet } from './condition.js';
 import { isSimpleCondition, type CompiledCondition } from './compiler.js';
@@ -6,9 +6,10 @@ import { EnvioClient } from '../envio/client.js';
 import { resolveBlockByTimestamp } from '../envio/blocks.js';
 import { createMorphoFetcher } from './morpho-fetcher.js';
 import type { DataFetcher } from './fetcher.js';
+import type { EvaluatableSignal } from './condition.js';
 
 export interface SimulationRequest {
-  signal: Signal;           // The signal to simulate
+  signal: EvaluatableSignal; // The signal to simulate
   atTimestamp: number;      // Unix timestamp (ms) to simulate at
   chainId: number;          // Which chain to evaluate on
   fetcher?: DataFetcher;    // Optional: reuse a fetcher across simulations
@@ -112,7 +113,7 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
  * Useful for backtesting and debugging.
  */
 export async function simulateSignalOverTime(
-  signal: Signal,
+  signal: EvaluatableSignal,
   chainId: number,
   startTimestamp: number,
   endTimestamp: number,
@@ -134,7 +135,7 @@ export async function simulateSignalOverTime(
  * Uses binary search for efficiency.
  */
 export async function findFirstTrigger(
-  signal: Signal,
+  signal: EvaluatableSignal,
   chainId: number,
   startTimestamp: number,
   endTimestamp: number,

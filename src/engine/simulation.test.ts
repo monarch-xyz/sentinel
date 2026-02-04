@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { simulateSignal, simulateSignalOverTime, findFirstTrigger, SimulationRequest } from './simulation.js';
-import { Signal } from '../types/index.js';
+import type { EvaluatableSignal } from './condition.js';
 
 // Mock the EnvioClient
 vi.mock('../envio/client.js', () => ({
@@ -48,7 +48,7 @@ describe('simulation', () => {
   });
 
   // Helper to create a test signal
-  const createTestSignal = (overrides: Partial<Signal> = {}): Signal => ({
+  const createTestSignal = (overrides: Partial<EvaluatableSignal> = {}): EvaluatableSignal => ({
     id: 'test-signal-1',
     name: 'Test Signal',
     description: 'A test signal',
