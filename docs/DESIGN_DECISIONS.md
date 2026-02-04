@@ -72,6 +72,43 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 
 ---
 
+## 🔧 Operational + Product Decisions (2026-02-07)
+
+### Decision 8: Per-Condition Windows
+**Problem:** Signals needed mixed timeframes (e.g., 1d and 3d) in a single alert.  
+**Fix:** Added optional `window` on every condition. The signal-level window remains the default.  
+**Rationale:** Keeps DSL concise for common cases, but allows multi-timeframe logic when needed.
+
+### Decision 9: Group Conditions Can Contain Multiple Inner Conditions
+**Problem:** Two group conditions could be satisfied by different addresses, which breaks “same address” intent.  
+**Fix:** `group` now accepts `conditions[]` + `logic` (AND/OR) evaluated per address.  
+**Rationale:** Enables “same address must satisfy multiple checks” without adding a new condition type.
+
+### Decision 10: API Keys Stored in DB (No Static API_KEY)
+**Problem:** A single static API key doesn’t support multiple users, rotation, or auditability.  
+**Fix:** Added `/auth/register` to create a user + API key stored in DB, used via `X-API-Key`.  
+**Rationale:** Minimal auth layer that is easy to extend and compatible with future payments.
+
+### Decision 11: Webhook Signing + Idempotency
+**Problem:** Consumers need verification, retry safety, and replay protection.  
+**Fix:** Added `X-Flare-Signature` with `X-Flare-Timestamp` (`HMAC(secret, "<ts>.<payload>")`) and `Idempotency-Key`.  
+**Rationale:** Standard webhook integrity with minimal surface area.
+
+### Decision 12: Envio Schema Validation (MVP Guardrail)
+**Problem:** Field names differ from assumptions (`market_id`, `onBehalf`), leading to silent query errors.  
+**Fix:** Schema introspection validates event filter fields; mapping normalizes `user` → `onBehalf` and `marketId` → `market_id`.  
+**Rationale:** Fail fast on schema drift; avoid hard-to-debug runtime failures.
+
+### Decision 13: In-Memory Rate Limiting (Temporary)
+**Problem:** Simulations can be abused; we need guardrails immediately.  
+**Fix:** Added in-memory rate limiting for `/simulate` endpoints.  
+**Rationale:** Sufficient for single-instance MVP; will move to Redis for shared limits.
+
+### Decision 14: x402 Deferred (Monetization Later)
+**Problem:** x402 integration adds complexity to MVP without immediate benefit.  
+**Fix:** Defer x402; keep API key flow stable; plan to gate `/auth/register` with x402 later.  
+**Rationale:** Minimize migration costs while keeping a clear upgrade path.
+
 ## 📖 Example: "Alert when position drops 20%"
 
 This walkthrough shows how a user condition flows through each component.

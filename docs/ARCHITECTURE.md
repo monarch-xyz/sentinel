@@ -286,6 +286,9 @@ Detect changes over time window.
 #### GroupCondition
 N-of-M address logic.
 
+- Use `condition` for a single inner condition.
+- Use `conditions` + `logic` to require multiple checks per address.
+
 ```json
 {
   "type": "group",

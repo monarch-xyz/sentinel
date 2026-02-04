@@ -66,6 +66,10 @@ pnpm db:migrate # Run postgres migration in Docker
 
 pnpm dev               # Start all services
 
+curl -s -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"local-dev"}'
+
 pnpm test              # Run tests
 ```
 

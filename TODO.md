@@ -62,6 +62,8 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - [x] AggregateCondition → CompiledAggregateCondition + evaluator
     - [x] Special handling for computed metrics (e.g., Morpho.Market.utilization)
 - [x] Multi-condition logic (`AND` / `OR`) in evaluator
+- [x] Per-condition windows (mixed timeframes in one signal)
+- [x] Group conditions with multiple inner conditions (same-address logic)
 - [x] **Extensible Metric Registry** (`src/engine/metrics.ts`)
     - [x] Qualified names: `Morpho.Position.supplyShares`, `Morpho.Market.utilization`
     - [x] Legacy aliases for backwards compatibility
@@ -114,6 +116,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - [x] `dispatchNotification()` with timeout
     - [x] Notification logging to DB
     - [x] Cooldown enforcement
+    - [x] Signed webhooks with timestamp + idempotency key
 - [ ] **Smart Query Batching** (optimization)
     - [ ] Grouping multiple signals by scope to minimize Envio calls
 
@@ -132,6 +135,14 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - [x] Added `ConditionResult` and `WebhookPayload` types to `types/index.ts`
     - [x] Properly typed vitest mocks (no more `as any` casts)
     - [x] All tests pass with strict typing
+- [x] **Auth + API Keys** (2026-02-07)
+    - [x] `/auth/register` issues DB-backed API keys
+    - [x] API key middleware on all endpoints
+- [x] **Envio Schema Validation** (2026-02-07)
+    - [x] Runtime schema checks for event filters
+    - [x] Field mapping for `market_id` + `onBehalf`
+- [x] **Simulation Guardrails** (2026-02-07)
+    - [x] In-memory rate limiting for simulate endpoints
 - [ ] **Monarch FE Integration**
 - [ ] **Prometheus Metrics** (evaluation times, success rates)
 - [ ] **Comprehensive Integration Tests**
