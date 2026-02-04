@@ -31,6 +31,7 @@ export async function closeDb() {
 // ============================================================================
 
 interface CreateSignalInput {
+  user_id: string;
   name: string;
   description?: string;
   definition: unknown;
@@ -51,11 +52,12 @@ interface UpdateSignalInput {
 export class SignalRepository {
   async create(signal: CreateSignalInput) {
     const query = `
-      INSERT INTO signals (name, description, definition, webhook_url, cooldown_minutes)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO signals (user_id, name, description, definition, webhook_url, cooldown_minutes)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
     const values = [
+      signal.user_id,
       signal.name,
       signal.description,
       JSON.stringify(signal.definition),
@@ -66,20 +68,23 @@ export class SignalRepository {
     return rows[0];
   }
 
-  async list(activeOnly = false) {
+  async list(userId: string, activeOnly = false) {
     const query = activeOnly
-      ? "SELECT * FROM signals WHERE is_active = true ORDER BY created_at DESC"
-      : "SELECT * FROM signals ORDER BY created_at DESC";
-    const { rows } = await pool.query(query);
+      ? "SELECT * FROM signals WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC"
+      : "SELECT * FROM signals WHERE user_id = $1 ORDER BY created_at DESC";
+    const { rows } = await pool.query(query, [userId]);
     return rows;
   }
 
-  async getById(id: string) {
-    const { rows } = await pool.query("SELECT * FROM signals WHERE id = $1", [id]);
+  async getById(userId: string, id: string) {
+    const { rows } = await pool.query("SELECT * FROM signals WHERE id = $1 AND user_id = $2", [
+      id,
+      userId,
+    ]);
     return rows[0];
   }
 
-  async update(id: string, updates: UpdateSignalInput) {
+  async update(userId: string, id: string, updates: UpdateSignalInput) {
     const fields = Object.keys(updates);
     const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(", ");
     const values = fields.map((f) =>
@@ -89,15 +94,15 @@ export class SignalRepository {
     const query = `
       UPDATE signals 
       SET ${setClause}, updated_at = NOW() 
-      WHERE id = $1 
+      WHERE id = $1 AND user_id = $2
       RETURNING *
     `;
-    const { rows } = await pool.query(query, [id, ...values]);
+    const { rows } = await pool.query(query, [id, userId, ...values]);
     return rows[0];
   }
 
-  async delete(id: string) {
-    await pool.query("DELETE FROM signals WHERE id = $1", [id]);
+  async delete(userId: string, id: string) {
+    await pool.query("DELETE FROM signals WHERE id = $1 AND user_id = $2", [id, userId]);
     return { deleted: true, id };
   }
 
@@ -198,6 +203,59 @@ export class NotificationLogRepository {
     `;
     const { rows } = await pool.query(query, [id, status, errorMessage, durationMs]);
     return rows[0];
+  }
+}
+
+// ============================================================================
+// AUTH REPOSITORIES
+// ============================================================================
+
+export interface UserRecord {
+  id: string;
+  name: string | null;
+  created_at: string;
+}
+
+export class UserRepository {
+  async create(name?: string | null): Promise<UserRecord> {
+    const query = `
+      INSERT INTO users (name)
+      VALUES ($1)
+      RETURNING *
+    `;
+    const { rows } = await pool.query(query, [name ?? null]);
+    return rows[0];
+  }
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  user_id: string;
+  key_hash: string;
+  name: string | null;
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string | null;
+}
+
+export class ApiKeyRepository {
+  async create(userId: string, keyHash: string, name?: string | null): Promise<ApiKeyRecord> {
+    const query = `
+      INSERT INTO api_keys (user_id, key_hash, name)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `;
+    const { rows } = await pool.query(query, [userId, keyHash, name ?? null]);
+    return rows[0];
+  }
+
+  async getByHash(keyHash: string): Promise<ApiKeyRecord | undefined> {
+    const { rows } = await pool.query("SELECT * FROM api_keys WHERE key_hash = $1", [keyHash]);
+    return rows[0];
+  }
+
+  async touchLastUsed(id: string): Promise<void> {
+    await pool.query("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1", [id]);
   }
 }
 

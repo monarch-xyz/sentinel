@@ -42,7 +42,8 @@ const FirstTriggerSchema = z.object({
 router.post("/:id/simulate", async (req, res) => {
   try {
     const { start_time, end_time, interval_ms, compact } = SimulateSchema.parse(req.body);
-    const signal = await repo.getById(req.params.id);
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const signal = await repo.getById(req.auth.userId, req.params.id);
 
     if (!signal) return res.status(404).json({ error: "Signal not found" });
 
@@ -129,7 +130,8 @@ router.post("/:id/simulate", async (req, res) => {
 router.post("/:id/first-trigger", async (req, res) => {
   try {
     const { start_time, end_time, precision_ms } = FirstTriggerSchema.parse(req.body);
-    const signal = await repo.getById(req.params.id);
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const signal = await repo.getById(req.auth.userId, req.params.id);
 
     if (!signal) return res.status(404).json({ error: "Signal not found" });
 

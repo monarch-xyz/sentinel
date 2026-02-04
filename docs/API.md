@@ -4,7 +4,9 @@ REST API for managing signals and running simulations.
 
 **Base URL:** `http://localhost:3000/api/v1`
 
-**Authentication:** No auth is enforced yet. (API key support is planned.)
+**Authentication:** API keys required for all endpoints except `/auth/register` and `/health`.
+
+Send `X-API-Key: <your_key>` in every request.
 
 ---
 
@@ -21,6 +23,7 @@ REST API for managing signals and running simulations.
 | POST | `/simulate/:id/simulate` | Run simulation |
 | POST | `/simulate/:id/first-trigger` | Find first trigger in a range |
 | GET | `/health` | Health check |
+| POST | `/auth/register` | Create a user + API key |
 
 ---
 
@@ -217,6 +220,7 @@ Example:
 ```http
 POST /api/v1/signals
 Content-Type: application/json
+X-API-Key: your-api-key
 
 {
   "name": "My Alert",
@@ -247,6 +251,7 @@ Content-Type: application/json
 
 ```http
 GET /api/v1/signals
+X-API-Key: your-api-key
 ```
 
 **Response**
@@ -271,6 +276,7 @@ GET /api/v1/signals
 ```http
 PATCH /api/v1/signals/:id
 Content-Type: application/json
+X-API-Key: your-api-key
 
 {
   "is_active": false,
@@ -282,6 +288,7 @@ Content-Type: application/json
 
 ```http
 PATCH /api/v1/signals/:id/toggle
+X-API-Key: your-api-key
 ```
 
 ---
@@ -291,6 +298,7 @@ PATCH /api/v1/signals/:id/toggle
 ```http
 POST /api/v1/simulate/:id/simulate
 Content-Type: application/json
+X-API-Key: your-api-key
 
 {
   "start_time": "2026-01-01T00:00:00Z",
@@ -352,6 +360,7 @@ Set `compact: true` to return only trigger timestamps:
 ```http
 POST /api/v1/simulate/:id/first-trigger
 Content-Type: application/json
+X-API-Key: your-api-key
 
 {
   "start_time": "2026-01-01T00:00:00Z",
@@ -431,4 +440,31 @@ Generic errors return:
 
 ```json
 { "error": "Internal server error" }
+```
+
+---
+
+**Register**
+
+Create a user and API key:
+
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Acme Alerts",
+  "key_name": "prod-key",
+  "payment_proof": "optional-for-future-x402"
+}
+```
+
+**Response**
+
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "api_key_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
+  "api_key": "flare_..."
+}
 ```

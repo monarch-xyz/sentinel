@@ -44,9 +44,14 @@ function formatSignalForResponse(signal: SignalRow) {
 // Create Signal
 router.post("/", async (req, res) => {
   try {
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const validated = CreateSignalSchema.parse(req.body);
     const compiled = compileSignalDefinition(validated.definition);
-    const signal = await repo.create({ ...validated, definition: compiled });
+    const signal = await repo.create({
+      ...validated,
+      user_id: req.auth.userId,
+      definition: compiled,
+    });
     res.status(201).json(formatSignalForResponse(signal));
   } catch (error: unknown) {
     if (isZodError(error)) {
@@ -63,8 +68,9 @@ router.post("/", async (req, res) => {
 // List Signals
 router.get("/", async (req, res) => {
   try {
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const activeOnly = req.query.active === "true";
-    const signals = await repo.list(activeOnly);
+    const signals = await repo.list(req.auth.userId, activeOnly);
     res.json(signals.map(formatSignalForResponse));
   } catch (_error: unknown) {
     res.status(500).json({ error: "Internal server error" });
@@ -74,7 +80,8 @@ router.get("/", async (req, res) => {
 // Get Signal
 router.get("/:id", async (req, res) => {
   try {
-    const signal = await repo.getById(req.params.id);
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const signal = await repo.getById(req.auth.userId, req.params.id);
     if (!signal) return res.status(404).json({ error: "Signal not found" });
     res.json(formatSignalForResponse(signal));
   } catch (_error: unknown) {
@@ -85,7 +92,8 @@ router.get("/:id", async (req, res) => {
 // Delete Signal
 router.delete("/:id", async (req, res) => {
   try {
-    const result = await repo.delete(req.params.id);
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const result = await repo.delete(req.auth.userId, req.params.id);
     res.json(result);
   } catch (_error: unknown) {
     res.status(500).json({ error: "Internal server error" });
@@ -95,11 +103,12 @@ router.delete("/:id", async (req, res) => {
 // Update Signal (partial)
 router.patch("/:id", async (req, res) => {
   try {
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const validated = UpdateSignalSchema.parse(req.body);
     const payload = validated.definition
       ? { ...validated, definition: compileSignalDefinition(validated.definition) }
       : validated;
-    const signal = await repo.update(req.params.id, payload);
+    const signal = await repo.update(req.auth.userId, req.params.id, payload);
     if (!signal) return res.status(404).json({ error: "Signal not found" });
     res.json(formatSignalForResponse(signal));
   } catch (error: unknown) {
@@ -117,10 +126,13 @@ router.patch("/:id", async (req, res) => {
 // Toggle Signal Active Status
 router.patch("/:id/toggle", async (req, res) => {
   try {
-    const existing = await repo.getById(req.params.id);
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const existing = await repo.getById(req.auth.userId, req.params.id);
     if (!existing) return res.status(404).json({ error: "Signal not found" });
 
-    const signal = await repo.update(req.params.id, { is_active: !existing.is_active });
+    const signal = await repo.update(req.auth.userId, req.params.id, {
+      is_active: !existing.is_active,
+    });
     res.json(formatSignalForResponse(signal));
   } catch (error: unknown) {
     logger.error({ error: getErrorMessage(error) }, "Failed to toggle signal");

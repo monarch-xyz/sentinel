@@ -19,7 +19,6 @@ export const config = {
   api: {
     port: Number.parseInt(process.env.API_PORT ?? "3000", 10),
     host: process.env.API_HOST ?? "0.0.0.0",
-    apiKey: process.env.API_KEY ?? "",
   },
 
   // Worker

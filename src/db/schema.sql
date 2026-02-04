@@ -6,11 +6,22 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================================
+-- USERS TABLE
+-- Minimal user identity for API keys
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
 -- SIGNALS TABLE
 -- Stores user-defined monitoring signals with their DSL definitions
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS signals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
   
   -- Basic Info
   name VARCHAR(255) NOT NULL,
@@ -37,6 +48,23 @@ CREATE TABLE IF NOT EXISTS signals (
   CONSTRAINT signals_name_not_empty CHECK (name <> ''),
   CONSTRAINT signals_cooldown_positive CHECK (cooldown_minutes >= 0)
 );
+
+-- ============================================================================
+-- API_KEYS TABLE
+-- Stores hashed API keys for authentication
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key_hash TEXT NOT NULL UNIQUE,
+  name VARCHAR(255),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_signals_user_id ON signals(user_id);
 
 -- Index for active signals (most common query pattern)
 CREATE INDEX IF NOT EXISTS idx_signals_active 
