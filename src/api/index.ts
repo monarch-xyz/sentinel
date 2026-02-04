@@ -9,12 +9,14 @@ import signalsRouter from './routes/signals.js';
 import simulateRouter from './routes/simulate.js';
 import { createLogger } from '../utils/logger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requestLogger } from './middleware/requestLogger.js';
 
 const logger = createLogger('api');
 const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(requestLogger);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -1,3 +1,5 @@
+import { pino, type Logger as PinoLogger } from 'pino';
+
 export interface Logger {
   info: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
@@ -6,23 +8,29 @@ export interface Logger {
   child: (bindings: { name?: string }) => Logger;
 }
 
-function withPrefix(prefix: string | undefined, args: unknown[]): unknown[] {
-  if (!prefix) return args;
-  return [prefix, ...args];
+const baseLogger = pino({
+  level: process.env.LOG_LEVEL ?? 'info',
+});
+
+function createPinoLogger(resolvedName?: string): PinoLogger {
+  return resolvedName ? baseLogger.child({ name: resolvedName }) : baseLogger;
+}
+
+function wrapLogger(pinoLogger: PinoLogger, resolvedName?: string): Logger {
+  return {
+    info: (...args) => (pinoLogger.info as (...args: unknown[]) => void)(...args),
+    warn: (...args) => (pinoLogger.warn as (...args: unknown[]) => void)(...args),
+    error: (...args) => (pinoLogger.error as (...args: unknown[]) => void)(...args),
+    debug: (...args) => (pinoLogger.debug as (...args: unknown[]) => void)(...args),
+    child: (bindings) => {
+      const childName = bindings?.name ? (resolvedName ? `${resolvedName}:${bindings.name}` : bindings.name) : resolvedName;
+      const childLogger = pinoLogger.child(childName ? { name: childName } : {});
+      return wrapLogger(childLogger, childName);
+    },
+  };
 }
 
 export function createLogger(name?: string | { name?: string }): Logger {
   const resolvedName = typeof name === 'string' ? name : name?.name;
-  const prefix = resolvedName ? `[${resolvedName}]` : undefined;
-
-  return {
-    info: (...args) => console.log(...withPrefix(prefix, args)),
-    warn: (...args) => console.warn(...withPrefix(prefix, args)),
-    error: (...args) => console.error(...withPrefix(prefix, args)),
-    debug: (...args) => console.debug(...withPrefix(prefix, args)),
-    child: (bindings) => {
-      const childName = bindings?.name ? (resolvedName ? `${resolvedName}:${bindings.name}` : bindings.name) : resolvedName;
-      return createLogger(childName);
-    },
-  };
+  return wrapLogger(createPinoLogger(resolvedName), resolvedName);
 }

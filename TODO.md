@@ -118,6 +118,10 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - [ ] Grouping multiple signals by scope to minimize Envio calls
 
 ## Phase 4: Polish & Integration
+- [x] **Structured Logging** (2026-02-07)
+    - [x] Pino-based logger (`src/utils/logger.ts`)
+    - [x] Request logger middleware with X-Request-Id (`src/api/middleware/requestLogger.ts`)
+    - [x] LOG_LEVEL env var support (default: 'info')
 - [ ] **Monarch FE Integration**
 - [ ] **Prometheus Metrics** (evaluation times, success rates)
 - [ ] **Comprehensive Integration Tests**
