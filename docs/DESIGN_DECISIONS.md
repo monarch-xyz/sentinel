@@ -1,6 +1,6 @@
-# Flare Design Decisions
+# Sentinel Design Decisions
 
-This document tracks high-level architectural decisions for Flare.
+This document tracks high-level architectural decisions for Sentinel.
 
 ---
 
@@ -91,7 +91,7 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 
 ### Decision 11: Webhook Signing + Idempotency
 **Problem:** Consumers need verification, retry safety, and replay protection.  
-**Fix:** Added `X-Flare-Signature` with `X-Flare-Timestamp` (`HMAC(secret, "<ts>.<payload>")`) and `Idempotency-Key`.  
+**Fix:** Added `X-Sentinel-Signature` with `X-Sentinel-Timestamp` (`HMAC(secret, "<ts>.<payload>")`) and `Idempotency-Key`.  
 **Rationale:** Standard webhook integrity with minimal surface area.
 
 ### Decision 12: Envio Schema Validation (MVP Guardrail)
@@ -188,7 +188,7 @@ const position = await morphoContract.read.position(
 ## 📌 Core Architecture
 
 ### 1. Complementary Data Sources (Envio + RPC)
-Flare uses the **Envio Indexer** (GraphQL) for indexed current state and events, and **RPC** for point-in-time state reads at specific blocks. They are complementary: Envio provides indexed views and event streams, RPC provides authoritative state snapshots.
+Sentinel uses the **Envio Indexer** (GraphQL) for indexed current state and events, and **RPC** for point-in-time state reads at specific blocks. They are complementary: Envio provides indexed views and event streams, RPC provides authoritative state snapshots.
 
 ### 2. Composable DSL
 We use a primitive-based tree DSL instead of hardcoded metrics.
@@ -196,7 +196,7 @@ We use a primitive-based tree DSL instead of hardcoded metrics.
 - **Benefit:** Decouples the backend from protocol-specific logic. Complex monitoring rules can be defined entirely via JSON without changing service code.
 
 ### 3. Hybrid Data Strategy (Envio + RPC)
-Flare uses a hybrid approach with clear separation of responsibilities:
+Sentinel uses a hybrid approach with clear separation of responsibilities:
 
 | Query Type | Data Source | Why |
 |------------|-------------|-----|
@@ -208,7 +208,7 @@ Flare uses a hybrid approach with clear separation of responsibilities:
 > **Original design note:** We initially planned to use Envio's time-travel queries, but discovered they're not supported. This clarified the separation: Envio for indexed data and RPC for point-in-time state. See `docs/ISSUE_NO_TIME_TRAVEL.md`.
 
 ### 4. Job Queue Scaling
-Flare uses **BullMQ (Redis)** for job distribution from day one. This allows the service to scale horizontally and ensures that long-running evaluations do not block the event loop or other signals.
+Sentinel uses **BullMQ (Redis)** for job distribution from day one. This allows the service to scale horizontally and ensures that long-running evaluations do not block the event loop or other signals.
 
 ### 5. Webhook-First Notifications
-Flare follows a strict "Everything is a Webhook" architecture. Integrations with specific platforms (Telegram, Discord) are handled via external notification tunnels, keeping the core engine agnostic.
+Sentinel follows a strict "Everything is a Webhook" architecture. Integrations with specific platforms (Telegram, Discord) are handled via external notification tunnels, keeping the core engine agnostic.

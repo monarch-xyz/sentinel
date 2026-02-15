@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: flare-postgres
+    container_name: sentinel-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: flare
+      POSTGRES_DB: sentinel
     ports:
       - "5432:5432"
     volumes:
-      - flare_postgres_data:/var/lib/postgresql/data
+      - sentinel_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -18,7 +18,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: flare-redis
+    container_name: sentinel-redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -28,4 +28,4 @@ services:
       retries: 5
 
 volumes:
-  flare_postgres_data:
+  sentinel_postgres_data:

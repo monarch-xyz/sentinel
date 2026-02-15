@@ -10,8 +10,8 @@
 
 ```bash
 # Clone & install
-git clone https://github.com/monarch-xyz/flare.git
-cd flare
+git clone https://github.com/monarch-xyz/sentinel.git
+cd sentinel
 pnpm install
 
 # Configure

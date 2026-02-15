@@ -1,12 +1,12 @@
-# Flare Architecture
+# Sentinel Architecture
 
-> Complete technical reference for the Flare signal monitoring system.
+> Complete technical reference for the Sentinel signal monitoring system.
 
 ---
 
 ## Overview
 
-Flare is a **composable signal monitoring service** for DeFi. Users define conditions using a DSL, and Flare evaluates them against blockchain data, sending webhooks when conditions trigger.
+Sentinel is a **composable signal monitoring service** for DeFi. Users define conditions using a DSL, and Sentinel evaluates them against blockchain data, sending webhooks when conditions trigger.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

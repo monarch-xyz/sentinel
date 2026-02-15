@@ -1,4 +1,4 @@
-# Flare API Reference
+# Sentinel API Reference
 
 REST API for managing signals and running simulations.
 
@@ -460,7 +460,7 @@ Webhook behavior:
 - Retries: up to `WEBHOOK_MAX_RETRIES` (default 3) with exponential backoff
 - Expected response: 2xx
 - Idempotency: `Idempotency-Key: <signal_id>:<triggered_at>`
-- Signature: `X-Flare-Signature` and `X-Flare-Timestamp` (if `WEBHOOK_SECRET` is set). Signature is `sha256=HMAC(secret, "<timestamp>.<payload>")`.
+- Signature: `X-Sentinel-Signature` and `X-Sentinel-Timestamp` (if `WEBHOOK_SECRET` is set). Signature is `sha256=HMAC(secret, "<timestamp>.<payload>")`.
 
 ---
 
@@ -506,6 +506,6 @@ Content-Type: application/json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
   "api_key_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
-  "api_key": "flare_..."
+  "api_key": "sentinel_..."
 }
 ```

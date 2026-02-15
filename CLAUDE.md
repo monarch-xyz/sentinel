@@ -1,10 +1,10 @@
-# CLAUDE.md - Flare Project Context
+# CLAUDE.md - Sentinel Project Context
 
-> Context file for AI coding agents working on Flare.
+> Context file for AI coding agents working on Sentinel.
 
-## What is Flare?
+## What is Sentinel?
 
-Flare is a **signal monitoring service** for Monarch (DeFi dashboard for Morpho Blue). It lets users define complex conditions on blockchain data and receive webhook notifications when conditions trigger.
+Sentinel is a **signal monitoring service** for Monarch (DeFi dashboard for Morpho Blue). It lets users define complex conditions on blockchain data and receive webhook notifications when conditions trigger.
 
 **Key differentiator:** Supports multi-condition, multi-address logic — not just simple thresholds.
 

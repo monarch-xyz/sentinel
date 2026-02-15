@@ -1,5 +1,5 @@
 {
-  "name": "flare",
+  "name": "sentinel",
   "version": "0.1.0",
   "description": "Flexible Signal Monitoring Service for Monarch",
   "type": "module",

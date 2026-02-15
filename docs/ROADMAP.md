@@ -1,4 +1,4 @@
-# 🧭 Flare Roadmap
+# 🧭 Sentinel Roadmap
 
 This roadmap is MVP-focused and keeps migration costs low. Items are ordered by impact and dependency.
 

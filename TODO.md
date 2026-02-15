@@ -1,4 +1,4 @@
-# 📋 Flare Implementation TODO
+# 📋 Sentinel Implementation TODO
 
 ## 🚨 URGENT: RPC Historical State Integration (2026-02-03)
 

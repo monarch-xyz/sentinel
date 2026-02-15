@@ -1,8 +1,8 @@
-# 🔥 Flare
+# 🛡️ Sentinel
 
 > **Composable Signal Monitoring for DeFi — by Monarch**
 
-Flare enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Flare handles the evaluation, historical state queries, and webhook delivery.
+Sentinel enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Sentinel handles the evaluation, historical state queries, and webhook delivery.
 
 ## Quick Example
 
