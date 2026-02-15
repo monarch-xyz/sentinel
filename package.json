@@ -9,20 +9,23 @@
   },
   "scripts": {
     "dev": "concurrently \"pnpm api\" \"pnpm worker\"",
+    "dev:all": "concurrently \"pnpm api\" \"pnpm worker\" \"pnpm delivery:dev\"",
     "api": "tsx watch src/api/index.ts",
     "worker": "tsx watch src/worker/index.ts",
-    "build": "tsc",
+    "build": "tsc && pnpm -F @sentinel/delivery build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "biome check .",
+    "lint": "biome check . && pnpm -F @sentinel/delivery lint",
     "format": "biome format --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm -F @sentinel/delivery typecheck",
     "test:integration": "vitest run tests/integration/",
     "test:condition": "tsx src/scripts/test-condition.ts",
     "db:migrate": "docker exec -i flare-postgres psql -U postgres -d flare < src/db/schema.sql",
     "db:migrate:direct": "tsx src/scripts/migrate.ts",
     "db:migrate:prod": "node dist/scripts/migrate.js",
-    "db:reset": "docker exec -i flare-postgres psql -U postgres -d flare -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && pnpm db:migrate"
+    "db:reset": "docker exec -i flare-postgres psql -U postgres -d flare -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && pnpm db:migrate",
+    "delivery:dev": "pnpm -F @sentinel/delivery dev",
+    "delivery:build": "pnpm -F @sentinel/delivery build"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",
