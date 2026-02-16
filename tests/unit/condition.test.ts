@@ -398,6 +398,68 @@ describe("SignalEvaluator", () => {
 
       expect(result.triggered).toBe(true);
     });
+
+    it("evaluates change-style state comparisons using current and window_start snapshots", async () => {
+      const now = Date.now();
+      const signal = createSignal(
+        {
+          type: "condition",
+          left: {
+            type: "state",
+            entity_type: "Position",
+            filters: [
+              { field: "marketId", op: "eq", value: "0xmarket" },
+              { field: "user", op: "eq", value: "0x123" },
+            ],
+            field: "supplyShares",
+            snapshot: "current",
+          },
+          operator: "lt",
+          right: {
+            type: "expression",
+            operator: "mul",
+            left: {
+              type: "state",
+              entity_type: "Position",
+              filters: [
+                { field: "marketId", op: "eq", value: "0xmarket" },
+                { field: "user", op: "eq", value: "0x123" },
+              ],
+              field: "supplyShares",
+              snapshot: "window_start",
+            },
+            right: { type: "constant", value: 0.8 },
+          },
+        },
+        { window: { duration: "7d" } },
+      );
+
+      mockEnvioClient.fetchState
+        .mockResolvedValueOnce(700) // current
+        .mockResolvedValueOnce(1000); // window_start baseline
+
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      try {
+        const evaluator = new SignalEvaluator(mockEnvioClient);
+        const result = await evaluator.evaluate(signal);
+
+        expect(result.triggered).toBe(true); // 700 < 0.8 * 1000
+        expect(mockEnvioClient.fetchState).toHaveBeenCalledTimes(2);
+        expect(mockEnvioClient.fetchState).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Object),
+          undefined,
+        );
+        expect(mockEnvioClient.fetchState).toHaveBeenNthCalledWith(
+          2,
+          expect.any(Object),
+          now - 7 * 24 * 60 * 60 * 1000,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe("window duration parsing", () => {

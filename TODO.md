@@ -11,7 +11,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 ### Migration Tasks
 
 - [x] **1. Create RpcClient** (`src/rpc/client.ts`) ✅
-  - [ ] Add viem as dependency (`pnpm add viem`) ← **USER TODO**
+  - [x] Add viem as dependency (`pnpm add viem`)
   - [x] Create `getPublicClient(chainId)` with RPC endpoint env vars
   - [x] Implement `readPositionAtBlock(chainId, marketId, user, blockNumber)`
   - [x] Implement `readMarketAtBlock(chainId, marketId, blockNumber)`
@@ -24,7 +24,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - Extracts fields from RPC results (Position, Market)
   - [x] `condition.ts` now takes `DataFetcher` (protocol-agnostic)
   - [x] Updated `test-condition.ts`, `processor.ts`, `simulate.ts` to use `createMorphoFetcher`
-  - [ ] Unit tests for routing logic
+  - [x] Unit tests for routing logic
 
 - [x] **3. Remove broken code from EnvioClient** ✅
   - [x] Remove `block: {number: X}` from GraphQL queries (never worked)
@@ -32,11 +32,11 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
   - [x] Keep: `fetchState()` for current state only
   - [x] Keep: `fetchEvents()` with in-memory aggregation
 
-- [ ] **4. Update tests**
+- [x] **4. Update tests**
   - [x] Remove broken time-travel tests from envio.test.ts
-  - [ ] Add RPC client unit tests
-  - [ ] Mock RPC calls in evaluator tests
-- [ ] Test ChangeCondition with RPC historical state
+  - [x] Add RPC client unit tests
+  - [x] Mock RPC calls in evaluator tests
+- [x] Test ChangeCondition with RPC historical state
   - [ ] Integration test: real RPC + Envio
 
 - [x] **5. Update documentation** ✅ (2026-02-03)
