@@ -193,12 +193,7 @@ async function evaluateGroupCondition(
       const left = applyUserFilterToNode(innerCondition.left, address);
       const right = applyUserFilterToNode(innerCondition.right, address);
       const innerContext = withWindowOverride(groupContext, innerCondition.window);
-      const triggered = await evaluateCondition(
-        left,
-        innerCondition.operator,
-        right,
-        innerContext,
-      );
+      const triggered = await evaluateCondition(left, innerCondition.operator, right, innerContext);
 
       if (innerLogic === "AND" && !triggered) {
         innerTriggered = false;

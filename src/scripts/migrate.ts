@@ -30,9 +30,7 @@ async function findSchemaPath(): Promise<string> {
     if (await fileExists(candidate)) return candidate;
   }
 
-  throw new Error(
-    `Schema file not found. Tried: ${candidates.map((c) => `"${c}"`).join(", ")}`,
-  );
+  throw new Error(`Schema file not found. Tried: ${candidates.map((c) => `"${c}"`).join(", ")}`);
 }
 
 async function main() {

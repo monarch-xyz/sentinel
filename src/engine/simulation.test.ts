@@ -16,17 +16,19 @@ vi.mock("../rpc/index.js", () => ({
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
 import { readMarketAtBlock } from "../rpc/index.js";
+import type { EventFetcher } from "./fetcher.js";
 import { createMorphoFetcher } from "./morpho-fetcher.js";
-import type { DataFetcher } from "./fetcher.js";
 
 // Type the mocked functions
 const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
 const mockedReadMarketAtBlock = vi.mocked(readMarketAtBlock);
 
 describe("simulation", () => {
-  const mockEventFetcher: DataFetcher = {
-    fetchState: vi.fn(),
-    fetchEvents: vi.fn(),
+  type FetchEventsFn = EventFetcher["fetchEvents"];
+  const mockEventFetcher: EventFetcher & {
+    fetchEvents: ReturnType<typeof vi.fn<FetchEventsFn>>;
+  } = {
+    fetchEvents: vi.fn<FetchEventsFn>(),
   };
 
   const createFetcher = (chainId: number) => createMorphoFetcher(mockEventFetcher, { chainId });
@@ -368,7 +370,14 @@ describe("simulation", () => {
       mockedResolveBlockByTimestamp.mockResolvedValue(18000000);
       const fetcher = createFetcher(1);
 
-      const result = await findFirstTrigger(signal, 1, 1704067200000, 1704153600000, 60000, fetcher);
+      const result = await findFirstTrigger(
+        signal,
+        1,
+        1704067200000,
+        1704153600000,
+        60000,
+        fetcher,
+      );
 
       expect(result).toBeNull();
     });
@@ -387,7 +396,14 @@ describe("simulation", () => {
       const fetcher = createFetcher(1);
 
       const startTimestamp = 1704067200000;
-      const result = await findFirstTrigger(signal, 1, startTimestamp, 1704153600000, 60000, fetcher);
+      const result = await findFirstTrigger(
+        signal,
+        1,
+        startTimestamp,
+        1704153600000,
+        60000,
+        fetcher,
+      );
 
       expect(result).not.toBeNull();
       expect(result?.evaluatedAt).toBe(startTimestamp);
@@ -421,7 +437,14 @@ describe("simulation", () => {
         return createMarketResult({ totalBorrowAssets: 2000000n }); // Binary search finds triggers
       });
 
-      const result = await findFirstTrigger(signal, 1, startTimestamp, endTimestamp, 60000, fetcher);
+      const result = await findFirstTrigger(
+        signal,
+        1,
+        startTimestamp,
+        endTimestamp,
+        60000,
+        fetcher,
+      );
 
       // Should find a trigger point
       expect(result).not.toBeNull();

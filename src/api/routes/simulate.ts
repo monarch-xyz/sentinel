@@ -10,14 +10,8 @@ import { rateLimit } from "../middleware/rate-limit.js";
 const logger = createLogger("api:simulate");
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
-const MAX_SIMULATION_STEPS = Number.parseInt(
-  process.env.MAX_SIMULATION_STEPS ?? "2000",
-  10,
-);
-const SIMULATE_RATE_LIMIT = Number.parseInt(
-  process.env.SIMULATE_RATE_LIMIT ?? "60",
-  10,
-);
+const MAX_SIMULATION_STEPS = Number.parseInt(process.env.MAX_SIMULATION_STEPS ?? "2000", 10);
+const SIMULATE_RATE_LIMIT = Number.parseInt(process.env.SIMULATE_RATE_LIMIT ?? "60", 10);
 
 router.use(
   rateLimit({

@@ -184,10 +184,7 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
     );
   }
   if (!cond.condition && (!cond.conditions || cond.conditions.length === 0)) {
-    throw new ValidationError(
-      "Group condition requires at least one inner condition",
-      "condition",
-    );
+    throw new ValidationError("Group condition requires at least one inner condition", "condition");
   }
   if (scope.addresses) {
     for (const address of cond.addresses) {
@@ -199,14 +196,11 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
   const innerConditions = cond.conditions ?? (cond.condition ? [cond.condition] : []);
   for (const innerCondition of innerConditions) {
     if (innerCondition.type === "group" || innerCondition.type === "aggregate") {
-      throw new ValidationError(
-        "Nested group/aggregate conditions are not supported",
-        "condition",
-      );
+      throw new ValidationError("Nested group/aggregate conditions are not supported", "condition");
     }
   }
 
-  const compiledInner: ReturnType<typeof compileCondition>[] = [];
+  const compiledInner: AstCondition[] = [];
 
   for (const innerCondition of innerConditions) {
     const inner =

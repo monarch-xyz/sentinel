@@ -697,11 +697,10 @@ export function compileCondition(
       return compileGroup(cond);
     case "aggregate":
       return compileAggregate(cond);
-    default:
-      {
-        const _exhaustive: never = cond;
-        return assertNever(_exhaustive, "Unknown condition type");
-      }
+    default: {
+      const _exhaustive: never = cond;
+      return assertNever(_exhaustive, "Unknown condition type");
+    }
   }
 }
 

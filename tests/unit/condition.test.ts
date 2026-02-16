@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignalEvaluator } from "../../src/engine/condition.js";
 import { type EvalContext, evaluateCondition, evaluateNode } from "../../src/engine/evaluator.js";
-import type { ComparisonOp, Condition, ExpressionNode, Signal } from "../../src/types/index.js";
+import type { DataFetcher } from "../../src/engine/fetcher.js";
+import type {
+  ComparisonOp,
+  Condition,
+  EventRef,
+  ExpressionNode,
+  Signal,
+  StateRef,
+} from "../../src/types/index.js";
+
+type FetchStateFn = (ref: StateRef, timestamp?: number) => Promise<number>;
+type FetchEventsFn = (ref: EventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
 
 // Mock the blocks module
 vi.mock("../../src/envio/blocks.js", () => ({
@@ -14,8 +25,8 @@ describe("evaluateCondition", () => {
     windowDuration: "1h",
     now: Date.now(),
     windowStart: Date.now() - 3600000,
-    fetchState: vi.fn(),
-    fetchEvents: vi.fn(),
+    fetchState: vi.fn<FetchStateFn>(),
+    fetchEvents: vi.fn<FetchEventsFn>(),
   };
 
   describe("comparison operators", () => {
@@ -218,7 +229,7 @@ describe("evaluateCondition", () => {
     it("fetches state and compares", async () => {
       const ctx: EvalContext = {
         ...mockContext,
-        fetchState: vi.fn().mockResolvedValue(1000),
+        fetchState: vi.fn<FetchStateFn>().mockResolvedValue(1000),
       };
 
       const left: ExpressionNode = {
@@ -239,7 +250,7 @@ describe("evaluateCondition", () => {
     it("fetches events and compares", async () => {
       const ctx: EvalContext = {
         ...mockContext,
-        fetchEvents: vi.fn().mockResolvedValue(2000),
+        fetchEvents: vi.fn<FetchEventsFn>().mockResolvedValue(2000),
       };
 
       const left: ExpressionNode = {
@@ -258,20 +269,19 @@ describe("evaluateCondition", () => {
   });
 });
 
-// Type for the mocked EnvioClient
-interface MockEnvioClient {
-  fetchState: ReturnType<typeof vi.fn>;
-  fetchEvents: ReturnType<typeof vi.fn>;
+interface MockDataFetcher extends DataFetcher {
+  fetchState: ReturnType<typeof vi.fn<FetchStateFn>>;
+  fetchEvents: ReturnType<typeof vi.fn<FetchEventsFn>>;
 }
 
 describe("SignalEvaluator", () => {
-  let mockEnvioClient: MockEnvioClient;
+  let mockEnvioClient: MockDataFetcher;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnvioClient = {
-      fetchState: vi.fn().mockResolvedValue(1000),
-      fetchEvents: vi.fn().mockResolvedValue(500),
+      fetchState: vi.fn<FetchStateFn>().mockResolvedValue(1000),
+      fetchEvents: vi.fn<FetchEventsFn>().mockResolvedValue(500),
     };
   });
 
@@ -514,8 +524,8 @@ describe("evaluateNode additional tests", () => {
     windowDuration: "1h",
     now: Date.now(),
     windowStart: Date.now() - 3600000,
-    fetchState: vi.fn(),
-    fetchEvents: vi.fn(),
+    fetchState: vi.fn<FetchStateFn>(),
+    fetchEvents: vi.fn<FetchEventsFn>(),
   };
 
   describe("math operations", () => {
@@ -568,7 +578,7 @@ describe("evaluateNode additional tests", () => {
     it("calls fetchState with undefined for current snapshot", async () => {
       const ctx: EvalContext = {
         ...mockContext,
-        fetchState: vi.fn().mockResolvedValue(500),
+        fetchState: vi.fn<FetchStateFn>().mockResolvedValue(500),
       };
 
       const node: ExpressionNode = {
@@ -586,7 +596,7 @@ describe("evaluateNode additional tests", () => {
     it("calls fetchState with window_start timestamp", async () => {
       const ctx: EvalContext = {
         ...mockContext,
-        fetchState: vi.fn().mockResolvedValue(500),
+        fetchState: vi.fn<FetchStateFn>().mockResolvedValue(500),
       };
 
       const node: ExpressionNode = {
@@ -606,7 +616,7 @@ describe("evaluateNode additional tests", () => {
     it("uses signal window when no custom window specified", async () => {
       const ctx: EvalContext = {
         ...mockContext,
-        fetchEvents: vi.fn().mockResolvedValue(100),
+        fetchEvents: vi.fn<FetchEventsFn>().mockResolvedValue(100),
       };
 
       const node: ExpressionNode = {
@@ -626,7 +636,7 @@ describe("evaluateNode additional tests", () => {
         ...mockContext,
         now: 1000000000000, // Fixed timestamp for testing
         windowStart: 1000000000000 - 3600000, // 1h window
-        fetchEvents: vi.fn().mockResolvedValue(100),
+        fetchEvents: vi.fn<FetchEventsFn>().mockResolvedValue(100),
       };
 
       const node: ExpressionNode = {

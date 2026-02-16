@@ -35,9 +35,7 @@ export async function dispatchNotification(
 
   const secret = config.webhook.secret;
   if (secret) {
-    const digest = createHmac("sha256", secret)
-      .update(`${timestamp}.${payloadJson}`)
-      .digest("hex");
+    const digest = createHmac("sha256", secret).update(`${timestamp}.${payloadJson}`).digest("hex");
     headers["X-Flare-Signature"] = `sha256=${digest}`;
   }
 
@@ -62,9 +60,7 @@ export async function dispatchNotification(
       lastStatus = isAxiosError(error) ? error.response?.status : undefined;
 
       const retryable =
-        lastStatus === undefined ||
-        lastStatus === 429 ||
-        (lastStatus >= 500 && lastStatus <= 599);
+        lastStatus === undefined || lastStatus === 429 || (lastStatus >= 500 && lastStatus <= 599);
 
       if (!retryable || attempt >= maxAttempts) {
         logger.error({ url, error: lastErrorMessage }, "Webhook delivery failed");

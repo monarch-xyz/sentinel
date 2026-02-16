@@ -136,9 +136,7 @@ export class EnvioClient {
         { name: `${entityName}_bool_exp` },
       );
 
-      const fields = new Set<string>(
-        result.__type?.inputFields?.map((field) => field.name) ?? [],
-      );
+      const fields = new Set<string>(result.__type?.inputFields?.map((field) => field.name) ?? []);
       EnvioClient.filterSchemaCache.set(entityName, fields);
       return fields;
     } catch {
@@ -246,9 +244,7 @@ export class EnvioClient {
     return queries
       .map((q) => {
         const entityName =
-          q.type === "state"
-            ? q.ref.entity_type
-            : this.normalizeEventEntityName(q.ref.event_type);
+          q.type === "state" ? q.ref.entity_type : this.normalizeEventEntityName(q.ref.event_type);
         return `$${q.alias}_where: ${entityName}_bool_exp!`;
       })
       .join(", ");

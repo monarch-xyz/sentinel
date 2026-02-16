@@ -45,7 +45,9 @@ bot.command("status", async (ctx) => {
   if (users.length === 0) {
     await ctx.reply(
       "❌ No wallets linked yet.\n\nUse /start to connect a wallet.",
-      { parse_mode: "Markdown" },
+      {
+        parse_mode: "Markdown",
+      },
     );
     return;
   }
