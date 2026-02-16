@@ -20,10 +20,10 @@
     "typecheck": "tsc --noEmit && pnpm -F @sentinel/delivery typecheck",
     "test:integration": "vitest run tests/integration/",
     "test:condition": "tsx src/scripts/test-condition.ts",
-    "db:migrate": "docker exec -i flare-postgres psql -U postgres -d flare < src/db/schema.sql",
+    "db:migrate": "docker exec -i sentinel-postgres psql -U postgres -d sentinel < src/db/schema.sql",
     "db:migrate:direct": "tsx src/scripts/migrate.ts",
     "db:migrate:prod": "node dist/scripts/migrate.js",
-    "db:reset": "docker exec -i flare-postgres psql -U postgres -d flare -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && pnpm db:migrate",
+    "db:reset": "docker exec -i sentinel-postgres psql -U postgres -d sentinel -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && pnpm db:migrate",
     "delivery:dev": "pnpm -F @sentinel/delivery dev",
     "delivery:build": "pnpm -F @sentinel/delivery build"
   },
