@@ -67,13 +67,29 @@ export const setupWorker = () => {
           const cooldownMs = (signal.cooldown_minutes || 5) * 60000;
 
           if (now - lastTriggered > cooldownMs) {
+            const scope = storedDefinition.dsl?.scope ?? { chains: storedDefinition.ast.chains };
+            const primaryAddress = scope.addresses?.[0];
+            const primaryMarket = scope.markets?.[0];
+            const primaryChain = scope.chains[0];
+            const context: Record<string, unknown> = {};
+            if (primaryAddress) {
+              context.address = primaryAddress;
+              context.wallet = primaryAddress;
+            }
+            if (primaryMarket) {
+              context.market_id = primaryMarket;
+            }
+            if (typeof primaryChain === "number") {
+              context.chain_id = primaryChain;
+            }
+
             const payload: WebhookPayload = {
               signal_id: signal.id,
               signal_name: signal.name,
               triggered_at: new Date(result.timestamp).toISOString(),
-              scope: storedDefinition.dsl?.scope ?? { chains: storedDefinition.ast.chains },
+              scope,
               conditions_met: [],
-              context: {},
+              context,
             };
 
             const notifyResult = await dispatchNotification(signal.webhook_url, payload);

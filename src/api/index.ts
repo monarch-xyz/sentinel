@@ -1,5 +1,5 @@
 /**
- * Flare API Server
+ * Sentinel API Server
  */
 
 import express from "express";
@@ -47,7 +47,7 @@ const start = async () => {
 
     const port = config.api.port;
     app.listen(port, () => {
-      logger.info({ port }, "Flare API server started");
+      logger.info({ port }, "Sentinel API server started");
     });
 
     // Graceful shutdown

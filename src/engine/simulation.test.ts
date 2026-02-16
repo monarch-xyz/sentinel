@@ -25,10 +25,9 @@ const mockedReadMarketAtBlock = vi.mocked(readMarketAtBlock);
 
 describe("simulation", () => {
   type FetchEventsFn = EventFetcher["fetchEvents"];
-  const mockEventFetcher: EventFetcher & {
-    fetchEvents: ReturnType<typeof vi.fn<FetchEventsFn>>;
-  } = {
-    fetchEvents: vi.fn<FetchEventsFn>(),
+  const fetchEventsMock = vi.fn<Parameters<FetchEventsFn>, ReturnType<FetchEventsFn>>();
+  const mockEventFetcher: EventFetcher = {
+    fetchEvents: fetchEventsMock,
   };
 
   const createFetcher = (chainId: number) => createMorphoFetcher(mockEventFetcher, { chainId });
@@ -211,13 +210,13 @@ describe("simulation", () => {
         .mockResolvedValueOnce(18000000)
         .mockResolvedValueOnce(17990000)
         .mockResolvedValue(17990000);
-      mockEventFetcher.fetchEvents.mockResolvedValue(750000);
+      fetchEventsMock.mockResolvedValue(750000);
 
       const result = await simulateSignal({ signal, atTimestamp, chainId, fetcher });
 
       expect(result.triggered).toBe(true);
       expect(result.leftValue).toBe(750000);
-      expect(mockEventFetcher.fetchEvents).toHaveBeenCalledWith(
+      expect(fetchEventsMock).toHaveBeenCalledWith(
         expect.objectContaining({ type: "event", event_type: "Borrow" }),
         windowStart,
         atTimestamp,

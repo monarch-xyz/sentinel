@@ -1,6 +1,6 @@
 /**
  * Centralized duration parsing utility.
- * Single source of truth for all duration string handling in Flare.
+ * Single source of truth for all duration string handling in Sentinel.
  */
 
 const DURATION_REGEX = /^(\d+)(s|m|h|d|w)$/;

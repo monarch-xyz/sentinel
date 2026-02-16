@@ -1,5 +1,5 @@
 /**
- * Flare Database Schema
+ * Sentinel Database Schema
  *
  * Tables:
  * - signals: User-defined monitoring signals with DSL definitions

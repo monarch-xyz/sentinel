@@ -1,5 +1,5 @@
 /**
- * Flare Configuration
+ * Sentinel Configuration
  */
 
 import "dotenv/config";
@@ -7,7 +7,7 @@ import "dotenv/config";
 export const config = {
   // Database
   database: {
-    url: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/flare",
+    url: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/sentinel",
   },
 
   // Redis

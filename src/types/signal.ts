@@ -1,5 +1,5 @@
 /**
- * Signal Types - Core domain types for Flare
+ * Signal Types - Core domain types for Sentinel
  */
 
 // ============================================

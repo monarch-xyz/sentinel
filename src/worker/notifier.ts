@@ -26,17 +26,17 @@ export async function dispatchNotification(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "User-Agent": "Flare-Notification-Service/1.0",
+    "User-Agent": "Sentinel-Notification-Service/1.0",
   };
 
   headers["Idempotency-Key"] = `${payload.signal_id}:${payload.triggered_at}`;
-  const timestamp = new Date().toISOString();
-  headers["X-Flare-Timestamp"] = timestamp;
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  headers["X-Sentinel-Timestamp"] = timestamp;
 
   const secret = config.webhook.secret;
   if (secret) {
     const digest = createHmac("sha256", secret).update(`${timestamp}.${payloadJson}`).digest("hex");
-    headers["X-Flare-Signature"] = `sha256=${digest}`;
+    headers["X-Sentinel-Signature"] = `t=${timestamp},v1=${digest}`;
   }
 
   let lastErrorMessage = "Unknown error";

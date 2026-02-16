@@ -89,7 +89,7 @@ function parseArgs(): Args {
 
 function printHelp() {
   console.log(`
-Flare Condition Tester
+Sentinel Condition Tester
 
 Usage:
   pnpm test:condition [options] <file.json>
@@ -207,7 +207,7 @@ async function main() {
   }
 
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("🔥 Flare Condition Tester");
+  console.log("🔥 Sentinel Condition Tester");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log();
   if (signalName) {

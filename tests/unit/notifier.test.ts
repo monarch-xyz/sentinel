@@ -32,7 +32,7 @@ describe("Webhook signing", () => {
     }
   });
 
-  it("adds X-Flare-Signature when WEBHOOK_SECRET is set", async () => {
+  it("adds X-Sentinel-Signature when WEBHOOK_SECRET is set", async () => {
     process.env.WEBHOOK_SECRET = "test-secret";
     vi.resetModules();
 
@@ -41,13 +41,13 @@ describe("Webhook signing", () => {
 
     const options = mockedAxios.post.mock.calls[0][2];
     const payloadJson = JSON.stringify(payload);
-    const timestamp = options.headers["X-Flare-Timestamp"];
+    const timestamp = options.headers["X-Sentinel-Timestamp"];
     const digest = createHmac("sha256", "test-secret")
       .update(`${timestamp}.${payloadJson}`)
       .digest("hex");
 
     expect(options.headers).toMatchObject({
-      "X-Flare-Signature": `sha256=${digest}`,
+      "X-Sentinel-Signature": `t=${timestamp},v1=${digest}`,
     });
   });
 
@@ -60,6 +60,6 @@ describe("Webhook signing", () => {
     await dispatchNotification("https://example.com/webhook", payload, 5000);
 
     const options = mockedAxios.post.mock.calls[0][2];
-    expect(options.headers).not.toHaveProperty("X-Flare-Signature");
+    expect(options.headers).not.toHaveProperty("X-Sentinel-Signature");
   });
 });

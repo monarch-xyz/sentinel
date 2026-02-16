@@ -1,5 +1,5 @@
 /**
- * Flare Worker Process
+ * Sentinel Worker Process
  *
  * Initializes BullMQ workers for:
  * 1. Scheduler - periodically queues active signals for evaluation
@@ -17,7 +17,7 @@ const logger = createLogger("worker");
 
 const start = async () => {
   try {
-    logger.info("Starting Flare Worker process");
+    logger.info("Starting Sentinel Worker process");
 
     // Initialize DB connection
     await initDb();
@@ -29,7 +29,7 @@ const start = async () => {
     // Start the scheduler (registers repeatable job)
     await startScheduler();
 
-    logger.info("Flare Worker & Scheduler are running");
+    logger.info("Sentinel Worker & Scheduler are running");
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {

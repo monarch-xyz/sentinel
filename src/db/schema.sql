@@ -1,4 +1,4 @@
--- Flare PostgreSQL Schema
+-- Sentinel PostgreSQL Schema
 -- Version: 1.0.0
 -- Description: Core tables for signal monitoring, notifications, and block snapshots
 

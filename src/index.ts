@@ -28,7 +28,7 @@ const start = async () => {
     }
 
     app.listen(config.api.port, config.api.host, () => {
-      logger.info(`Flare API running on http://${config.api.host}:${config.api.port}`);
+      logger.info(`Sentinel API running on http://${config.api.host}:${config.api.port}`);
     });
   } catch (error: unknown) {
     logger.error({ error: getErrorMessage(error) }, "Failed to start server");

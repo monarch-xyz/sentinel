@@ -133,7 +133,7 @@ const WebhookPayloadSchema = z.object({
   signal_id: z.string(),
   signal_name: z.string().optional(),
   triggered_at: z.string(),
-  conditions_met: z.number().optional(),
+  conditions_met: z.union([z.number(), z.array(z.unknown())]).optional(),
   summary: z.string().optional(),
   context: z
     .object({
@@ -197,10 +197,18 @@ api.post("/webhook/deliver", async (c) => {
     return c.json({ delivered: false, reason: "User not found" });
   }
 
+  const conditionsMetCount = Array.isArray(payload.conditions_met)
+    ? payload.conditions_met.length
+    : payload.conditions_met;
+  const fallbackSummary =
+    typeof conditionsMetCount === "number"
+      ? `${conditionsMetCount} condition${conditionsMetCount === 1 ? "" : "s"} met at ${payload.triggered_at}`
+      : `Triggered at ${payload.triggered_at}`;
+
   // Send alert
   const success = await sendAlert(user.telegram_chat_id, {
     signalName: payload.signal_name ?? "Signal Alert",
-    summary: payload.summary ?? `Triggered at ${payload.triggered_at}`,
+    summary: payload.summary ?? fallbackSummary,
     wallet,
     marketId: payload.context?.market_id,
     chainId: payload.context?.chain_id,

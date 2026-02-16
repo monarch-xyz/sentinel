@@ -10,7 +10,7 @@ Sentinel is a **composable signal monitoring service** for DeFi. Users define co
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         FLARE                               │
+│                        SENTINEL                             │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
 │  │   REST API   │    │   COMPILER   │    │   WORKER     │  │
