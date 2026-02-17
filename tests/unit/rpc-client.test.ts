@@ -1,4 +1,4 @@
-import { http, type PublicClient, createPublicClient } from "viem";
+import { http, type PublicClient, createPublicClient, fallback } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RpcQueryError,
@@ -14,12 +14,14 @@ vi.mock("viem", async () => {
   return {
     ...actual,
     createPublicClient: vi.fn(),
+    fallback: vi.fn((transports: unknown[]) => transports[0]),
     http: vi.fn(),
   };
 });
 
 describe("rpc client", () => {
   const createPublicClientMock = vi.mocked(createPublicClient);
+  const fallbackMock = vi.mocked(fallback);
   const httpMock = vi.mocked(http);
   const originalRpcUrl1 = process.env.RPC_URL_1;
 
@@ -31,6 +33,7 @@ describe("rpc client", () => {
     clearClientCache();
     vi.clearAllMocks();
     httpMock.mockImplementation((url?: string) => ({ url }) as unknown as ReturnType<typeof http>);
+    fallbackMock.mockImplementation((transports) => transports[0]);
   });
 
   afterEach(() => {
@@ -52,7 +55,26 @@ describe("rpc client", () => {
 
     expect(first).toBe(second);
     expect(createPublicClientMock).toHaveBeenCalledTimes(1);
-    expect(httpMock).toHaveBeenCalledWith("https://rpc.example.org");
+    expect(httpMock).toHaveBeenCalledTimes(2);
+    expect(httpMock).toHaveBeenNthCalledWith(
+      1,
+      "https://rpc.example.org",
+      expect.objectContaining({
+        retryCount: 1,
+        retryDelay: 250,
+        timeout: 15000,
+      }),
+    );
+    expect(httpMock).toHaveBeenNthCalledWith(
+      2,
+      "https://fallback.example.org",
+      expect.objectContaining({
+        retryCount: 1,
+        retryDelay: 250,
+        timeout: 15000,
+      }),
+    );
+    expect(fallbackMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws RpcQueryError for unsupported chains", () => {

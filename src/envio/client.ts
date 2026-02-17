@@ -67,7 +67,6 @@ export interface Position {
   supplyShares: string;
   borrowShares: string;
   collateral: string;
-  lastUpdateTimestamp: number;
 }
 
 /**
@@ -394,7 +393,6 @@ export class EnvioClient {
           supplyShares
           borrowShares
           collateral
-          lastUpdateTimestamp
         }
       }
     `;

@@ -5,7 +5,14 @@
  * This is a complementary data source to the indexer (Envio), not a fallback.
  */
 
-import { http, type Chain, type PublicClient, createPublicClient, defineChain } from "viem";
+import {
+  http,
+  type Chain,
+  type PublicClient,
+  createPublicClient,
+  defineChain,
+  fallback,
+} from "viem";
 import { arbitrum, base, mainnet, polygon } from "viem/chains";
 
 /**
@@ -50,6 +57,9 @@ import { createLogger } from "../utils/logger.js";
 import { MORPHO_ADDRESSES, type MarketResult, type PositionResult, morphoAbi } from "./abi.js";
 
 const logger = createLogger("rpc-client");
+const RPC_TIMEOUT_MS = Number.parseInt(process.env.RPC_TIMEOUT_MS ?? "15000", 10);
+const RPC_RETRY_COUNT = Number.parseInt(process.env.RPC_RETRY_COUNT ?? "1", 10);
+const RPC_RETRY_DELAY_MS = Number.parseInt(process.env.RPC_RETRY_DELAY_MS ?? "250", 10);
 
 /**
  * Error thrown when RPC queries fail
@@ -82,13 +92,13 @@ const CHAIN_MAP: Record<number, Chain> = {
  * Get RPC URL for a chain, checking env vars first
  * Env var format: RPC_URL_{chainId} (e.g., RPC_URL_1 for Ethereum)
  */
-function getRpcUrl(chainId: number): string | undefined {
+function getRpcUrls(chainId: number): string[] {
   const envVar = process.env[`RPC_URL_${chainId}`];
-  if (envVar) {
-    // Take first URL if comma-separated
-    return envVar.split(",")[0]?.trim();
-  }
-  return undefined;
+  if (!envVar) return [];
+  return envVar
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -108,8 +118,18 @@ export function getPublicClient(chainId: number): PublicClient {
     throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
   }
 
-  const rpcUrl = getRpcUrl(chainId);
-  const transport = rpcUrl ? http(rpcUrl) : http();
+  const rpcUrls = getRpcUrls(chainId);
+  const transportOptions = {
+    retryCount: RPC_RETRY_COUNT,
+    retryDelay: RPC_RETRY_DELAY_MS,
+    timeout: RPC_TIMEOUT_MS,
+  };
+  const transport =
+    rpcUrls.length === 0
+      ? http(undefined, transportOptions)
+      : rpcUrls.length === 1
+        ? http(rpcUrls[0], transportOptions)
+        : fallback(rpcUrls.map((url) => http(url, transportOptions)));
 
   const client = createPublicClient({
     chain,
