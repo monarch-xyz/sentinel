@@ -4,7 +4,7 @@ This guide covers a minimal, production-ready Railway setup.
 
 ## Services
 
-Deploy two services from the same repo/image:
+Deploy services from the same repo/image:
 
 1. **API Service**
    - Command: `node dist/api/index.js`
@@ -12,7 +12,10 @@ Deploy two services from the same repo/image:
 2. **Worker Service**
    - Command: `node dist/worker/index.js`
 
-Why two services: the worker runs BullMQ processing and scheduling. Keeping it separate avoids API load spikes affecting evaluations.
+3. **Delivery Service** (required for Telegram)
+   - Command: `pnpm -F @sentinel/delivery start`
+
+Why split services: the worker runs BullMQ processing/scheduling and delivery runs bot + webhook receiver. Isolation avoids cross-impact during spikes.
 
 ## Required Add-ons
 
@@ -21,7 +24,7 @@ Why two services: the worker runs BullMQ processing and scheduling. Keeping it s
 
 ## Environment Variables
 
-Set these on both services unless noted:
+Set these on API and Worker unless noted:
 
 - `DATABASE_URL` (from Railway Postgres)
 - `REDIS_URL` (from Railway Redis)
@@ -30,6 +33,14 @@ Set these on both services unless noted:
 - `WEBHOOK_SECRET` (optional but recommended)
 - `WORKER_INTERVAL_SECONDS` (optional, default 30)
 - `LOG_LEVEL` (optional)
+
+Set these on Delivery service:
+
+- `DATABASE_URL` (delivery DB, e.g. `sentinel_delivery`)
+- `TELEGRAM_BOT_TOKEN`
+- `WEBHOOK_SECRET` (must match Sentinel `WEBHOOK_SECRET`)
+- `LINK_BASE_URL`
+- `PORT` / `HOST` / `LOG_LEVEL` (optional)
 
 ## Migrations
 
@@ -41,11 +52,23 @@ node dist/scripts/migrate.js
 
 This uses the bundled `schema.sql` and is safe to run multiple times.
 
+For delivery DB:
+
+```bash
+pnpm -F @sentinel/delivery db:migrate
+```
+
 ## Health Check
 
 API service exposes:
 
 ```
+GET /health
+```
+
+Delivery service exposes:
+
+```text
 GET /health
 ```
 

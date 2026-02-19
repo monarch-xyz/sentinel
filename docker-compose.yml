@@ -14,7 +14,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -25,7 +25,92 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  main-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src/db/schema.sql:/migrations/main_schema.sql:ro
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      PGPASSWORD=postgres psql -h postgres -U postgres -d sentinel -f /migrations/main_schema.sql
+    restart: "no"
+
+  delivery-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./packages/delivery/src/db/schema.sql:/migrations/delivery_schema.sql:ro
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      if ! PGPASSWORD=postgres psql -h postgres -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='sentinel_delivery'" | grep -q 1; then
+        PGPASSWORD=postgres psql -h postgres -U postgres -d postgres -c "CREATE DATABASE sentinel_delivery";
+      fi &&
+      PGPASSWORD=postgres psql -h postgres -U postgres -d sentinel_delivery -f /migrations/delivery_schema.sql
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel-api
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinel
+      REDIS_URL: redis://redis:6379
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+    command: ["node", "dist/api/index.js"]
+    depends_on:
+      main-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel-worker
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinel
+      REDIS_URL: redis://redis:6379
+    command: ["node", "dist/worker/index.js"]
+    depends_on:
+      main-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  delivery:
+    build:
+      context: ./packages/delivery
+      dockerfile: Dockerfile
+    container_name: sentinel-delivery
+    env_file:
+      - ./packages/delivery/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sentinel_delivery
+      HOST: 0.0.0.0
+      PORT: 3100
+    depends_on:
+      delivery-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
 
 volumes:
   sentinel_postgres_data:

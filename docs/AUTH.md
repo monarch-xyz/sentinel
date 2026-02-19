@@ -1,54 +1,71 @@
 # Sentinel Auth Guide
 
-This project uses **API key auth** for the main Sentinel API.
+Sentinel uses API-key auth for the main API and signed webhooks for delivery.
 
-## Recommended Architecture
+## Main API Auth
 
-Use API keys per user, managed by your webapp backend.
+- Public:
+  - `GET /health`
+  - `POST /api/v1/auth/register`
+- API-key protected:
+  - all other `/api/v1/*` endpoints
 
-1. Browser authenticates with your webapp backend.
-2. Webapp backend calls Sentinel using that user's Sentinel API key.
-3. Browser never receives or stores Sentinel API keys.
+Header:
 
-This keeps Sentinel integration simple while preserving per-user data isolation.
+```http
+X-API-Key: sentinel_...
+```
 
-## Key Rules
+Keys are scoped to exactly one Sentinel user.
 
-- Every Sentinel user should have their own API key.
-- Keep keys server-side only (encrypted at rest in your webapp DB).
-- Rotate/revoke keys through backend processes, not browser clients.
+## Recommended Webapp Pattern
 
-## Create a Sentinel API Key
+1. Browser authenticates with Supabase.
+2. Browser calls your webapp backend.
+3. Webapp backend calls Sentinel with that user’s Sentinel API key.
+
+Do not expose Sentinel API keys to browser clients.
+
+## Registering A Sentinel User + Key
 
 ```http
 POST /api/v1/auth/register
 Content-Type: application/json
 
 {
-  "name": "webapp-user-123"
+  "name": "supabase-user-123"
 }
 ```
 
-Response includes:
+Response:
 
-- `user_id`
+- `user_id` (Sentinel user id)
 - `api_key_id`
-- `api_key`
+- `api_key` (returned once)
 
-Use that `api_key` on subsequent requests:
+Store this mapping in your webapp DB:
 
-```http
-X-API-Key: sentinel_...
-```
+- `supabase_user_id`
+- `sentinel_user_id` (`user_id` from register)
+- `sentinel_api_key` (encrypted)
 
-## Main API Auth Behavior
+## Access To History
 
-- `/health` and `/api/v1/auth/register` are public.
-- All other `/api/v1/*` endpoints require `X-API-Key`.
-- Access is scoped to the user attached to the API key.
+History is API-key gated and user-scoped.
 
-## Delivery Service Auth Behavior
+- Endpoint: `GET /api/v1/signals/:id/history`
+- A key can only read signal history for signals owned by its user.
 
-- `/webhook/deliver` uses signed webhook verification (`X-Sentinel-Signature`).
-- `/admin/stats` uses `X-Admin-Key`.
-- Linking routes use short-lived link tokens.
+## Delivery Auth
+
+- `POST /webhook/deliver` requires `X-Sentinel-Signature` header.
+- Signature format: `t=<timestamp>,v1=<hex_hmac>`
+- Signed payload: `HMAC_SHA256(secret, "<timestamp>.<raw_body>")`
+- `GET /admin/stats` requires `X-Admin-Key` (currently same value as `WEBHOOK_SECRET`).
+
+## Telegram Linking Auth
+
+- Link endpoints are token-based:
+  - `GET /link?token=...`
+  - `POST /link/connect`
+- Link tokens are short-lived and created by bot `/start`.

@@ -9,29 +9,29 @@ This service bridges Sentinel webhooks to Telegram, allowing users to receive De
 ```
 1. User: /start in Telegram bot
 2. Bot: Generates link → <LINK_BASE_URL>/link?token=xxx
-3. User: Opens /link page and enters Sentinel app user ID
+3. User: Opens /link page and enters app_user_id
 4. Service: Stores app_user_id → chatId mapping
 5. Sentinel: Triggers, sends webhook
 6. Service: Looks up user, sends TG message
 ```
+
+For direct Sentinel integration, `app_user_id` must be the Sentinel `user_id` (from `/api/v1/auth/register`), because worker payloads use `context.app_user_id = signals.user_id`.
 
 ## Quick Start
 
 ```bash
 # from repo root
 pnpm install
-docker compose up -d
 
-# create dedicated delivery DB once
-docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' || true
-
-# from packages/delivery
+# create env files first (required by docker compose)
 cp .env.example .env
+cp packages/delivery/.env.example packages/delivery/.env
 # set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_delivery
 # set TELEGRAM_BOT_TOKEN and WEBHOOK_SECRET
 
-pnpm db:migrate
-pnpm dev
+# services are now started by root docker compose
+docker compose up --build -d
+docker compose ps
 ```
 
 ## Environment Variables
@@ -64,6 +64,8 @@ pnpm dev
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/admin/stats` | GET | Get delivery stats (requires X-Admin-Key) |
+
+`X-Admin-Key` value is currently `WEBHOOK_SECRET`.
 
 ## Bot Commands
 

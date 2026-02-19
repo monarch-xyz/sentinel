@@ -33,24 +33,19 @@ Set required values:
 
 ```bash
 docker compose down -v --remove-orphans
-docker compose up -d
-
-# Main DB schema init
-pnpm db:migrate
-
-# Delivery uses a separate database (table names overlap with main app)
-docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' || true
-pnpm delivery:db:migrate
+docker compose up --build -d
 ```
 
 ## 4. Run Services
 
-```bash
-# API + worker
-pnpm dev
+Services are started by Docker Compose in step 3 (`postgres`, `redis`, `api`, `worker`, `delivery`).
 
-# API + worker + Telegram delivery
-pnpm dev:all
+Check status:
+
+```bash
+docker compose ps
+curl http://localhost:3000/health
+curl http://localhost:3100/health
 ```
 
 ## 5. Verify
@@ -72,4 +67,11 @@ Use returned `api_key` as `X-API-Key` for `/api/v1/signals*` and `/api/v1/simula
 1. User sends `/start` to the bot.
 2. Bot sends `http://localhost:3100/link?token=...`.
 3. User submits `app_user_id` on that page.
-4. Signal webhooks sent to `POST /webhook/deliver` are matched by `context.app_user_id`.
+4. Use Sentinel `user_id` as `app_user_id` for direct delivery lookup.
+5. Signal webhooks sent to `POST /webhook/deliver` are matched by `context.app_user_id`.
+
+If you use Supabase IDs in your app, keep a mapping table:
+
+- `supabase_user_id`
+- `sentinel_user_id`
+- `sentinel_api_key` (encrypted)

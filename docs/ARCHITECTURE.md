@@ -449,7 +449,11 @@ All conditions in a signal inherit the signal-level `window` by default. You can
 7. Result: { triggered: boolean, conclusive: boolean }
    ↓
 8. If triggered → dispatch webhook
+   ↓
+9. Delivery service (optional) verifies signature and routes by context.app_user_id to Telegram chat
 ```
+
+For Telegram delivery, Sentinel webhook target should be the delivery endpoint (`/webhook/deliver`) and both services must share the same `WEBHOOK_SECRET`.
 
 ---
 

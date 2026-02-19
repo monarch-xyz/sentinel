@@ -1,37 +1,79 @@
-# Telegram Delivery Architecture
+# Telegram Delivery
 
-Launch architecture for Telegram delivery.
+How Telegram alerts work in Sentinel v0.0.1.
 
-## Flow
+## Services
 
-1. User sends `/start` to Telegram bot.
-2. Bot generates `token` and sends link: `https://<delivery-host>/link?token=...`
-3. User opens link page and submits `app_user_id`.
-4. Delivery service stores mapping: `app_user_id -> telegram_chat_id`.
-5. Sentinel worker triggers signal and posts signed webhook to delivery.
-6. Delivery resolves `context.app_user_id`, sends Telegram alert, logs delivery result.
+- Sentinel API + Worker
+- Delivery service (Telegram bot + webhook receiver)
 
-## Required Webhook Contract
+## Data Contract
 
-Delivery requires:
+Delivery routes alerts by `context.app_user_id`.
 
-- `X-Sentinel-Signature` header (HMAC)
-- JSON payload with:
-  - `signal_id`
-  - `triggered_at`
-  - `context.app_user_id`
-  - optional `signal_name`, `summary`, `context.address`, `context.market_id`, `context.chain_id`
+Current Sentinel worker sets:
 
-## Delivery Endpoints
+- `context.app_user_id = signals.user_id` (Sentinel internal user id)
+
+So Telegram linking must store the same value as `app_user_id`.
+
+## End-to-End Flow
+
+1. User sends `/start` to the Telegram bot.
+2. Bot creates short-lived `token` and returns:
+   - `GET /link?token=...`
+3. User completes linking:
+   - `POST /link/connect` with `{ token, app_user_id }`
+4. Delivery stores mapping:
+   - `app_user_id -> telegram_chat_id`
+5. Sentinel worker evaluates signals and sends signed webhook to delivery.
+6. Delivery verifies signature, resolves mapping by `context.app_user_id`, sends message to mapped Telegram chat.
+
+## Supabase Webapp Integration
+
+Recommended:
+
+- Supabase remains your login/session system.
+- Your backend maps:
+  - `supabase_user_id -> sentinel_user_id -> sentinel_api_key`
+- When linking Telegram, call `/link/connect` with:
+  - `app_user_id = sentinel_user_id`
+
+If you pass Supabase user id directly without translation, delivery lookup will fail.
+
+## Required Delivery Endpoints
 
 - `GET /health`
-- `GET /link?token=...`
+- `GET /link`
 - `POST /link/connect`
 - `POST /webhook/deliver`
 - `GET /admin/stats`
 
-## Security Model
+## Webhook Security
 
-- Link tokens expire quickly (`pending_links.expires_at`).
-- Webhook authenticity is enforced via HMAC signature verification.
-- Admin stats endpoint is protected by `X-Admin-Key`.
+`POST /webhook/deliver` requires:
+
+- Header: `X-Sentinel-Signature: t=<timestamp>,v1=<hmac>`
+- Signature: `HMAC_SHA256(WEBHOOK_SECRET, "<timestamp>.<raw_body>")`
+- Freshness check: 5-minute max age (default)
+
+Set the same `WEBHOOK_SECRET` value in:
+
+- Sentinel (`.env`)
+- Delivery (`packages/delivery/.env`)
+
+## Signal Configuration Requirement
+
+For Telegram alerts, signals must use:
+
+- `webhook_url = http://localhost:3100/webhook/deliver` (local)
+- or your deployed delivery URL in production.
+
+If signal webhook points elsewhere, Telegram delivery is bypassed.
+
+## Bot Commands
+
+- `/start` create link token
+- `/status` show linked app accounts for the current chat
+- `/unlink` remove a linked app account
+- `/help` show help text

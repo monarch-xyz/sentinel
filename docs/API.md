@@ -1,52 +1,73 @@
 # Sentinel API Reference
 
-REST API for managing signals, simulation, and Telegram delivery integration.
+REST API for signals, history, simulation, and Telegram delivery integration.
 
-**Main API Base URL:** `http://localhost:3000/api/v1`
+## Base URLs
 
-**Authentication (main API):** API key required for all `/api/v1/*` endpoints except `/auth/register` and `/health`.
+- Main API: `http://localhost:3000`
+- Main API namespace: `http://localhost:3000/api/v1`
+- Delivery service: `http://localhost:3100`
 
-Send:
+## Authentication
 
-```
+Main API:
+
+- Public:
+  - `GET /health`
+  - `POST /api/v1/auth/register`
+- All other `/api/v1/*` endpoints require:
+
+```http
 X-API-Key: <user_api_key>
 ```
 
+Delivery service:
+
+- `POST /webhook/deliver` requires `X-Sentinel-Signature`.
+- `GET /admin/stats` requires `X-Admin-Key`.
+- Link routes are token-based (`/link`, `/link/connect`).
+
 Recommended integration pattern:
 
-- Browser calls your webapp backend
-- Webapp backend calls Sentinel with that user's API key
-- Do not expose Sentinel API keys in browser code
+- Browser calls your webapp backend.
+- Webapp backend calls Sentinel and delivery services.
+- Sentinel API keys remain server-side only.
 
----
+## Endpoint Inventory
 
-**Main API Endpoints**
+### Main API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/signals` | Create a new signal |
-| GET | `/signals` | List all signals |
-| GET | `/signals/:id` | Get signal details |
-| GET | `/signals/:id/history` | Get evaluation + notification history |
-| PATCH | `/signals/:id` | Update a signal |
-| PATCH | `/signals/:id/toggle` | Toggle `is_active` |
-| DELETE | `/signals/:id` | Delete a signal |
-| POST | `/simulate/:id/simulate` | Run simulation |
-| POST | `/simulate/:id/first-trigger` | Find first trigger in a range |
-| GET | `/health` | Health check (root path on port 3000) |
-| POST | `/auth/register` | Create a user + API key |
-
----
-
-**Delivery Service Endpoints** (`http://localhost:3100`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
 | GET | `/health` | none | Health check |
-| GET | `/link` | none | Hosted Telegram linking page |
-| POST | `/link/connect` | none (token-based) | Link Telegram chat to app user id |
-| POST | `/webhook/deliver` | `X-Sentinel-Signature` | Receive signed Sentinel webhook and deliver to Telegram |
+| POST | `/api/v1/auth/register` | none | Create Sentinel user + API key |
+| POST | `/api/v1/signals` | API key | Create signal |
+| GET | `/api/v1/signals` | API key | List user signals (`?active=true` optional) |
+| GET | `/api/v1/signals/:id` | API key | Get one signal |
+| PATCH | `/api/v1/signals/:id` | API key | Update signal |
+| PATCH | `/api/v1/signals/:id/toggle` | API key | Toggle `is_active` |
+| DELETE | `/api/v1/signals/:id` | API key | Delete signal |
+| GET | `/api/v1/signals/:id/history` | API key | Evaluation + notification history (`?limit`, `?include_notifications`) |
+| POST | `/api/v1/simulate/:id/simulate` | API key | Simulate over time range |
+| POST | `/api/v1/simulate/:id/first-trigger` | API key | Find first trigger in range |
+
+### Delivery Service Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/health` | none | Health check |
+| GET | `/link?token=...&app_user_id=...` | none | Hosted Telegram link page (token usually provided by bot link) |
+| POST | `/link/connect` | token in body | Link `app_user_id -> telegram_chat_id` |
+| POST | `/webhook/deliver` | `X-Sentinel-Signature` | Receive Sentinel webhook and send Telegram alert |
 | GET | `/admin/stats` | `X-Admin-Key` | Delivery stats |
+
+For Telegram delivery, set signal `webhook_url` to:
+
+```text
+http://localhost:3100/webhook/deliver
+```
+
+And configure matching `WEBHOOK_SECRET` in both services.
 
 ---
 
@@ -471,6 +492,9 @@ X-API-Key: your-api-key
   }
 }
 ```
+
+`context.app_user_id` is populated from Sentinel signal ownership (`signals.user_id`).
+For direct Telegram delivery mapping, link Telegram with that same value.
 
 Webhook behavior:
 - Timeout: 10 seconds
