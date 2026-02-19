@@ -73,13 +73,34 @@ describe("Processor Logic", () => {
             cooldown_minutes: 5,
             last_triggered_at: null,
             definition: {
-              chains: [1],
-              window: { duration: "1h" },
-              condition: {
-                type: "condition",
-                operator: "gt",
-                left: { type: "constant", value: 100 },
-                right: { type: "constant", value: 50 },
+              version: 1,
+              dsl: {
+                scope: { chains: [1] },
+                window: { duration: "1h" },
+                conditions: [
+                  {
+                    type: "threshold",
+                    metric: "Morpho.Position.supplyShares",
+                    operator: ">",
+                    value: 100,
+                    chain_id: 1,
+                    market_id: "0xmarket",
+                    address: "0xuser",
+                  },
+                ],
+              },
+              ast: {
+                chains: [1],
+                window: { duration: "1h" },
+                conditions: [
+                  {
+                    type: "condition",
+                    operator: "gt",
+                    left: { type: "constant", value: 100 },
+                    right: { type: "constant", value: 50 },
+                  },
+                ],
+                logic: "AND",
               },
             },
           },

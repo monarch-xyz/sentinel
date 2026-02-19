@@ -32,40 +32,42 @@ describe("SignalEvaluator Integration", () => {
       webhook_url: "https://mock.com",
       cooldown_minutes: 5,
       is_active: true,
-      condition: {
-        type: "condition",
-        operator: "lt",
-        left: {
-          type: "expression",
-          operator: "sub",
+      conditions: [
+        {
+          type: "condition",
+          operator: "lt",
           left: {
-            type: "event",
-            event_type: "Supply",
-            filters: [{ field: "user", op: "eq", value: "0x123" }],
-            field: "assets",
-            aggregation: "sum",
+            type: "expression",
+            operator: "sub",
+            left: {
+              type: "event",
+              event_type: "Supply",
+              filters: [{ field: "user", op: "eq", value: "0x123" }],
+              field: "assets",
+              aggregation: "sum",
+            },
+            right: {
+              type: "event",
+              event_type: "Withdraw",
+              filters: [{ field: "user", op: "eq", value: "0x123" }],
+              field: "assets",
+              aggregation: "sum",
+            },
           },
           right: {
-            type: "event",
-            event_type: "Withdraw",
-            filters: [{ field: "user", op: "eq", value: "0x123" }],
-            field: "assets",
-            aggregation: "sum",
+            type: "expression",
+            operator: "mul",
+            left: { type: "constant", value: 0.2 },
+            right: {
+              type: "state",
+              entity_type: "Position",
+              filters: [{ field: "user", op: "eq", value: "0x123" }],
+              field: "supplyShares",
+              snapshot: "window_start",
+            },
           },
         },
-        right: {
-          type: "expression",
-          operator: "mul",
-          left: { type: "constant", value: 0.2 },
-          right: {
-            type: "state",
-            entity_type: "Position",
-            filters: [{ field: "user", op: "eq", value: "0x123" }],
-            field: "supplyShares",
-            snapshot: "window_start",
-          },
-        },
-      },
+      ],
     };
 
     // Setup Mock Data
@@ -91,12 +93,14 @@ describe("SignalEvaluator Integration", () => {
       webhook_url: "https://mock.com",
       cooldown_minutes: 5,
       is_active: true,
-      condition: {
-        type: "condition",
-        operator: "gt",
-        left: { type: "constant", value: 50 },
-        right: { type: "constant", value: 100 },
-      },
+      conditions: [
+        {
+          type: "condition",
+          operator: "gt",
+          left: { type: "constant", value: 50 },
+          right: { type: "constant", value: 100 },
+        },
+      ],
     };
 
     const result = await evaluator.evaluate(signal);

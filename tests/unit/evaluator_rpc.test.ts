@@ -37,22 +37,9 @@ describe("SignalEvaluator RPC historical state", () => {
       name: "RPC Change Condition",
       chains: [1],
       window: { duration: "7d" },
-      condition: {
-        type: "condition",
-        left: {
-          type: "state",
-          entity_type: "Position",
-          filters: [
-            { field: "marketId", op: "eq", value: "0xmarket" },
-            { field: "user", op: "eq", value: "0xuser" },
-          ],
-          field: "supplyShares",
-          snapshot: "current",
-        },
-        operator: "lt",
-        right: {
-          type: "expression",
-          operator: "mul",
+      conditions: [
+        {
+          type: "condition",
           left: {
             type: "state",
             entity_type: "Position",
@@ -61,11 +48,26 @@ describe("SignalEvaluator RPC historical state", () => {
               { field: "user", op: "eq", value: "0xuser" },
             ],
             field: "supplyShares",
-            snapshot: "window_start",
+            snapshot: "current",
           },
-          right: { type: "constant", value: 0.8 },
+          operator: "lt",
+          right: {
+            type: "expression",
+            operator: "mul",
+            left: {
+              type: "state",
+              entity_type: "Position",
+              filters: [
+                { field: "marketId", op: "eq", value: "0xmarket" },
+                { field: "user", op: "eq", value: "0xuser" },
+              ],
+              field: "supplyShares",
+              snapshot: "window_start",
+            },
+            right: { type: "constant", value: 0.8 },
+          },
         },
-      },
+      ],
       webhook_url: "https://example.com/webhook",
       cooldown_minutes: 5,
       is_active: true,

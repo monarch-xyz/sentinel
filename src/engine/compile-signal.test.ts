@@ -116,7 +116,9 @@ describe("compileSignalDefinition", () => {
       ],
     };
 
-    expect(() => compileSignalDefinition(definition)).toThrow("conditions");
+    expect(() => compileSignalDefinition(definition)).toThrow(
+      "Group condition requires at least one inner condition",
+    );
   });
 
   it("rejects aggregate market metric without markets", () => {

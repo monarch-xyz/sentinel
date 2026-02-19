@@ -336,15 +336,17 @@ describe("Compiler", () => {
         type: "group",
         addresses: ["0xa", "0xb", "0xc", "0xd", "0xe"],
         requirement: { count: 3, of: 5 },
-        condition: {
-          type: "change",
-          metric: "Morpho.Position.supplyShares",
-          direction: "decrease",
-          by: { percent: 10 },
-          chain_id: 1,
-          market_id: "0xmarket",
-          address: "0xplaceholder", // Will be replaced per-address at eval time
-        },
+        conditions: [
+          {
+            type: "change",
+            metric: "Morpho.Position.supplyShares",
+            direction: "decrease",
+            by: { percent: 10 },
+            chain_id: 1,
+            market_id: "0xmarket",
+            address: "0xplaceholder", // Will be replaced per-address at eval time
+          },
+        ],
       };
 
       const result = compileCondition(userCondition);
@@ -362,15 +364,17 @@ describe("Compiler", () => {
         type: "group",
         addresses: ["0xa", "0xb"],
         requirement: { count: 1, of: 2 },
-        condition: {
-          type: "threshold",
-          metric: "Morpho.Position.supplyShares",
-          operator: "<",
-          value: 100,
-          chain_id: 1,
-          market_id: "0xmarket",
-          address: "0xplaceholder",
-        },
+        conditions: [
+          {
+            type: "threshold",
+            metric: "Morpho.Position.supplyShares",
+            operator: "<",
+            value: 100,
+            chain_id: 1,
+            market_id: "0xmarket",
+            address: "0xplaceholder",
+          },
+        ],
       };
 
       const result = compileCondition(userCondition) as CompiledGroupCondition;

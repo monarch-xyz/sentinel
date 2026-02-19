@@ -290,7 +290,7 @@ describe("SignalEvaluator", () => {
     name: "Test Signal",
     chains: [1],
     window: { duration: "1h" },
-    condition,
+    conditions: [condition],
     webhook_url: "https://example.com/webhook",
     cooldown_minutes: 5,
     is_active: true,
