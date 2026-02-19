@@ -31,6 +31,7 @@ Sentinel enables sophisticated, multi-condition monitoring of blockchain data. U
 |-----|---------|
 | [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | DSL reference, metrics, evaluation flow, supported chains |
 | [**API.md**](./docs/API.md) | REST API endpoints |
+| [**AUTH.md**](./docs/AUTH.md) | API key auth model and backend integration pattern |
 | [**GETTING_STARTED.md**](./docs/GETTING_STARTED.md) | Local setup |
 | [**DESIGN_DECISIONS.md**](./docs/DESIGN_DECISIONS.md) | Technical decisions |
 | [**ROADMAP.md**](./docs/ROADMAP.md) | Delivery plan |
@@ -63,9 +64,12 @@ User DSL → Compiler → Expression Tree → Evaluator → Envio (indexed) + RP
 pnpm install
 docker compose up -d    # PostgreSQL + Redis
 
-pnpm db:migrate # Run postgres migration in Docker
+pnpm db:migrate         # Main Sentinel DB schema
+docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' || true
+pnpm delivery:db:migrate  # Delivery DB schema
 
-pnpm dev               # Start all services
+pnpm dev               # Start API + Worker
+pnpm dev:all           # Start API + Worker + Delivery
 
 curl -s -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \

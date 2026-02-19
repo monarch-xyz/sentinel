@@ -620,7 +620,7 @@ function compileChange(cond: ChangeCondition, opts: CompileOptions = {}): Intern
  * evaluator adds the user filter for each address at evaluation time.
  */
 function compileGroup(cond: GroupCondition): CompiledGroupCondition {
-  const innerConditions = cond.conditions ?? (cond.condition ? [cond.condition] : []);
+  const innerConditions = cond.conditions;
   if (innerConditions.length === 0) {
     throw new Error("Group condition requires at least one inner condition");
   }

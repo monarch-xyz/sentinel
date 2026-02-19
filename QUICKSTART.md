@@ -1,145 +1,75 @@
 # Sentinel Quick Start
 
-## Architecture
-
-```
-┌─────────────┐     ┌──────────────┐     ┌───────────────────┐
-│   API       │────▶│    Worker    │────▶│  Delivery (TG)    │
-│  :3000      │     │  (evaluator) │     │      :3100        │
-└─────────────┘     └──────────────┘     └───────────────────┘
-       │                   │                      │
-       └───────────────────┴──────────────────────┘
-                          │
-              ┌───────────┴───────────┐
-              │                       │
-         PostgreSQL              Redis
-           :5432                 :6379
-```
-
-## 1. First Time Setup
+## 1. Prerequisites
 
 ```bash
-cd /Users/anton/projects/sentinel
+node -v   # v22+
+corepack enable
+corepack prepare pnpm@latest --activate
+docker --version
+```
 
-# Install deps (if not done)
+## 2. Install And Configure
+
+```bash
 pnpm install
-
-# Create .env from template
 cp .env.example .env
+cp packages/delivery/.env.example packages/delivery/.env
 ```
 
-### Edit `.env`:
-```bash
-# Required
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel
-ENVIO_ENDPOINT=https://indexer.bigdevenergy.link/your-endpoint/v1/graphql
+Set required values:
 
-# Optional but recommended for prod
-WEBHOOK_SECRET=your-secret-here
-RPC_URL_1=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
-```
+- `.env`
+  - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel`
+  - `ENVIO_ENDPOINT=...`
+  - `WEBHOOK_SECRET=<shared-secret-used-by-delivery>`
+- `packages/delivery/.env`
+  - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_delivery`
+  - `TELEGRAM_BOT_TOKEN=...`
+  - `WEBHOOK_SECRET=<same-value-as-main-service>`
+  - `LINK_BASE_URL=http://localhost:3100`
 
-### Delivery package setup:
-```bash
-cd packages/delivery
-cp .env.example .env
-```
-
-Edit `packages/delivery/.env`:
-```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/sentinel_delivery
-TELEGRAM_BOT_TOKEN=<from @BotFather>
-WEBHOOK_SECRET=<same as main sentinel>
-LINK_BASE_URL=https://sentinel.monarchlend.xyz
-```
-
-## 2. Start Services
+## 3. Start Datastores And Initialize Schemas
 
 ```bash
-# Terminal 1: Start DB + Redis
+docker compose down -v --remove-orphans
 docker compose up -d
 
-# Terminal 2: Run migrations
+# Main DB schema init
 pnpm db:migrate
 
-# Terminal 3: Start API + Worker
+# Delivery uses a separate database (table names overlap with main app)
+docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' || true
+pnpm delivery:db:migrate
+```
+
+## 4. Run Services
+
+```bash
+# API + worker
 pnpm dev
 
-# Terminal 4 (optional): Start Telegram delivery
-pnpm delivery:dev
+# API + worker + Telegram delivery
+pnpm dev:all
 ```
 
-Or all at once:
-```bash
-docker compose up -d && pnpm db:migrate && pnpm dev:all
-```
-
-## 3. Test It Works
+## 5. Verify
 
 ```bash
-# Health check
 curl http://localhost:3000/health
+curl http://localhost:3100/health
 
 # Create API key
 curl -s -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name":"local-dev"}' | jq
-
-# Test a condition
-pnpm test:condition --inline '{
-  "type": "threshold",
-  "metric": "Morpho.Market.utilization",
-  "operator": ">",
-  "value": 0.9
-}'
+  -d '{"name":"local-dev"}'
 ```
 
-## 4. Notifications Setup
+Use returned `api_key` as `X-API-Key` for `/api/v1/signals*` and `/api/v1/simulate*`.
 
-### Option A: Telegram (via Delivery service)
-1. Create bot via @BotFather
-2. Add token to `packages/delivery/.env`
-3. Run `pnpm delivery:dev`
-4. Users `/start` the bot and link wallet
+## 6. Telegram Link Flow
 
-### Option B: Custom Webhook
-When creating a signal, provide `webhook_url`:
-```bash
-curl -X POST http://localhost:3000/api/v1/signals \
-  -H "X-API-Key: your_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Alert",
-    "conditions": [...],
-    "webhook_url": "https://your-server.com/alerts"
-  }'
-```
-
-### Option C: ntfy.sh (simple push)
-```bash
-# In webhook_url, use:
-"webhook_url": "https://ntfy.sh/your-topic"
-```
-
-Then subscribe on phone: `ntfy.sh/your-topic`
-
-## 5. Deploy to Railway
-
-See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
-
-Quick summary:
-- Create PostgreSQL + Redis add-ons
-- Deploy API: `node dist/api/index.js`
-- Deploy Worker: `node dist/worker/index.js`
-- Deploy Delivery (optional): `node packages/delivery/dist/index.js`
-
-## Common Commands
-
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start API + Worker |
-| `pnpm dev:all` | Start API + Worker + Delivery |
-| `pnpm test` | Run tests |
-| `pnpm db:migrate` | Run migrations (Docker) |
-| `pnpm db:reset` | Reset DB (dev only!) |
-| `pnpm build` | Build for production |
+1. User sends `/start` to the bot.
+2. Bot sends `http://localhost:3100/link?token=...`.
+3. User submits `app_user_id` on that page.
+4. Signal webhooks sent to `POST /webhook/deliver` are matched by `context.app_user_id`.

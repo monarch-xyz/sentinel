@@ -1,12 +1,12 @@
 # 🧭 Sentinel Roadmap
 
-This roadmap is MVP-focused and keeps migration costs low. Items are ordered by impact and dependency.
+This roadmap is MVP-focused. Items are ordered by impact and dependency.
 
 ## Now (MVP Hardening)
 - Finish RPC/Envio test coverage (unit + small integration)
 - Add smart query batching across signals (reduce Envio load)
 - Add basic operational metrics (latency + success rates)
-- Ship Railway deploy guide + migration runner
+- Ship Railway deploy guide + schema bootstrap command
 
 ## Next (Productization)
 - Add tenant-level rate limiting with Redis (shared across instances)

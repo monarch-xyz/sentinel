@@ -13,7 +13,6 @@ const keys = new ApiKeyRepository();
 const RegisterSchema = z.object({
   name: z.string().min(1).optional(),
   key_name: z.string().min(1).optional(),
-  payment_proof: z.string().optional(),
 });
 
 router.post("/register", async (req, res) => {

@@ -86,7 +86,7 @@ export class SignalRepository {
 
   async update(userId: string, id: string, updates: UpdateSignalInput) {
     const fields = Object.keys(updates);
-    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(", ");
+    const setClause = fields.map((f, i) => `${f} = $${i + 3}`).join(", ");
     const values = fields.map((f) =>
       f === "definition" ? JSON.stringify(updates[f]) : updates[f],
     );
@@ -203,6 +203,76 @@ export class NotificationLogRepository {
     `;
     const { rows } = await pool.query(query, [id, status, errorMessage, durationMs]);
     return rows[0];
+  }
+}
+
+// ============================================================================
+// SIGNAL RUN LOG REPOSITORY
+// ============================================================================
+
+export interface SignalRunLogEntry {
+  signal_id: string;
+  evaluated_at: Date;
+  triggered: boolean;
+  conclusive: boolean;
+  in_cooldown: boolean;
+  notification_attempted: boolean;
+  notification_success?: boolean;
+  webhook_status?: number;
+  error_message?: string;
+  evaluation_duration_ms?: number;
+  delivery_duration_ms?: number;
+  metadata?: object;
+}
+
+export class SignalRunLogRepository {
+  async create(entry: SignalRunLogEntry) {
+    const query = `
+      INSERT INTO signal_run_log
+        (
+          signal_id,
+          evaluated_at,
+          triggered,
+          conclusive,
+          in_cooldown,
+          notification_attempted,
+          notification_success,
+          webhook_status,
+          error_message,
+          evaluation_duration_ms,
+          delivery_duration_ms,
+          metadata
+        )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `;
+    const values = [
+      entry.signal_id,
+      entry.evaluated_at,
+      entry.triggered,
+      entry.conclusive,
+      entry.in_cooldown,
+      entry.notification_attempted,
+      entry.notification_success,
+      entry.webhook_status,
+      entry.error_message,
+      entry.evaluation_duration_ms,
+      entry.delivery_duration_ms,
+      entry.metadata ? JSON.stringify(entry.metadata) : null,
+    ];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+  }
+
+  async getBySignalId(signalId: string, limit = 100) {
+    const query = `
+      SELECT * FROM signal_run_log
+      WHERE signal_id = $1
+      ORDER BY evaluated_at DESC
+      LIMIT $2
+    `;
+    const { rows } = await pool.query(query, [signalId, limit]);
+    return rows;
   }
 }
 
@@ -419,5 +489,6 @@ export class EvaluationCacheRepository {
 // Export singleton instances
 export const signalRepository = new SignalRepository();
 export const notificationLogRepository = new NotificationLogRepository();
+export const signalRunLogRepository = new SignalRunLogRepository();
 export const snapshotBlocksRepository = new SnapshotBlocksRepository();
 export const evaluationCacheRepository = new EvaluationCacheRepository();

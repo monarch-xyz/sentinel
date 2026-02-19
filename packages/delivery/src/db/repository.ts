@@ -51,39 +51,40 @@ export async function deletePendingLink(
 
 export interface User {
   id: number;
-  wallet: string;
+  app_user_id: string;
   telegram_chat_id: number;
   telegram_username: string | null;
   linked_at: Date;
   is_active: boolean;
 }
 
-export async function createUser(
-  wallet: string,
+export async function createUserByAppUserId(
+  appUserId: string,
   chatId: number,
   username: string | null,
   db: DbClient = pool,
 ): Promise<User> {
+  const normalizedUserId = appUserId.trim();
   const result = await db.query<User>(
-    `INSERT INTO users (wallet, telegram_chat_id, telegram_username)
+    `INSERT INTO users (app_user_id, telegram_chat_id, telegram_username)
      VALUES ($1, $2, $3)
-     ON CONFLICT (wallet) DO UPDATE SET
+     ON CONFLICT (app_user_id) DO UPDATE SET
        telegram_chat_id = EXCLUDED.telegram_chat_id,
        telegram_username = EXCLUDED.telegram_username,
        is_active = true
      RETURNING *`,
-    [wallet.toLowerCase(), chatId, username],
+    [normalizedUserId, chatId, username],
   );
   return result.rows[0];
 }
 
-export async function getUserByWallet(
-  wallet: string,
+export async function getUserByAppUserId(
+  appUserId: string,
   db: DbClient = pool,
 ): Promise<User | null> {
   const result = await db.query<User>(
-    "SELECT * FROM users WHERE wallet = $1 AND is_active = true",
-    [wallet.toLowerCase()],
+    "SELECT * FROM users WHERE app_user_id = $1 AND is_active = true",
+    [appUserId.trim()],
   );
   return result.rows[0] ?? null;
 }
@@ -99,15 +100,15 @@ export async function getUsersByChatId(
   return result.rows;
 }
 
-export async function unlinkWallet(
-  wallet: string,
+export async function unlinkUserById(
+  userId: number,
   chatId: number,
   db: DbClient = pool,
 ): Promise<boolean> {
   const result = await db.query(
     `UPDATE users SET is_active = false 
-     WHERE wallet = $1 AND telegram_chat_id = $2`,
-    [wallet.toLowerCase(), chatId],
+     WHERE id = $1 AND telegram_chat_id = $2`,
+    [userId, chatId],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -120,7 +121,8 @@ export interface Delivery {
   id: number;
   signal_id: string;
   signal_name: string | null;
-  wallet: string;
+  app_user_id: string | null;
+  monitored_address: string | null;
   telegram_chat_id: number | null;
   status: DeliveryStatus;
   error: string | null;
@@ -132,7 +134,8 @@ export async function logDelivery(
   data: {
     signalId: string;
     signalName?: string;
-    wallet: string;
+    appUserId?: string;
+    monitoredAddress?: string | null;
     chatId?: number;
     status: DeliveryStatus;
     error?: string;
@@ -141,12 +144,13 @@ export async function logDelivery(
   db: DbClient = pool,
 ): Promise<void> {
   await db.query(
-    `INSERT INTO deliveries (signal_id, signal_name, wallet, telegram_chat_id, status, error, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO deliveries (signal_id, signal_name, app_user_id, monitored_address, telegram_chat_id, status, error, payload)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       data.signalId,
       data.signalName ?? null,
-      data.wallet.toLowerCase(),
+      data.appUserId ?? null,
+      data.monitoredAddress?.toLowerCase() ?? null,
       data.chatId ?? null,
       data.status,
       data.error ?? null,

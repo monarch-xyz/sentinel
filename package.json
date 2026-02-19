@@ -27,6 +27,8 @@
     "db:migrate:direct": "tsx src/scripts/migrate.ts",
     "db:migrate:prod": "node dist/scripts/migrate.js",
     "db:reset": "docker exec -i sentinel-postgres psql -U postgres -d sentinel -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && pnpm db:migrate",
+    "delivery:db:migrate": "pnpm -F @sentinel/delivery db:migrate",
+    "delivery:db:reset": "docker exec -i sentinel-postgres psql -U postgres -c 'DROP DATABASE IF EXISTS sentinel_delivery;' && docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' && pnpm delivery:db:migrate",
     "delivery:dev": "pnpm -F @sentinel/delivery dev",
     "delivery:build": "pnpm -F @sentinel/delivery build"
   },

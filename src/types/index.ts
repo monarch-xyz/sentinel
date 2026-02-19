@@ -69,8 +69,7 @@ export interface Signal {
   window: {
     duration: string;
   };
-  condition?: Condition;
-  conditions?: Condition[];
+  conditions: Condition[];
   logic?: "AND" | "OR";
   webhook_url: string;
   cooldown_minutes: number;
@@ -98,5 +97,10 @@ export interface WebhookPayload {
     addresses?: string[];
   };
   conditions_met: ConditionResult[];
-  context: Record<string, unknown>;
+  context: {
+    app_user_id: string;
+    address?: string;
+    market_id?: string;
+    chain_id?: number;
+  };
 }

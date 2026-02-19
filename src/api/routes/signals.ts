@@ -1,5 +1,9 @@
 import express from "express";
-import { SignalRepository } from "../../db/index.js";
+import {
+  NotificationLogRepository,
+  SignalRepository,
+  SignalRunLogRepository,
+} from "../../db/index.js";
 import { compileSignalDefinition } from "../../engine/compile-signal.js";
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
@@ -9,6 +13,8 @@ import { CreateSignalSchema, UpdateSignalSchema } from "../validators.js";
 const logger = createLogger("api:signals");
 const router: express.Router = express.Router();
 const repo = new SignalRepository();
+const notificationLogRepo = new NotificationLogRepository();
+const signalRunLogRepo = new SignalRunLogRepository();
 
 function parseDefinition(definition: unknown): unknown {
   if (typeof definition !== "string") return definition;
@@ -85,6 +91,40 @@ router.get("/:id", async (req, res) => {
     if (!signal) return res.status(404).json({ error: "Signal not found" });
     res.json(formatSignalForResponse(signal));
   } catch (_error: unknown) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Signal evaluation and notification history
+router.get("/:id/history", async (req, res) => {
+  try {
+    if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const signal = await repo.getById(req.auth.userId, req.params.id);
+    if (!signal) return res.status(404).json({ error: "Signal not found" });
+
+    const rawLimit = Number.parseInt(String(req.query.limit ?? "100"), 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 100;
+    const includeNotifications = req.query.include_notifications !== "false";
+
+    const [evaluations, notifications] = await Promise.all([
+      signalRunLogRepo.getBySignalId(signal.id, limit),
+      includeNotifications
+        ? notificationLogRepo.getBySignalId(signal.id, limit)
+        : Promise.resolve([]),
+    ]);
+
+    res.json({
+      signal_id: signal.id,
+      evaluations,
+      notifications,
+      count: {
+        evaluations: evaluations.length,
+        notifications: notifications.length,
+      },
+    });
+  } catch (error: unknown) {
+    logger.error({ error: getErrorMessage(error) }, "Failed to fetch signal history");
     res.status(500).json({ error: "Internal server error" });
   }
 });

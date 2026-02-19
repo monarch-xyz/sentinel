@@ -1,37 +1,5 @@
 import crypto from "node:crypto";
-import { verifyMessage } from "viem";
 import { env } from "./env.js";
-
-/**
- * Verify wallet ownership via EIP-191 signature
- */
-export async function verifyWalletSignature(
-  wallet: string,
-  message: string,
-  signature: `0x${string}`,
-): Promise<boolean> {
-  try {
-    const recoveredAddress = await verifyMessage({
-      address: wallet as `0x${string}`,
-      message,
-      signature,
-    });
-    return recoveredAddress;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Generate the message users must sign to link their wallet
- */
-export function generateLinkMessage(token: string): string {
-  return `Link wallet to Monarch Sentinel notifications.
-
-Token: ${token}
-
-This signature proves you own this wallet. It does not authorize any transactions.`;
-}
 
 /**
  * Verify Sentinel webhook signature

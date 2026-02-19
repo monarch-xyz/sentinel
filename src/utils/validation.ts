@@ -99,13 +99,18 @@ export function validateChains(chains: number[]): void {
 export interface SignalValidationInput {
   chains: number[];
   window: { duration: string };
-  condition: Condition;
+  conditions: Condition[];
   webhook_url: string;
 }
 
 export function validateSignal(signal: SignalValidationInput): void {
   validateChains(signal.chains);
   validateDuration(signal.window.duration, "window.duration");
-  validateCondition(signal.condition);
+  if (!signal.conditions || signal.conditions.length === 0) {
+    throw new ValidationError("At least one condition is required", "conditions");
+  }
+  for (const condition of signal.conditions) {
+    validateCondition(condition);
+  }
   validateWebhookUrl(signal.webhook_url);
 }

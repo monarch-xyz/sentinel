@@ -29,7 +29,7 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 **Rationale:** No legitimate use case needs 20+ levels of nesting.
 
 ### Decision 5: Unified Condition Schema ✅
-**Problem:** Two incompatible condition schemas — expression tree in evaluator vs named conditions in API docs.  
+**Problem:** Two different condition schemas — expression tree in evaluator vs named conditions in API docs.  
 **Fix:** Created `src/engine/compiler.ts` that transforms user DSL → internal expression tree.  
 **Rationale:** Keep user-friendly named conditions (ThresholdCondition, etc.) but ensure evaluator receives validated AST.
 
@@ -45,25 +45,10 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 - `Morpho.Market.utilization` → computed as `totalBorrow / totalSupply`
 - Group conditions return `CompiledGroupCondition` for special evaluator handling
 
-### Decision 6: Remove Legacy Metric Aliases
+### Decision 6: Qualified Metric Names Only
 **Problem:** Having both `supply_assets` and `Morpho.Position.supplyShares` creates confusion.  
-**Fix:** Removed all legacy aliases. Only qualified names are valid.  
+**Fix:** Removed alias names. Only qualified names are valid.  
 **Rationale:** Cleaner API, explicit protocol namespacing, easier to extend.
-
-**Migration from legacy names:**
-| Legacy Name | New Qualified Name |
-|-------------|-------------------|
-| `supply_assets` | `Morpho.Position.supplyShares` |
-| `supply_shares` | `Morpho.Position.supplyShares` |
-| `borrow_assets` | `Morpho.Position.borrowShares` |
-| `borrow_shares` | `Morpho.Position.borrowShares` |
-| `collateral_assets` | `Morpho.Position.collateral` |
-| `market_total_supply` | `Morpho.Market.totalSupplyAssets` |
-| `market_total_borrow` | `Morpho.Market.totalBorrowAssets` |
-| `market_utilization` | `Morpho.Market.utilization` |
-| `net_supply_flow` | `Morpho.Flow.netSupply` |
-| `net_borrow_flow` | `Morpho.Flow.netBorrow` |
-| `liquidation_volume` | `Morpho.Event.Liquidate.repaidAssets` |
 
 ### Decision 7: Chained Event Metrics
 **Problem:** Users want `netSupply = Supply - Withdraw` but couldn't express event combinations.  
@@ -87,7 +72,7 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 ### Decision 10: API Keys Stored in DB (No Static API_KEY)
 **Problem:** A single static API key doesn’t support multiple users, rotation, or auditability.  
 **Fix:** Added `/auth/register` to create a user + API key stored in DB, used via `X-API-Key`.  
-**Rationale:** Minimal auth layer that is easy to extend and compatible with future payments.
+**Rationale:** Minimal auth layer that is easy to extend and supports future payment gating.
 
 ### Decision 11: Webhook Signing + Idempotency
 **Problem:** Consumers need verification, retry safety, and replay protection.  
@@ -107,7 +92,7 @@ After a first-principles review of the DSL and evaluation engine, we identified 
 ### Decision 14: x402 Deferred (Monetization Later)
 **Problem:** x402 integration adds complexity to MVP without immediate benefit.  
 **Fix:** Defer x402; keep API key flow stable; plan to gate `/auth/register` with x402 later.  
-**Rationale:** Minimize migration costs while keeping a clear upgrade path.
+**Rationale:** Keep MVP complexity low while preserving a clear evolution path.
 
 ## 📖 Example: "Alert when position drops 20%"
 

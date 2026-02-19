@@ -229,7 +229,7 @@ Morpho.Flow.totalLiquidations     # repaidAssets + seizedAssets
 
 ## Event-Based Alerts
 
-Event metrics are first-class signals, not a workaround. They capture **activity** rather than **state**.
+Event metrics are first-class signals. They capture **activity** rather than **state**.
 
 Typical uses:
 - Sudden supply/withdraw spikes over a window
@@ -286,7 +286,6 @@ Detect changes over time window.
 #### GroupCondition
 N-of-M address logic.
 
-- Use `condition` for a single inner condition.
 - Use `conditions` + `logic` to require multiple checks per address.
 
 ```json

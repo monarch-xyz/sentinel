@@ -1,115 +1,19 @@
-# ⚠️ Data Source Limitations & Migration
+# Data Source Constraints
 
-**Discovered:** 2026-02-03  
-**Status:** RESOLVED (with workaround)
+## Envio Constraints
 
-## Summary
+1. No block-parameter state time-travel queries.
+2. No production `_aggregate` helper for all use cases.
 
-Two Envio limitations discovered:
+## Sentinel Strategy
 
-1. **No time-travel queries** - `block: {number: X}` not supported
-2. **No `_aggregate` in production** - must aggregate in-memory after fetching rows
+- **Current state + events:** Envio GraphQL.
+- **Point-in-time state:** RPC `eth_call` at resolved block number.
+- **Event aggregation:** aggregate returned rows in memory.
+- **Timestamp -> block resolution:** RPC block lookup logic.
 
-## Decision: Hybrid Data Strategy (Complementary Sources)
+## Practical Outcome
 
-| Data Type | Source | Method |
-|-----------|--------|--------|
-| **Current state (latest)** | Envio GraphQL | Query Position/Market entities |
-| **Point-in-time state** | RPC `eth_call` | Read contract at past block |
-| **Events (aggregated)** | Envio GraphQL | Fetch rows → in-memory aggregation |
-| **Block resolution** | RPC | Already implemented in `blocks.ts` |
-
-## What Still Works
-
-- ✅ `ThresholdCondition` on current state (Envio)
-- ✅ `EventRef` aggregations (Envio events + in-memory sum/avg/count)
-- ✅ Block number resolution (RPC binary search)
-- ✅ `ChangeCondition` **with RPC point-in-time state**
-
-## What Needed Fixing
-
-### 1. State Time-Travel → RPC Point-in-Time Reads
-
-The `EnvioClient.fetchState()` with `blockNumber` param doesn't work via Envio.
-
-**Solution:** Create `RpcClient` that reads Morpho contract state directly:
-
-```typescript
-// src/rpc/client.ts
-async function readPositionAtBlock(
-  chainId: number,
-  marketId: string,
-  user: string,
-  blockNumber: number
-): Promise<{ supplyShares: bigint; borrowShares: bigint; collateral: bigint }> {
-  const client = getPublicClient(chainId);
-  return await client.readContract({
-    address: MORPHO_ADDRESSES[chainId],
-    abi: morphoAbi,
-    functionName: 'position',
-    args: [marketId, user],
-    blockNumber: BigInt(blockNumber),
-  });
-}
-```
-
-### 2. Aggregation → In-Memory
-
-Already implemented in `client.ts:aggregateInMemory()` ✅
-
-Envio returns raw event rows, we aggregate locally:
-```typescript
-// Already working in EnvioClient
-private aggregateInMemory(rows: any[], ref: EventRef): number {
-  const values = rows.map(r => Number(r[ref.field]));
-  switch (ref.aggregation) {
-    case 'sum': return values.reduce((a, b) => a + b, 0);
-    case 'count': return rows.length;
-    // ...
-  }
-}
-```
-
-## Why Envio Is Still Valuable
-
-Even without time-travel and aggregation:
-
-1. **Event indexing** - Don't need to scan logs ourselves
-2. **Multi-chain** - Single GraphQL vs 7 RPCs
-3. **Entity relationships** - Position → Market linking pre-computed
-4. **Filtering** - Complex where clauses on indexed data
-
-## Architecture After Fix
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        SENTINEL                             │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   REST API   │    │   COMPILER   │    │   WORKER     │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│                             │                              │
-│                    ┌────────▼────────┐                     │
-│                    │   EVALUATOR     │                     │
-│                    └────────┬────────┘                     │
-│            ┌────────────────┼────────────────┐             │
-│            ▼                ▼                ▼             │
-│   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐     │
-│   │ EnvioClient │   │  RpcClient  │   │ BlockResolver│     │
-│   │ (current +  │   │ (historical │   │ (timestamp→  │     │
-│   │  events)    │   │   state)    │   │   block)     │     │
-│   └──────┬──────┘   └──────┬──────┘   └──────┬──────┘     │
-└──────────┼─────────────────┼─────────────────┼─────────────┘
-           │                 │                 │
-           ▼                 ▼                 ▼
-    ┌────────────┐    ┌────────────┐    ┌────────────┐
-    │   ENVIO    │    │  RPC NODES │    │  RPC NODES │
-    │  INDEXER   │    │ (point-in-time) │    │ (latest)  │
-    └────────────┘    └────────────┘    └────────────┘
-```
-
-## Lessons Learned
-
-1. **VERIFY ASSUMPTIONS** - Don't assume features exist without testing
-2. **Test with real data early** - Would have caught this day 1
-3. **Document data source limitations** - Now in this file
+- Threshold and change evaluations remain supported.
+- Event-based conditions remain supported.
+- Historical state checks rely on RPC, not Envio.

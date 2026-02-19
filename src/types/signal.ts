@@ -104,10 +104,8 @@ export interface GroupCondition {
     count: number;
     of: number;
   };
-  /** Single condition each address must meet (legacy) */
-  condition?: Condition;
-  /** Multiple conditions each address must meet (preferred) */
-  conditions?: Condition[];
+  /** Conditions each address must meet */
+  conditions: Condition[];
 }
 
 export interface AggregateCondition {
@@ -210,9 +208,18 @@ export interface WebhookPayload {
   signal_id: string;
   signal_name: string;
   triggered_at: string;
-  scope: number[];
+  scope: {
+    chains: number[];
+    markets?: string[];
+    addresses?: string[];
+  };
   conditions_met: ConditionResult[];
-  context: Record<string, unknown>;
+  context: {
+    app_user_id: string;
+    address?: string;
+    market_id?: string;
+    chain_id?: number;
+  };
 }
 
 // ============================================

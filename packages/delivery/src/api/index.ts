@@ -3,15 +3,161 @@ import { cors } from "hono/cors";
 import { z } from "zod";
 import { sendAlert } from "../bot/index.js";
 import * as repo from "../db/repository.js";
-import {
-  generateLinkMessage,
-  verifyWalletSignature,
-  verifyWebhookSignature,
-} from "../utils/crypto.js";
+import { verifyWebhookSignature } from "../utils/crypto.js";
 import { env } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export const api = new Hono();
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderLinkPage(token: string, appUserId: string): string {
+  const safeToken = escapeHtml(token);
+  const safeAppUserId = escapeHtml(appUserId);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connect Telegram - Sentinel</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at 20% 10%, #f2f8ff 0%, #f8fbff 40%, #eef3f9 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 520px;
+        background: #ffffff;
+        border: 1px solid #dbe4ee;
+        border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(23, 42, 69, 0.08);
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 24px;
+        color: #112134;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #42576f;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 6px;
+        color: #2d4258;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #c8d5e2;
+        margin-bottom: 14px;
+        font-size: 14px;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 11px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        background: #0d6efd;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #status {
+        margin-top: 14px;
+        font-size: 14px;
+      }
+      .ok {
+        color: #0a7d28;
+      }
+      .err {
+        color: #b00020;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Connect Telegram</h1>
+      <p>Link your Telegram chat to your Sentinel app account to receive signal alerts.</p>
+      <label for="token">Bot Link Token</label>
+      <input id="token" value="${safeToken}" placeholder="Token from Telegram /start link" />
+      <label for="appUserId">Sentinel App User ID</label>
+      <input id="appUserId" value="${safeAppUserId}" placeholder="Your app account ID" />
+      <button id="connectBtn" type="button">Connect Account</button>
+      <div id="status"></div>
+    </main>
+    <script>
+      const btn = document.getElementById("connectBtn");
+      const status = document.getElementById("status");
+      const tokenInput = document.getElementById("token");
+      const appUserIdInput = document.getElementById("appUserId");
+
+      function setStatus(message, klass) {
+        status.textContent = message;
+        status.className = klass;
+      }
+
+      btn.addEventListener("click", async () => {
+        const token = tokenInput.value.trim();
+        const appUserId = appUserIdInput.value.trim();
+        if (!token || !appUserId) {
+          setStatus("Token and app user ID are required.", "err");
+          return;
+        }
+
+        btn.disabled = true;
+        setStatus("Connecting...", "");
+
+        try {
+          const res = await fetch("/link/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, app_user_id: appUserId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setStatus(data.error || "Failed to connect account.", "err");
+          } else {
+            setStatus(data.message || "Account linked successfully.", "ok");
+          }
+        } catch {
+          setStatus("Network error while linking account.", "err");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>`;
+}
 
 // ============ Middleware ============
 
@@ -45,36 +191,20 @@ api.get("/health", (c) => {
 
 // ============ Link Endpoints ============
 
-// GET /link/message - Get the message to sign for a token
-const GetMessageSchema = z.object({
+api.get("/link", (c) => {
+  const token = c.req.query("token") ?? "";
+  const appUserId = c.req.query("app_user_id") ?? "";
+  return c.html(renderLinkPage(token, appUserId));
+});
+
+const LinkAccountSchema = z.object({
   token: z.string().min(1),
+  app_user_id: z.string().min(1).max(255),
 });
 
-api.get("/link/message", async (c) => {
-  const query = GetMessageSchema.safeParse(c.req.query());
-  if (!query.success) {
-    return c.json({ error: "Invalid token" }, 400);
-  }
-
-  const pending = await repo.getPendingLink(query.data.token);
-  if (!pending) {
-    return c.json({ error: "Token not found or expired" }, 404);
-  }
-
-  const message = generateLinkMessage(query.data.token);
-  return c.json({ message });
-});
-
-// POST /link/verify - Verify signature and link wallet
-const VerifyLinkSchema = z.object({
-  token: z.string().min(1),
-  wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  signature: z.string().regex(/^0x[a-fA-F0-9]+$/),
-});
-
-api.post("/link/verify", async (c) => {
+api.post("/link/connect", async (c) => {
   const body = await c.req.json().catch(() => null);
-  const parsed = VerifyLinkSchema.safeParse(body);
+  const parsed = LinkAccountSchema.safeParse(body);
 
   if (!parsed.success) {
     return c.json(
@@ -83,46 +213,28 @@ api.post("/link/verify", async (c) => {
     );
   }
 
-  const { token, wallet, signature } = parsed.data;
-
-  // Check token exists
+  const { token, app_user_id } = parsed.data;
   const pending = await repo.getPendingLink(token);
   if (!pending) {
     return c.json({ error: "Token not found or expired" }, 404);
   }
 
-  // Verify signature
-  const message = generateLinkMessage(token);
-  const valid = await verifyWalletSignature(
-    wallet,
-    message,
-    signature as `0x${string}`,
-  );
-
-  if (!valid) {
-    logger.warn("Invalid signature", { wallet, token });
-    return c.json({ error: "Invalid signature" }, 401);
-  }
-
-  // Create user
-  const user = await repo.createUser(
-    wallet,
+  const user = await repo.createUserByAppUserId(
+    app_user_id,
     pending.telegram_chat_id,
     pending.telegram_username,
   );
-
-  // Clean up pending link
   await repo.deletePendingLink(token);
 
-  logger.info("Wallet linked", {
-    wallet: user.wallet,
+  logger.info("App account linked", {
+    appUserId: user.app_user_id,
     chatId: user.telegram_chat_id,
   });
 
   return c.json({
     success: true,
-    wallet: user.wallet,
-    message: "Wallet linked successfully! You will now receive alerts.",
+    app_user_id: user.app_user_id,
+    message: "Telegram is now linked to your Sentinel app account.",
   });
 });
 
@@ -135,14 +247,12 @@ const WebhookPayloadSchema = z.object({
   triggered_at: z.string(),
   conditions_met: z.union([z.number(), z.array(z.unknown())]).optional(),
   summary: z.string().optional(),
-  context: z
-    .object({
-      wallet: z.string().optional(),
-      address: z.string().optional(), // Some signals use "address" instead
-      market_id: z.string().optional(),
-      chain_id: z.number().optional(),
-    })
-    .optional(),
+  context: z.object({
+    app_user_id: z.string().min(1),
+    address: z.string().optional(),
+    market_id: z.string().optional(),
+    chain_id: z.number().optional(),
+  }),
 });
 
 api.post("/webhook/deliver", async (c) => {
@@ -161,7 +271,14 @@ api.post("/webhook/deliver", async (c) => {
   }
 
   // Parse payload
-  const parsed = WebhookPayloadSchema.safeParse(JSON.parse(body));
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(body);
+  } catch {
+    return c.json({ error: "Invalid JSON payload" }, 400);
+  }
+
+  const parsed = WebhookPayloadSchema.safeParse(parsedBody);
   if (!parsed.success) {
     return c.json(
       { error: "Invalid payload", details: parsed.error.flatten() },
@@ -170,27 +287,16 @@ api.post("/webhook/deliver", async (c) => {
   }
 
   const payload = parsed.data;
-  const wallet = payload.context?.wallet ?? payload.context?.address;
+  const appUserId = payload.context.app_user_id;
+  const monitoredAddress = payload.context.address ?? null;
+  const user = await repo.getUserByAppUserId(appUserId);
 
-  if (!wallet) {
-    // Log but don't fail - some signals might not have a wallet
-    await repo.logDelivery({
-      signalId: payload.signal_id,
-      signalName: payload.signal_name,
-      wallet: "unknown",
-      status: "no_user",
-      payload: payload,
-    });
-    return c.json({ delivered: false, reason: "No wallet in payload" });
-  }
-
-  // Find user
-  const user = await repo.getUserByWallet(wallet);
   if (!user) {
     await repo.logDelivery({
       signalId: payload.signal_id,
       signalName: payload.signal_name,
-      wallet,
+      appUserId,
+      monitoredAddress,
       status: "no_user",
       payload: payload,
     });
@@ -209,9 +315,9 @@ api.post("/webhook/deliver", async (c) => {
   const success = await sendAlert(user.telegram_chat_id, {
     signalName: payload.signal_name ?? "Signal Alert",
     summary: payload.summary ?? fallbackSummary,
-    wallet,
-    marketId: payload.context?.market_id,
-    chainId: payload.context?.chain_id,
+    address: monitoredAddress ?? undefined,
+    marketId: payload.context.market_id,
+    chainId: payload.context.chain_id,
     monarchUrl: "https://monarchlend.xyz/positions",
   });
 
@@ -219,7 +325,8 @@ api.post("/webhook/deliver", async (c) => {
   await repo.logDelivery({
     signalId: payload.signal_id,
     signalName: payload.signal_name,
-    wallet,
+    appUserId,
+    monitoredAddress,
     chatId: user.telegram_chat_id,
     status: success ? "sent" : "failed",
     payload: payload,

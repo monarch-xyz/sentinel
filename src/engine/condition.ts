@@ -6,7 +6,6 @@
  */
 
 import {
-  type Condition as AstCondition,
   type ComparisonOp,
   EventRef,
   type ExpressionNode,
@@ -272,8 +271,7 @@ export interface EvaluatableSignal {
   description?: string;
   chains: number[];
   window: { duration: string };
-  condition?: AstCondition;
-  conditions?: CompiledCondition[];
+  conditions: CompiledCondition[];
   logic?: "AND" | "OR";
   webhook_url?: string;
   cooldown_minutes?: number;
@@ -312,7 +310,7 @@ export class SignalEvaluator {
         fetchEvents: (ref, start, end) => this.fetcher.fetchEvents(ref, start, end),
       };
 
-      const conditions = signal.conditions ?? (signal.condition ? [signal.condition] : []);
+      const conditions = signal.conditions;
       const logic = signal.logic ?? "AND";
       const triggered = await evaluateConditionSet(conditions, logic, context);
 

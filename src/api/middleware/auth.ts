@@ -23,7 +23,7 @@ export function hashApiKey(key: string): string {
 
 export function generateApiKey(): string {
   const raw = randomBytes(32).toString("base64url");
-  return `flare_${raw}`;
+  return `sentinel_${raw}`;
 }
 
 export function requireApiKey() {

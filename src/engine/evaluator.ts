@@ -1,7 +1,7 @@
 import type { ComparisonOp, EventRef, ExpressionNode, MathOp, StateRef } from "../types/index.js";
 import { parseDuration } from "../utils/duration.js";
 
-// Re-export for backwards compatibility
+// Re-export for engine consumers
 export { parseDuration } from "../utils/duration.js";
 
 /**

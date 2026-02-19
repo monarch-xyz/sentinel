@@ -20,14 +20,16 @@ describe("SignalEvaluator logic", () => {
           type: "group",
           addresses: ["0x1", "0x2", "0x3"],
           requirement: { count: 2, of: 3 },
-          condition: {
-            type: "threshold",
-            metric: "Morpho.Position.supplyShares",
-            operator: ">",
-            value: 100,
-            chain_id: 1,
-            market_id: "market-1",
-          },
+          conditions: [
+            {
+              type: "threshold",
+              metric: "Morpho.Position.supplyShares",
+              operator: ">",
+              value: 100,
+              chain_id: 1,
+              market_id: "market-1",
+            },
+          ],
         },
       ],
     };

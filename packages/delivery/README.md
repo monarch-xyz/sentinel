@@ -8,9 +8,9 @@ This service bridges Sentinel webhooks to Telegram, allowing users to receive De
 
 ```
 1. User: /start in Telegram bot
-2. Bot: Generates link → monarchlend.xyz/link?token=xxx
-3. User: Connects wallet, signs message
-4. Service: Stores wallet → chatId mapping
+2. Bot: Generates link → <LINK_BASE_URL>/link?token=xxx
+3. User: Opens /link page and enters Sentinel app user ID
+4. Service: Stores app_user_id → chatId mapping
 5. Sentinel: Triggers, sends webhook
 6. Service: Looks up user, sends TG message
 ```
@@ -18,20 +18,19 @@ This service bridges Sentinel webhooks to Telegram, allowing users to receive De
 ## Quick Start
 
 ```bash
-# Install dependencies
+# from repo root
 pnpm install
-
-# Start PostgreSQL
 docker compose up -d
 
-# Create .env from example
+# create dedicated delivery DB once
+docker exec -i sentinel-postgres psql -U postgres -c 'CREATE DATABASE sentinel_delivery;' || true
+
+# from packages/delivery
 cp .env.example .env
-# Edit .env with your values
+# set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_delivery
+# set TELEGRAM_BOT_TOKEN and WEBHOOK_SECRET
 
-# Run migrations
 pnpm db:migrate
-
-# Start dev server
 pnpm dev
 ```
 
@@ -42,7 +41,7 @@ pnpm dev
 | `DATABASE_URL` | PostgreSQL connection string |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather |
 | `WEBHOOK_SECRET` | Shared secret with Sentinel (min 32 chars) |
-| `LINK_BASE_URL` | Base URL for wallet linking page |
+| `LINK_BASE_URL` | Base URL for Telegram account linking page |
 | `PORT` | API server port (default: 3100) |
 
 ## API Endpoints
@@ -51,8 +50,8 @@ pnpm dev
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/link/message?token=xxx` | GET | Get message to sign |
-| `/link/verify` | POST | Verify signature, link wallet |
+| `/link?token=xxx` | GET | Hosted link page |
+| `/link/connect` | POST | Link Telegram to app user ID |
 
 ### Webhook
 
@@ -70,14 +69,14 @@ pnpm dev
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Generate wallet link |
-| `/status` | Show linked wallets |
-| `/unlink` | Remove wallet link |
+| `/start` | Generate account link |
+| `/status` | Show linked accounts |
+| `/unlink` | Remove linked account |
 | `/help` | Show help |
 
 ## Security
 
-- **Wallet Ownership**: Users must sign EIP-191 message to prove wallet ownership
+- **Account Linking**: Users link Telegram chat to Sentinel app user ID via short-lived bot token
 - **Webhook Auth**: Sentinel webhooks are verified with HMAC-SHA256 signatures
 - **Rate Limiting**: Max 30 messages per user per hour
 - **Token Expiry**: Link tokens expire after 15 minutes

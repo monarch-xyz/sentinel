@@ -16,8 +16,6 @@ pnpm install
 if [ ! -f .env ]; then
   echo "📝 Creating .env from template..."
   cp .env.example .env
-  # Fix the DB name (template says 'flare', we want 'sentinel')
-  sed -i '' 's/flare/sentinel/g' .env 2>/dev/null || sed -i 's/flare/sentinel/g' .env
   echo "⚠️  Edit .env to add your ENVIO_ENDPOINT"
 fi
 
@@ -36,13 +34,14 @@ docker compose up -d
 echo "⏳ Waiting for PostgreSQL..."
 sleep 3
 
-# Run migrations
-echo "🗃️ Running migrations..."
-pnpm db:migrate 2>/dev/null || {
-  echo "⚠️  Migration failed (maybe first run). Trying again..."
-  sleep 2
-  pnpm db:migrate
-}
+# Initialize schemas
+echo "🗃️ Initializing schemas..."
+pnpm db:migrate
+
+# Setup delivery database and schema
+echo "📬 Preparing delivery database..."
+docker exec -i sentinel-postgres psql -U postgres -c "CREATE DATABASE sentinel_delivery;" >/dev/null 2>&1 || true
+pnpm delivery:db:migrate
 
 echo ""
 echo "✅ Setup complete!"

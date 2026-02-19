@@ -1,29 +1,52 @@
 # Sentinel API Reference
 
-REST API for managing signals and running simulations.
+REST API for managing signals, simulation, and Telegram delivery integration.
 
-**Base URL:** `http://localhost:3000/api/v1`
+**Main API Base URL:** `http://localhost:3000/api/v1`
 
-**Authentication:** API keys required for all endpoints except `/auth/register` and `/health`.
+**Authentication (main API):** API key required for all `/api/v1/*` endpoints except `/auth/register` and `/health`.
 
-Send `X-API-Key: <your_key>` in every request.
+Send:
+
+```
+X-API-Key: <user_api_key>
+```
+
+Recommended integration pattern:
+
+- Browser calls your webapp backend
+- Webapp backend calls Sentinel with that user's API key
+- Do not expose Sentinel API keys in browser code
 
 ---
 
-**Endpoints**
+**Main API Endpoints**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/signals` | Create a new signal |
 | GET | `/signals` | List all signals |
 | GET | `/signals/:id` | Get signal details |
+| GET | `/signals/:id/history` | Get evaluation + notification history |
 | PATCH | `/signals/:id` | Update a signal |
 | PATCH | `/signals/:id/toggle` | Toggle `is_active` |
 | DELETE | `/signals/:id` | Delete a signal |
 | POST | `/simulate/:id/simulate` | Run simulation |
 | POST | `/simulate/:id/first-trigger` | Find first trigger in a range |
-| GET | `/health` | Health check |
+| GET | `/health` | Health check (root path on port 3000) |
 | POST | `/auth/register` | Create a user + API key |
+
+---
+
+**Delivery Service Endpoints** (`http://localhost:3100`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/health` | none | Health check |
+| GET | `/link` | none | Hosted Telegram linking page |
+| POST | `/link/connect` | none (token-based) | Link Telegram chat to app user id |
+| POST | `/webhook/deliver` | `X-Sentinel-Signature` | Receive signed Sentinel webhook and deliver to Telegram |
+| GET | `/admin/stats` | `X-Admin-Key` | Delivery stats |
 
 ---
 
@@ -78,7 +101,7 @@ A signal is a JSON object with this shape:
 - `requirement.of` must equal the number of `addresses`.
 - Inner conditions must NOT include `address` (it is injected per address).
 - Nested `group` or `aggregate` is not supported.
-- You can provide a single `condition` or a list of `conditions` with optional `logic` (`AND` or `OR`).
+- Provide `conditions` with optional `logic` (`AND` or `OR`).
 
 **`aggregate`**
 - Aggregate a metric across scope.
@@ -200,31 +223,7 @@ Example:
 }
 ```
 
-**4. Group condition (single inner condition)**
-
-```json
-{
-  "scope": { "chains": [1], "markets": ["0xM"] },
-  "window": { "duration": "6h" },
-  "conditions": [
-    {
-      "type": "group",
-      "addresses": ["0xA", "0xB", "0xC"],
-      "requirement": { "count": 2, "of": 3 },
-      "condition": {
-        "type": "change",
-        "metric": "Morpho.Position.supplyShares",
-        "direction": "decrease",
-        "by": { "percent": 30 },
-        "market_id": "0xM",
-        "chain_id": 1
-      }
-    }
-  ]
-}
-```
-
-**5. Aggregate event burst (count + size)**
+**4. Aggregate event burst (count + size)**
 
 ```json
 {
@@ -331,6 +330,19 @@ X-API-Key: your-api-key
 PATCH /api/v1/signals/:id/toggle
 X-API-Key: your-api-key
 ```
+
+---
+
+**Signal History**
+
+```http
+GET /api/v1/signals/:id/history?limit=100&include_notifications=true
+X-API-Key: your-api-key
+```
+
+Returns:
+- `evaluations`: every scheduler run (triggered and non-triggered)
+- `notifications`: webhook delivery attempts for triggered runs
 
 ---
 
@@ -451,7 +463,12 @@ X-API-Key: your-api-key
     "addresses": ["0x..."]
   },
   "conditions_met": [],
-  "context": {}
+  "context": {
+    "app_user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "address": "0x...",
+    "market_id": "0x...",
+    "chain_id": 1
+  }
 }
 ```
 
@@ -460,7 +477,7 @@ Webhook behavior:
 - Retries: up to `WEBHOOK_MAX_RETRIES` (default 3) with exponential backoff
 - Expected response: 2xx
 - Idempotency: `Idempotency-Key: <signal_id>:<triggered_at>`
-- Signature: `X-Sentinel-Signature` and `X-Sentinel-Timestamp` (if `WEBHOOK_SECRET` is set). Signature is `sha256=HMAC(secret, "<timestamp>.<payload>")`.
+- Signature: `X-Sentinel-Signature: t=<unix_seconds>,v1=<hex_hmac>` and `X-Sentinel-Timestamp` (if `WEBHOOK_SECRET` is set), where `v1 = HMAC_SHA256(secret, "<timestamp>.<payload>")`.
 
 ---
 
@@ -495,8 +512,7 @@ Content-Type: application/json
 
 {
   "name": "Acme Alerts",
-  "key_name": "prod-key",
-  "payment_proof": "optional-for-future-x402"
+  "key_name": "prod-key"
 }
 ```
 

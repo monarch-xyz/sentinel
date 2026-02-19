@@ -1,6 +1,6 @@
 -- Sentinel Delivery Schema
 
--- Pending link tokens (short-lived, for wallet linking flow)
+-- Pending link tokens (short-lived, for app account linking flow)
 CREATE TABLE IF NOT EXISTS pending_links (
   token TEXT PRIMARY KEY,
   telegram_chat_id BIGINT NOT NULL,
@@ -12,29 +12,27 @@ CREATE TABLE IF NOT EXISTS pending_links (
 -- Create index for cleanup job
 CREATE INDEX IF NOT EXISTS idx_pending_links_expires ON pending_links(expires_at);
 
--- Verified user wallet mappings
+-- Verified user mappings (Sentinel app account -> Telegram chat)
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  wallet TEXT NOT NULL,
+  app_user_id TEXT NOT NULL UNIQUE,
   telegram_chat_id BIGINT NOT NULL,
   telegram_username TEXT,
   linked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  is_active BOOLEAN DEFAULT true,
-  
-  -- Allow multiple wallets per user, but each wallet only links once
-  UNIQUE(wallet)
+  is_active BOOLEAN DEFAULT true
 );
 
--- Index for fast lookups by wallet (most common query)
-CREATE INDEX IF NOT EXISTS idx_users_wallet ON users(wallet);
+-- Indexes for fast lookups
 CREATE INDEX IF NOT EXISTS idx_users_chat_id ON users(telegram_chat_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_app_user_id_unique ON users(app_user_id);
 
 -- Delivery logs for debugging and analytics
 CREATE TABLE IF NOT EXISTS deliveries (
   id SERIAL PRIMARY KEY,
   signal_id TEXT NOT NULL,
   signal_name TEXT,
-  wallet TEXT NOT NULL,
+  app_user_id TEXT,
+  monitored_address TEXT,
   telegram_chat_id BIGINT,
   status TEXT NOT NULL CHECK (status IN ('sent', 'no_user', 'failed', 'rate_limited')),
   error TEXT,
@@ -43,7 +41,8 @@ CREATE TABLE IF NOT EXISTS deliveries (
 );
 
 -- Index for querying delivery history
-CREATE INDEX IF NOT EXISTS idx_deliveries_wallet ON deliveries(wallet);
+CREATE INDEX IF NOT EXISTS idx_deliveries_address ON deliveries(monitored_address);
+CREATE INDEX IF NOT EXISTS idx_deliveries_app_user_id ON deliveries(app_user_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_created ON deliveries(created_at);
 CREATE INDEX IF NOT EXISTS idx_deliveries_status ON deliveries(status);
 

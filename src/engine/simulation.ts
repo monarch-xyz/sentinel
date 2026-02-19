@@ -1,7 +1,7 @@
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
 import { EnvioClient } from "../envio/client.js";
-import type { Condition as AstCondition, ComparisonOp } from "../types/index.js";
-import { type CompiledCondition, isSimpleCondition } from "./compiler.js";
+import type { ComparisonOp } from "../types/index.js";
+import { isSimpleCondition } from "./compiler.js";
 import { evaluateConditionSet } from "./condition.js";
 import type { EvaluatableSignal } from "./condition.js";
 import { type EvalContext, evaluateNode, parseDuration } from "./evaluator.js";
@@ -73,15 +73,15 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     },
   };
 
-  const conditions = signal.conditions ?? (signal.condition ? [signal.condition] : []);
+  const conditions = signal.conditions;
   const logic = signal.logic ?? "AND";
 
   let leftValue: number | undefined;
   let rightValue: number | undefined;
   let operator: ComparisonOp | undefined;
 
-  if (conditions.length === 1 && isSimpleCondition(conditions[0] as CompiledCondition)) {
-    const simple = conditions[0] as AstCondition;
+  if (conditions.length === 1 && isSimpleCondition(conditions[0])) {
+    const simple = conditions[0];
     [leftValue, rightValue] = await Promise.all([
       evaluateNode(simple.left, context),
       evaluateNode(simple.right, context),
@@ -89,7 +89,7 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     operator = simple.operator;
   }
 
-  const triggered = await evaluateConditionSet(conditions as CompiledCondition[], logic, context);
+  const triggered = await evaluateConditionSet(conditions, logic, context);
 
   const executionTimeMs = Date.now() - startTime;
 

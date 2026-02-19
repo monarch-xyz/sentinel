@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS signals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
+  user_id UUID NOT NULL REFERENCES users(id),
   
   -- Basic Info
   name VARCHAR(255) NOT NULL,
@@ -122,6 +122,33 @@ CREATE INDEX IF NOT EXISTS idx_notification_log_triggered
 CREATE INDEX IF NOT EXISTS idx_notification_log_failed 
   ON notification_log(webhook_status) 
   WHERE webhook_status IS NULL OR webhook_status >= 400;
+
+-- ============================================================================
+-- SIGNAL_RUN_LOG TABLE
+-- Stores every evaluation run (including non-triggered checks)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS signal_run_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signal_id UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  evaluated_at TIMESTAMPTZ NOT NULL,
+  triggered BOOLEAN NOT NULL DEFAULT false,
+  conclusive BOOLEAN NOT NULL DEFAULT true,
+  in_cooldown BOOLEAN NOT NULL DEFAULT false,
+  notification_attempted BOOLEAN NOT NULL DEFAULT false,
+  notification_success BOOLEAN,
+  webhook_status INT,
+  error_message TEXT,
+  evaluation_duration_ms INT,
+  delivery_duration_ms INT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_run_log_signal
+  ON signal_run_log(signal_id, evaluated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_signal_run_log_triggered
+  ON signal_run_log(triggered);
 
 -- ============================================================================
 -- SNAPSHOT_BLOCKS TABLE

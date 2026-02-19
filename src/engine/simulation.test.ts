@@ -53,20 +53,22 @@ describe("simulation", () => {
     description: "A test signal",
     chains: [1],
     window: { duration: "1d" },
-    condition: {
-      type: "condition",
-      left: {
-        type: "state",
-        entity_type: "Market",
-        filters: [{ field: "marketId", op: "eq", value: "test-market" }],
-        field: "totalBorrowAssets",
+    conditions: [
+      {
+        type: "condition",
+        left: {
+          type: "state",
+          entity_type: "Market",
+          filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+          field: "totalBorrowAssets",
+        },
+        operator: "gt",
+        right: {
+          type: "constant",
+          value: 1000000,
+        },
       },
-      operator: "gt",
-      right: {
-        type: "constant",
-        value: 1000000,
-      },
-    },
+    ],
     webhook_url: "https://example.com/webhook",
     cooldown_minutes: 60,
     is_active: true,
@@ -147,21 +149,23 @@ describe("simulation", () => {
 
     it("should handle state queries with window_start snapshot", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: {
-            type: "state",
-            entity_type: "Market",
-            filters: [{ field: "marketId", op: "eq", value: "test-market" }],
-            field: "totalBorrowAssets",
-            snapshot: "window_start", // Query at window start
+        conditions: [
+          {
+            type: "condition",
+            left: {
+              type: "state",
+              entity_type: "Market",
+              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+              field: "totalBorrowAssets",
+              snapshot: "window_start", // Query at window start
+            },
+            operator: "gt",
+            right: {
+              type: "constant",
+              value: 1000000,
+            },
           },
-          operator: "gt",
-          right: {
-            type: "constant",
-            value: 1000000,
-          },
-        },
+        ],
       });
 
       const atTimestamp = 1704067200000;
@@ -184,21 +188,23 @@ describe("simulation", () => {
 
     it("should handle event aggregation queries", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: {
-            type: "event",
-            event_type: "Borrow",
-            filters: [{ field: "marketId", op: "eq", value: "test-market" }],
-            field: "assets",
-            aggregation: "sum",
+        conditions: [
+          {
+            type: "condition",
+            left: {
+              type: "event",
+              event_type: "Borrow",
+              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+              field: "assets",
+              aggregation: "sum",
+            },
+            operator: "gte",
+            right: {
+              type: "constant",
+              value: 500000,
+            },
           },
-          operator: "gte",
-          right: {
-            type: "constant",
-            value: 500000,
-          },
-        },
+        ],
       });
 
       const atTimestamp = 1704067200000;
@@ -225,30 +231,32 @@ describe("simulation", () => {
 
     it("should handle complex expressions with math operators", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: {
-            type: "expression",
-            operator: "div",
+        conditions: [
+          {
+            type: "condition",
             left: {
-              type: "state",
-              entity_type: "Market",
-              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
-              field: "totalBorrowAssets",
+              type: "expression",
+              operator: "div",
+              left: {
+                type: "state",
+                entity_type: "Market",
+                filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+                field: "totalBorrowAssets",
+              },
+              right: {
+                type: "state",
+                entity_type: "Market",
+                filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+                field: "totalSupplyAssets",
+              },
             },
+            operator: "gt",
             right: {
-              type: "state",
-              entity_type: "Market",
-              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
-              field: "totalSupplyAssets",
+              type: "constant",
+              value: 0.9, // 90% utilization threshold
             },
           },
-          operator: "gt",
-          right: {
-            type: "constant",
-            value: 0.9, // 90% utilization threshold
-          },
-        },
+        ],
       });
 
       const atTimestamp = Date.now();
@@ -294,12 +302,14 @@ describe("simulation", () => {
         const fetcher = createFetcher(1);
 
         const signal = createTestSignal({
-          condition: {
-            type: "condition",
-            left: { type: "constant", value: left },
-            operator: op,
-            right: { type: "constant", value: right },
-          },
+          conditions: [
+            {
+              type: "condition",
+              left: { type: "constant", value: left },
+              operator: op,
+              right: { type: "constant", value: right },
+            },
+          ],
         });
 
         mockedResolveBlockByTimestamp
@@ -323,12 +333,14 @@ describe("simulation", () => {
   describe("simulateSignalOverTime", () => {
     it("should return results for each time step", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: { type: "constant", value: 10 },
-          operator: "gt",
-          right: { type: "constant", value: 5 },
-        },
+        conditions: [
+          {
+            type: "condition",
+            left: { type: "constant", value: 10 },
+            operator: "gt",
+            right: { type: "constant", value: 5 },
+          },
+        ],
       });
 
       mockedResolveBlockByTimestamp.mockResolvedValue(18000000);
@@ -358,12 +370,14 @@ describe("simulation", () => {
   describe("findFirstTrigger", () => {
     it("should return null if signal never triggers in range", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: { type: "constant", value: 5 },
-          operator: "gt",
-          right: { type: "constant", value: 10 }, // Never true
-        },
+        conditions: [
+          {
+            type: "condition",
+            left: { type: "constant", value: 5 },
+            operator: "gt",
+            right: { type: "constant", value: 10 },
+          },
+        ],
       });
 
       mockedResolveBlockByTimestamp.mockResolvedValue(18000000);
@@ -383,12 +397,14 @@ describe("simulation", () => {
 
     it("should return start if signal triggers from start", async () => {
       const signal = createTestSignal({
-        condition: {
-          type: "condition",
-          left: { type: "constant", value: 10 },
-          operator: "gt",
-          right: { type: "constant", value: 5 }, // Always true
-        },
+        conditions: [
+          {
+            type: "condition",
+            left: { type: "constant", value: 10 },
+            operator: "gt",
+            right: { type: "constant", value: 5 },
+          },
+        ],
       });
 
       mockedResolveBlockByTimestamp.mockResolvedValue(18000000);

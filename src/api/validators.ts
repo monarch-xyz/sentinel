@@ -58,27 +58,17 @@ const AggregateConditionSchema = z.object({
 let ConditionSchema: z.ZodTypeAny;
 
 const GroupConditionSchema: z.ZodTypeAny = z.lazy(() =>
-  z
-    .object({
-      type: z.literal("group"),
-      addresses: z.array(z.string()).min(1),
-      window: TimeWindowSchema.optional(),
-      logic: z.enum(["AND", "OR"]).optional(),
-      requirement: z.object({
-        count: z.number().int().positive(),
-        of: z.number().int().positive(),
-      }),
-      condition: ConditionSchema.optional(),
-      conditions: z.array(ConditionSchema).min(1).optional(),
-    })
-    .refine(
-      (data) =>
-        (data.condition && !data.conditions) || (!data.condition && data.conditions?.length),
-      {
-        message: "Group condition requires either condition or conditions (but not both)",
-        path: ["condition"],
-      },
-    ),
+  z.object({
+    type: z.literal("group"),
+    addresses: z.array(z.string()).min(1),
+    window: TimeWindowSchema.optional(),
+    logic: z.enum(["AND", "OR"]).optional(),
+    requirement: z.object({
+      count: z.number().int().positive(),
+      of: z.number().int().positive(),
+    }),
+    conditions: z.array(ConditionSchema).min(1),
+  }),
 );
 
 ConditionSchema = z.union([

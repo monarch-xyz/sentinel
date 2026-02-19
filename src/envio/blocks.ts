@@ -232,7 +232,7 @@ function estimateBlockFromLatest(
   targetTimestampSec: number,
   avgBlockTimeMs: number,
 ): number {
-  // Calculate time difference from latest block (going backwards)
+  // Calculate time difference from latest block (moving to earlier blocks)
   const timeDiffSec = latestBlock.timestamp - targetTimestampSec;
 
   if (timeDiffSec <= 0) {

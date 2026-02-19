@@ -58,14 +58,16 @@ describe("compileSignalDefinition", () => {
           type: "group",
           addresses: ["0x1", "0x2"],
           requirement: { count: 1, of: 3 },
-          condition: {
-            type: "threshold",
-            metric: "Morpho.Position.supplyShares",
-            operator: ">",
-            value: 100,
-            chain_id: 1,
-            market_id: "m1",
-          },
+          conditions: [
+            {
+              type: "threshold",
+              metric: "Morpho.Position.supplyShares",
+              operator: ">",
+              value: 100,
+              chain_id: 1,
+              market_id: "m1",
+            },
+          ],
         },
       ],
     };
@@ -82,15 +84,17 @@ describe("compileSignalDefinition", () => {
           type: "group",
           addresses: ["0x1"],
           requirement: { count: 1, of: 1 },
-          condition: {
-            type: "threshold",
-            metric: "Morpho.Position.supplyShares",
-            operator: ">",
-            value: 100,
-            chain_id: 1,
-            market_id: "m1",
-            address: "0x1",
-          },
+          conditions: [
+            {
+              type: "threshold",
+              metric: "Morpho.Position.supplyShares",
+              operator: ">",
+              value: 100,
+              chain_id: 1,
+              market_id: "m1",
+              address: "0x1",
+            },
+          ],
         },
       ],
     };
@@ -98,7 +102,7 @@ describe("compileSignalDefinition", () => {
     expect(() => compileSignalDefinition(definition)).toThrow("address");
   });
 
-  it("rejects group with both condition and conditions", () => {
+  it("rejects group with empty conditions", () => {
     const definition: SignalDefinition = {
       scope: { chains: [1], markets: ["m1"] },
       window: { duration: "1h" },
@@ -107,29 +111,12 @@ describe("compileSignalDefinition", () => {
           type: "group",
           addresses: ["0x1"],
           requirement: { count: 1, of: 1 },
-          condition: {
-            type: "threshold",
-            metric: "Morpho.Position.supplyShares",
-            operator: ">",
-            value: 100,
-            chain_id: 1,
-            market_id: "m1",
-          },
-          conditions: [
-            {
-              type: "threshold",
-              metric: "Morpho.Position.supplyShares",
-              operator: ">",
-              value: 50,
-              chain_id: 1,
-              market_id: "m1",
-            },
-          ],
+          conditions: [],
         },
       ],
     };
 
-    expect(() => compileSignalDefinition(definition)).toThrow("condition");
+    expect(() => compileSignalDefinition(definition)).toThrow("conditions");
   });
 
   it("rejects aggregate market metric without markets", () => {

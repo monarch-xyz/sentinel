@@ -34,8 +34,6 @@ export interface CompiledSignalDefinition {
   window: { duration: string };
   conditions: CompiledCondition[];
   logic: "AND" | "OR";
-  /** Backwards-compatible single condition field (when applicable). */
-  condition?: AstCondition;
 }
 
 export interface StoredSignalDefinition {
@@ -154,10 +152,7 @@ function validateConditionWindow(cond: DslCondition): void {
     validateDuration(cond.window.duration, "conditions.window.duration");
   }
   if (cond.type === "group") {
-    if (cond.condition) validateConditionWindow(cond.condition);
-    if (cond.conditions) {
-      for (const inner of cond.conditions) validateConditionWindow(inner);
-    }
+    for (const inner of cond.conditions) validateConditionWindow(inner);
   }
 }
 
@@ -177,14 +172,11 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
       "requirement.count",
     );
   }
-  if (cond.condition && cond.conditions) {
+  if (!cond.conditions || cond.conditions.length === 0) {
     throw new ValidationError(
-      "Group condition must specify either condition or conditions (not both)",
-      "condition",
+      "Group condition requires at least one inner condition",
+      "conditions",
     );
-  }
-  if (!cond.condition && (!cond.conditions || cond.conditions.length === 0)) {
-    throw new ValidationError("Group condition requires at least one inner condition", "condition");
   }
   if (scope.addresses) {
     for (const address of cond.addresses) {
@@ -193,10 +185,13 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
       }
     }
   }
-  const innerConditions = cond.conditions ?? (cond.condition ? [cond.condition] : []);
+  const innerConditions = cond.conditions;
   for (const innerCondition of innerConditions) {
     if (innerCondition.type === "group" || innerCondition.type === "aggregate") {
-      throw new ValidationError("Nested group/aggregate conditions are not supported", "condition");
+      throw new ValidationError(
+        "Nested group/aggregate conditions are not supported",
+        "conditions",
+      );
     }
   }
 
@@ -213,11 +208,11 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
       compiled = compileCondition(inner, { isGroupInner: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to compile group condition";
-      throw new ValidationError(message, "condition");
+      throw new ValidationError(message, "conditions");
     }
 
     if (!isSimpleCondition(compiled)) {
-      throw new ValidationError("Group inner condition must be a simple condition", "condition");
+      throw new ValidationError("Group inner condition must be a simple condition", "conditions");
     }
 
     compiledInner.push(compiled);
@@ -302,24 +297,11 @@ function compileDslCondition(cond: DslCondition, scope: SignalScope): CompiledCo
 function normalizeCompiledDefinition(
   definition: CompiledSignalDefinition,
 ): CompiledSignalDefinition {
-  const conditions = Array.isArray(definition.conditions)
-    ? definition.conditions
-    : definition.condition
-      ? [definition.condition]
-      : [];
-  const logic = definition.logic ?? "AND";
-  const condition =
-    definition.condition ??
-    (conditions.length === 1 && isSimpleCondition(conditions[0])
-      ? (conditions[0] as AstCondition)
-      : undefined);
-
   return {
     chains: definition.chains,
     window: definition.window,
-    conditions,
-    logic,
-    ...(condition ? { condition } : {}),
+    conditions: definition.conditions,
+    logic: definition.logic ?? "AND",
   };
 }
 
@@ -359,17 +341,11 @@ export function compileSignalDefinition(definition: SignalDefinition): StoredSig
   }
 
   const logic = definition.logic ?? "AND";
-  const condition =
-    compiledConditions.length === 1 && isSimpleCondition(compiledConditions[0])
-      ? (compiledConditions[0] as AstCondition)
-      : undefined;
-
   const ast = normalizeCompiledDefinition({
     chains: definition.scope.chains,
     window: { duration: definition.window.duration },
     conditions: compiledConditions,
     logic,
-    ...(condition ? { condition } : {}),
   });
 
   return {
@@ -390,17 +366,6 @@ function isStoredDefinition(definition: unknown): definition is StoredSignalDefi
   );
 }
 
-function isCompiledDefinition(definition: unknown): definition is CompiledSignalDefinition {
-  return (
-    !!definition &&
-    typeof definition === "object" &&
-    "chains" in definition &&
-    Array.isArray((definition as CompiledSignalDefinition).chains) &&
-    "window" in definition &&
-    ("conditions" in definition || "condition" in definition)
-  );
-}
-
 function isDslDefinition(definition: unknown): definition is SignalDefinition {
   return (
     !!definition &&
@@ -416,19 +381,6 @@ export function normalizeStoredDefinition(definition: unknown): StoredSignalDefi
     return {
       ...definition,
       ast: normalizeCompiledDefinition(definition.ast),
-    };
-  }
-
-  if (isCompiledDefinition(definition)) {
-    return {
-      version: 1,
-      dsl: {
-        scope: { chains: definition.chains },
-        window: definition.window,
-        conditions: [],
-        logic: definition.logic,
-      },
-      ast: normalizeCompiledDefinition(definition),
     };
   }
 
