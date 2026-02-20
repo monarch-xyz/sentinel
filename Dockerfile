@@ -9,7 +9,8 @@ COPY package.json pnpm-lock.yaml ./
 FROM base AS build
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build
+# Build only the main service TypeScript (API/worker image does not need delivery build)
+RUN pnpm exec tsc
 
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile

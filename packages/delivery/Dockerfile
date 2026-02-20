@@ -2,6 +2,7 @@
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+ENV NODE_ENV=development
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -9,8 +10,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN pnpm install --no-frozen-lockfile
+# Install dependencies (force dev deps so `tsc` is available for build)
+RUN pnpm install --no-frozen-lockfile --config.production=false \
+  && test -f node_modules/typescript/bin/tsc
 
 # Copy source
 COPY . .

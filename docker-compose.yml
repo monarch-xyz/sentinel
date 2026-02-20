@@ -36,7 +36,7 @@ services:
       - ./src/db/schema.sql:/migrations/main_schema.sql:ro
     entrypoint: ["/bin/sh", "-lc"]
     command: >
-      PGPASSWORD=postgres psql -h postgres -U postgres -d sentinel -f /migrations/main_schema.sql
+      PGPASSWORD=postgres psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d sentinel -f /migrations/main_schema.sql
     restart: "no"
 
   delivery-migrate:
@@ -46,12 +46,10 @@ services:
         condition: service_healthy
     volumes:
       - ./packages/delivery/src/db/schema.sql:/migrations/delivery_schema.sql:ro
-    entrypoint: ["/bin/sh", "-lc"]
-    command: >
-      if ! PGPASSWORD=postgres psql -h postgres -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='sentinel_delivery'" | grep -q 1; then
-        PGPASSWORD=postgres psql -h postgres -U postgres -d postgres -c "CREATE DATABASE sentinel_delivery";
-      fi &&
-      PGPASSWORD=postgres psql -h postgres -U postgres -d sentinel_delivery -f /migrations/delivery_schema.sql
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      PGPASSWORD=postgres psql -v ON_ERROR_STOP=0 -h postgres -U postgres -d postgres -c "CREATE DATABASE sentinel_delivery";
+      PGPASSWORD=postgres psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d sentinel_delivery -f /migrations/delivery_schema.sql
     restart: "no"
 
   api:
