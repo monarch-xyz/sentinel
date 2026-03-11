@@ -1,4 +1,4 @@
-# 🛡️ Sentinel
+# Sentinel
 
 Composable signal monitoring for DeFi. Sentinel stores user-scoped signals, evaluates them on a worker, and dispatches webhooks when conditions trigger. Telegram delivery is an optional separate service.
 

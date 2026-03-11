@@ -1,16 +1,16 @@
 # CLAUDE.md - Sentinel Project Context
 
-> Context file for AI coding agents working on Sentinel.
+Context for AI coding agents working on Sentinel.
 
-## What is Sentinel?
+## Project Summary
 
-Sentinel is a **signal monitoring service** for Monarch (DeFi dashboard for Morpho Blue). It lets users define complex conditions on blockchain data and receive webhook notifications when conditions trigger.
+Sentinel is a signal monitoring service for Monarch. It stores user-scoped signals, evaluates them on a worker, and dispatches webhooks when conditions trigger.
 
-**Key differentiator:** Supports multi-condition, multi-address logic — not just simple thresholds.
+The system supports multi-condition and multi-address logic, with Telegram delivery handled by a separate adapter service.
 
 ## Project Status
 
-🚧 **Design Phase** — Project is scaffolded, implementation starting.
+The project is under active development. Use the repository docs for the current external contract instead of relying on historical notes in this file.
 
 ## Tech Stack
 
@@ -19,18 +19,21 @@ Sentinel is a **signal monitoring service** for Monarch (DeFi dashboard for Morp
 | Runtime | Node.js 22+ / TypeScript |
 | API | Express.js |
 | Database | PostgreSQL |
-| Data Source | Envio GraphQL (existing indexer) |
-| Scheduling | node-cron |
+| Data Source | Envio GraphQL + RPC |
+| Scheduling | BullMQ worker + scheduler |
 | Validation | Zod |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `docs/ARCHITECTURE.md` | Full architecture & DSL reference |
+| `docs/README.md` | Documentation map |
+| `docs/DSL.md` | Signal definition reference |
+| `docs/ARCHITECTURE.md` | Runtime architecture |
 | `docs/DESIGN_DECISIONS.md` | Technical decisions |
-| `docs/API.md` | REST API documentation |
-| `docs/GETTING_STARTED.md` | Developer setup guide |
+| `docs/API.md` | HTTP API reference |
+| `docs/GETTING_STARTED.md` | Local setup guide |
+| `docs/DEPLOYMENT.md` | Deployment guide |
 
 ## Architecture Overview
 
@@ -53,22 +56,27 @@ Sentinel is a **signal monitoring service** for Monarch (DeFi dashboard for Morp
 ## Core Concepts
 
 ### Signal
+
 User-defined monitoring rule with:
-- **Scope**: chains, markets, addresses to watch
-- **Conditions**: what triggers the signal
-- **Window**: time frame (e.g., "1h", "7d")
-- **Webhook**: where to send notifications
+
+- scope: chains, markets, and addresses to watch
+- conditions: the checks that determine whether the signal triggers
+- window: the evaluation time frame
+- webhook target: where notifications are sent
 
 ### Condition Types
-1. **Threshold** — value > X
-2. **Change** — value changed by X%
-3. **Group** — N of M addresses meet condition
-4. **Aggregate** — sum/avg across scope
 
-### Metrics
-- Position: `Morpho.Position.supplyShares`, `Morpho.Position.borrowShares`, `Morpho.Position.collateral`
-- Market: `Morpho.Market.totalSupplyAssets`, `Morpho.Market.utilization`
-- Flow: `Morpho.Flow.netSupply`, `Morpho.Flow.totalLiquidations`
+1. Threshold
+2. Change
+3. Group
+4. Aggregate
+
+### Metric Families
+
+- position metrics
+- market metrics
+- event metrics
+- flow metrics
 
 ## Data Sources
 
@@ -85,25 +93,11 @@ User-defined monitoring rule with:
 - `Market` — market state (totalSupply, totalBorrow, etc.)
 - `Morpho_Supply`, `Morpho_Withdraw`, etc. — raw events
 
-## Implementation Priorities
+## Planning Reference
 
-### Phase 1 (Current)
-- [ ] Project scaffold (package.json, tsconfig, etc.)
-- [ ] Database schema + migrations
-- [ ] Signal CRUD API
-- [ ] Basic conditions (threshold, change)
-- [ ] Single-market evaluation
-- [ ] Webhook dispatch
+For current implementation status, use [TODO.md](./TODO.md).
 
-### Phase 2
-- [ ] Group conditions (N of M)
-- [ ] Aggregate conditions
-- [ ] Multi-market scope
-- [ ] Flow metrics
-
-### Phase 3
-- [ ] Simulation endpoint
-- [ ] Historical data fetching
+For roadmap-level priorities, use [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Code Patterns
 
@@ -124,7 +118,7 @@ async function evaluateThreshold(
 
 ### Envio Queries
 ```typescript
-// Use GraphQL for all data fetching
+// Use GraphQL for indexed state and event queries
 const POSITIONS_QUERY = gql`
   query GetPositions($chainId: Int!, $marketId: String!, $users: [String!]!) {
     Position(where: { chainId: { _eq: $chainId }, ... }) {
@@ -138,7 +132,7 @@ const POSITIONS_QUERY = gql`
 
 ### Webhook Dispatch
 ```typescript
-// Always retry with backoff
+// Dispatch webhooks with retries and timeout controls
 await dispatchWebhook(url, payload, {
   retries: 3,
   backoff: 'exponential',
@@ -176,13 +170,14 @@ await dispatchWebhook(url, payload, {
 2. Add to MetricType union
 3. Update DSL.md
 
-### Run locally
+### Run Locally
 ```bash
-docker compose up -d    # Start PostgreSQL
-pnpm db:migrate         # Run migrations
-pnpm dev                # Start all services
+pnpm docker:up
 ```
 
-## Questions?
+## Primary References
 
-Check the docs in `docs/` or ask in the Monarch Discord.
+- [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)
+- [docs/API.md](./docs/API.md)
+- [docs/DSL.md](./docs/DSL.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

@@ -1,4 +1,4 @@
-# 📬 Sentinel Delivery
+# Sentinel Delivery
 
 Telegram delivery adapter for Sentinel.
 

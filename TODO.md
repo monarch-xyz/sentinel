@@ -1,6 +1,6 @@
-# 📋 Sentinel Implementation TODO
+# Sentinel Implementation Tasks
 
-## 🚨 URGENT: RPC Historical State Integration (2026-02-03)
+## Priority: RPC Historical State Integration (2026-02-03)
 
 Envio does NOT support:
 1. Time-travel queries (`block: {number: X}`)
@@ -10,14 +10,14 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 
 ### Migration Tasks
 
-- [x] **1. Create RpcClient** (`src/rpc/client.ts`) ✅
+- [x] **1. Create RpcClient** (`src/rpc/client.ts`)
   - [x] Add viem as dependency (`pnpm add viem`)
   - [x] Create `getPublicClient(chainId)` with RPC endpoint env vars
   - [x] Implement `readPositionAtBlock(chainId, marketId, user, blockNumber)`
   - [x] Implement `readMarketAtBlock(chainId, marketId, blockNumber)`
   - [x] Add Morpho ABI (`src/rpc/abi.ts`) with `position` and `market` view functions
 
-- [x] **2. Create DataFetcher abstraction** ✅
+- [x] **2. Create DataFetcher abstraction**
   - [x] `src/engine/fetcher.ts` — protocol-agnostic `DataFetcher` interface
   - [x] `src/engine/morpho-fetcher.ts` — Morpho-specific implementation
     - Routes: `timestamp === undefined` → Envio, else → resolve block + RPC
@@ -26,7 +26,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
   - [x] Updated `test-condition.ts`, `processor.ts`, `simulate.ts` to use `createMorphoFetcher`
   - [x] Unit tests for routing logic
 
-- [x] **3. Remove broken code from EnvioClient** ✅
+- [x] **3. Remove unsupported code from EnvioClient**
   - [x] Remove `block: {number: X}` from GraphQL queries (never worked)
   - [x] Remove `fetchStateAtTimestamp()`
   - [x] Keep: `fetchState()` for current state only
@@ -39,7 +39,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 - [x] Test ChangeCondition with RPC historical state
   - [ ] Integration test: real RPC + Envio
 
-- [x] **5. Update documentation** ✅ (2026-02-03)
+- [x] **5. Update documentation** (2026-02-03)
   - [x] Updated ARCHITECTURE.md diagram to show RPC + Envio
   - [x] Updated DESIGN_DECISIONS.md to describe hybrid strategy
   - [x] Updated README.md to remove "time-travel" claim
@@ -48,7 +48,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 
 ---
 
-## Phase 0: DSL Hardening (2026-02-03) ✅
+## Phase 0: DSL Hardening (2026-02-03)
 - [x] Centralized `parseDuration` utility (`src/utils/duration.ts`)
 - [x] Explicit division-by-zero error handling (`EvaluationError`)
 - [x] Fail-loud on Envio query errors (`EnvioQueryError`)
@@ -81,7 +81,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 - [x] **Envio Client** (`src/envio/client.ts`)
     - [x] GraphQL request logic
     - [x] Batching support (hoisting queries)
-    - [x] ~~Time-travel queries (block height support)~~ ⚠️ BROKEN - Envio doesn't support this
+    - [x] ~~Time-travel queries (block height support)~~ not supported by Envio
     - [x] Entity types: Position, Market, MorphoEvent
     - [x] In-memory aggregation (Envio doesn't support `_aggregate`)
 - [x] **Block Resolver** (`src/envio/blocks.ts`)

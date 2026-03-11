@@ -2,7 +2,7 @@
 
 The canonical local setup guide is [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md).
 
-Use that document for:
+Use that document for the following:
 
 - prerequisites
 - env setup

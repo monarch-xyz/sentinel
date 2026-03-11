@@ -1,6 +1,6 @@
-# 🧭 Sentinel Roadmap
+# Sentinel Roadmap
 
-This roadmap is MVP-focused. Items are ordered by impact and dependency.
+This roadmap is organized by delivery horizon. Items are ordered by impact and dependency.
 
 ## Now (MVP Hardening)
 - Finish RPC/Envio test coverage (unit + small integration)
