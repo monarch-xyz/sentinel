@@ -1,71 +1,92 @@
-# Sentinel Auth Guide
+# Auth Guide
 
-Sentinel uses API-key auth for the main API and signed webhooks for delivery.
+This document owns the Sentinel auth model. Setup steps and endpoint payloads should link here instead of re-explaining auth inline.
 
 ## Main API Auth
 
-- Public:
-  - `GET /health`
-  - `POST /api/v1/auth/register`
-- API-key protected:
-  - all other `/api/v1/*` endpoints
+Public routes:
 
-Header:
+- `GET /health`
+- `POST /api/v1/auth/register` unless the register gate is enabled
+
+Protected routes:
+
+- all other `/api/v1/*` endpoints
+
+Protected requests must send:
 
 ```http
 X-API-Key: sentinel_...
 ```
 
-Keys are scoped to exactly one Sentinel user.
+Rules:
 
-## Recommended Webapp Pattern
+- API keys are scoped to one Sentinel user
+- there is no single global API key env variable for request auth
+- the client must send `X-API-Key` on every protected request
 
-1. Browser authenticates with Supabase.
-2. Browser calls your webapp backend.
-3. Webapp backend calls Sentinel with that user’s Sentinel API key.
+## Register Gate
 
-Do not expose Sentinel API keys to browser clients.
+You can temporarily gate user creation by setting:
 
-## Registering A Sentinel User + Key
+- `REGISTER_ADMIN_KEY`
+
+If it is set, `POST /api/v1/auth/register` also requires:
 
 ```http
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{
-  "name": "supabase-user-123"
-}
+X-Admin-Key: <register_admin_key>
 ```
 
-Response:
+If it is unset, register remains open.
 
-- `user_id` (Sentinel user id)
-- `api_key_id`
-- `api_key` (returned once)
+## Key Handling
 
-Store this mapping in your webapp DB:
+Treat Sentinel API keys as backend credentials:
 
-- `supabase_user_id`
-- `sentinel_user_id` (`user_id` from register)
-- `sentinel_api_key` (encrypted)
+- store them server-side
+- do not expose them to browser clients
+- map your app user to:
+  - `sentinel_user_id`
+  - `sentinel_api_key`
 
-## Access To History
+The recommended browser flow is:
 
-History is API-key gated and user-scoped.
+1. browser authenticates with your app
+2. browser calls your backend
+3. backend calls Sentinel using the stored Sentinel API key
 
-- Endpoint: `GET /api/v1/signals/:id/history`
-- A key can only read signal history for signals owned by its user.
+The app integration contract lives in [WEBAPP_INTEGRATION.md](./WEBAPP_INTEGRATION.md).
 
 ## Delivery Auth
 
-- `POST /webhook/deliver` requires `X-Sentinel-Signature` header.
-- Signature format: `t=<timestamp>,v1=<hex_hmac>`
-- Signed payload: `HMAC_SHA256(secret, "<timestamp>.<raw_body>")`
-- `GET /admin/stats` requires `X-Admin-Key` (currently same value as `WEBHOOK_SECRET`).
+Delivery webhook verification uses:
 
-## Telegram Linking Auth
+```http
+X-Sentinel-Signature: t=<timestamp>,v1=<hex_hmac>
+```
 
-- Link endpoints are token-based:
-  - `GET /link?token=...`
-  - `POST /link/connect`
-- Link tokens are short-lived and created by bot `/start`.
+Signature model:
+
+- signed payload: `HMAC_SHA256(WEBHOOK_SECRET, "<timestamp>.<raw_body>")`
+- Sentinel signs outgoing webhooks when `WEBHOOK_SECRET` is set
+- delivery verifies the same signature using its own `WEBHOOK_SECRET`
+
+That secret must match on both services.
+
+## Delivery Admin Endpoint
+
+`GET /admin/stats` requires:
+
+```http
+X-Admin-Key: <delivery_admin_key>
+```
+
+Current implementation note:
+
+- the delivery service currently uses `WEBHOOK_SECRET` as the admin key for that route
+
+## Related Docs
+
+- Endpoint reference: [API.md](./API.md)
+- Local and production env ownership: [GETTING_STARTED.md](./GETTING_STARTED.md), [DEPLOYMENT.md](./DEPLOYMENT.md)
+- Telegram flow and app user mapping: [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md)

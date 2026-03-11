@@ -21,6 +21,12 @@ export const config = {
     host: process.env.API_HOST ?? "0.0.0.0",
   },
 
+  // Auth
+  auth: {
+    // If set, /api/v1/auth/register requires X-Admin-Key with this value.
+    registerAdminKey: process.env.REGISTER_ADMIN_KEY ?? "",
+  },
+
   // Worker
   worker: {
     intervalSeconds: Number.parseInt(process.env.WORKER_INTERVAL_SECONDS ?? "30", 10),

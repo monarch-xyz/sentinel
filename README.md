@@ -1,77 +1,24 @@
 # 🛡️ Sentinel
 
-> **Composable Signal Monitoring for DeFi — by Monarch**
+Composable signal monitoring for DeFi. Sentinel stores user-scoped signals, evaluates them on a worker, and dispatches webhooks when conditions trigger. Telegram delivery is an optional separate service.
 
-Sentinel enables sophisticated, multi-condition monitoring of blockchain data. Users define signals using a friendly DSL, and Sentinel handles the evaluation, historical state queries, and webhook delivery.
+## Start Here
 
-## Quick Example
+- [Docs Index](./docs/README.md) for the full documentation map
+- [Getting Started](./docs/GETTING_STARTED.md) for local setup
+- [DSL Reference](./docs/DSL.md) for signal definitions and examples
+- [Architecture](./docs/ARCHITECTURE.md) for internal system design
+- [API Reference](./docs/API.md) for endpoint contracts
+- [Deployment](./docs/DEPLOYMENT.md) for production deployment
 
-"Alert when a whale's position drops 20% over 7 days":
+## Repo Structure
 
-```json
-{
-  "name": "Whale Position Drop",
-  "window": { "duration": "7d" },
-  "conditions": [{
-    "type": "change",
-    "metric": "Morpho.Position.supplyShares",
-    "direction": "decrease",
-    "by": { "percent": 20 },
-    "chain_id": 1,
-    "market_id": "0xmarket...",
-    "address": "0xwhale..."
-  }],
-  "webhook_url": "https://your-webhook.com/alerts"
-}
-```
-
-## Documentation
-
-| Doc | Purpose |
-|-----|---------|
-| [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | DSL reference, metrics, evaluation flow, supported chains |
-| [**API.md**](./docs/API.md) | REST API endpoints |
-| [**AUTH.md**](./docs/AUTH.md) | API key auth model and backend integration pattern |
-| [**WEBAPP_INTEGRATION.md**](./docs/WEBAPP_INTEGRATION.md) | Supabase/webapp integration contract |
-| [**GETTING_STARTED.md**](./docs/GETTING_STARTED.md) | Local setup |
-| [**DESIGN_DECISIONS.md**](./docs/DESIGN_DECISIONS.md) | Technical decisions |
-| [**ROADMAP.md**](./docs/ROADMAP.md) | Delivery plan |
-| [**DEPLOYMENT.md**](./docs/DEPLOYMENT.md) | Railway deploy guide |
-
-## Key Concepts
-
-### Metrics (Extensible)
-```
-Morpho.Position.supplyShares    # User positions
-Morpho.Market.totalSupplyAssets # Market aggregates
-Morpho.Market.utilization       # Computed metrics
-Morpho.Event.Supply.assets      # Event aggregations
-```
-
-### Condition Types
-- **Threshold** — value > X
-- **Change** — value changed by X%
-- **Group** — N of M addresses meet condition
-- **Aggregate** — sum/avg across scope
-
-### Architecture
-```
-User DSL → Compiler → Expression Tree → Evaluator → Envio (indexed) + RPC (point-in-time) → Result → Webhook
-```
-
-## Development
-
-```bash
-pnpm install
-docker compose up --build -d   # Full stack (postgres + redis + api + worker + delivery)
-
-curl -s -X POST http://localhost:3000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"local-dev"}'
-
-pnpm test              # Run tests
-```
+- `src/api` — REST API and auth middleware
+- `src/worker` — scheduler, evaluator, and webhook dispatch
+- `src/engine` — DSL compilation and evaluation logic
+- `packages/delivery` — Telegram delivery service
+- `docs` — canonical project documentation
 
 ## Status
 
-See [TODO.md](./TODO.md) for implementation progress.
+See [TODO.md](./TODO.md) for implementation progress and [ROADMAP.md](./docs/ROADMAP.md) for planned work.

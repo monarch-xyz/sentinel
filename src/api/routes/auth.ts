@@ -1,5 +1,7 @@
 import express from "express";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { config } from "../../config/index.js";
 import { ApiKeyRepository, UserRepository } from "../../db/index.js";
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
@@ -15,8 +17,25 @@ const RegisterSchema = z.object({
   key_name: z.string().min(1).optional(),
 });
 
+function keysMatch(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided, "utf8");
+  const expectedBuf = Buffer.from(expected, "utf8");
+  if (providedBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return timingSafeEqual(providedBuf, expectedBuf);
+}
+
 router.post("/register", async (req, res) => {
   try {
+    const registerAdminKey = config.auth.registerAdminKey.trim();
+    if (registerAdminKey) {
+      const provided = req.header("X-Admin-Key") ?? req.header("x-admin-key");
+      if (!provided || !keysMatch(provided, registerAdminKey)) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+    }
+
     const { name, key_name } = RegisterSchema.parse(req.body ?? {});
 
     const user = await users.create(name ?? null);

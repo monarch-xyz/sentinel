@@ -1,70 +1,59 @@
-# Webapp Integration (Supabase + Sentinel + Telegram)
+# Webapp Integration
 
-This guide is the implementation contract for your webapp/backend team.
+This document owns the backend integration contract for applications that sit in front of Sentinel.
 
-## Core Decision
+## Core Model
 
-Use Sentinel as a per-user API-key backend.
+Use Sentinel as a backend service with per-user API keys.
 
-- Supabase remains your user auth system.
-- Sentinel auth is separate and API-key based.
-- Your webapp backend maps Supabase users to Sentinel users.
+- your app owns end-user auth
+- Sentinel owns signal evaluation and delivery
+- your backend mediates calls between them
 
-## Required ID Mapping
+Do not expose Sentinel API keys directly to browser clients.
 
-Persist this mapping in your webapp database:
+## Required Mapping
 
-- `supabase_user_id` (from Supabase auth)
-- `sentinel_user_id` (returned by `POST /api/v1/auth/register`)
-- `sentinel_api_key` (returned once; store encrypted)
+Persist this mapping in your application database:
 
-Important: Telegram delivery uses `context.app_user_id`, which Sentinel currently sets to `sentinel_user_id`.  
-So the Telegram link must use `app_user_id = sentinel_user_id` for direct delivery to work.
+- `app_user_id`
+- `sentinel_user_id`
+- `sentinel_api_key`
 
-## End-to-End Flow
+If you use Supabase, `app_user_id` is usually the Supabase user ID.
 
-1. User signs in to your webapp with Supabase.
-2. Webapp backend checks if user already has Sentinel credentials.
-3. If not, webapp backend calls `POST /api/v1/auth/register` and stores `sentinel_user_id` + `sentinel_api_key`.
-4. User creates signals in your UI.
-5. Webapp backend calls Sentinel `/api/v1/signals*` using that user’s API key.
-6. Each signal’s `webhook_url` should point to delivery: `POST /webhook/deliver`.
-7. User sends `/start` to Telegram bot and gets a tokenized link.
-8. Webapp (or delivery hosted page) calls `POST /link/connect` with:
-   - `token` from bot link
-   - `app_user_id` = mapped `sentinel_user_id`
-9. Worker triggers signal, sends signed webhook, delivery service resolves mapping, message is sent to the linked Telegram chat.
+## Backend Call Pattern
 
-## Who Can Read Signal History?
+1. user authenticates with your app
+2. browser calls your backend
+3. backend looks up or creates Sentinel credentials
+4. backend calls Sentinel with that user’s API key
+5. backend stores signal IDs and related metadata as needed
 
-Signal history is API-key gated and user-scoped.
+## Telegram Contract
 
-- Endpoint: `GET /api/v1/signals/:id/history`
-- Access: only the Sentinel user associated with that API key can read their signal history.
-- Recommended path: browser -> your webapp backend -> Sentinel API.
+For direct delivery integration:
 
-## Browser vs Backend Calls
+- Telegram linking must use `app_user_id = sentinel_user_id`
+- this matches the current worker contract for `context.app_user_id`
 
-Preferred:
+If you want Telegram keyed by your app’s own IDs instead, add a translator:
 
-- Browser calls your backend only.
-- Your backend calls Sentinel and delivery services.
+1. worker sends webhook to your backend
+2. backend rewrites `context.app_user_id`
+3. backend forwards the webhook to delivery
 
-Why:
+Without that translator, use the Sentinel user ID as the Telegram link identity.
 
-- Keeps Sentinel API keys out of browser storage.
-- Avoids cross-origin surprises.
-- Lets you enforce your own auth/authorization policy consistently.
+## Signal History Access
 
-## If You Want `app_user_id` To Be Supabase ID
+Signal history remains user-scoped to the Sentinel API key.
 
-Current Sentinel worker sends `context.app_user_id = sentinel_user_id`.
+- route: `GET /api/v1/signals/:id/history`
+- recommended path: browser -> your backend -> Sentinel
 
-If you need delivery keyed by Supabase IDs instead, add a translation layer:
+## Related Docs
 
-1. Use a webhook URL in your webapp backend.
-2. Webapp backend receives Sentinel webhook.
-3. Translate `sentinel_user_id` -> `supabase_user_id`.
-4. Forward to delivery with rewritten `context.app_user_id`.
-
-Without this translator, use `sentinel_user_id` for Telegram linking.
+- [AUTH.md](./AUTH.md) for the key model
+- [API.md](./API.md) for routes
+- [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) for the delivery-side contract

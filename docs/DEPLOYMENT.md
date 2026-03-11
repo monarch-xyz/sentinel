@@ -1,78 +1,105 @@
-# Deployment (Railway)
+# Deployment
 
-This guide covers a minimal, production-ready Railway setup.
+This document owns production deployment. Local development lives in [GETTING_STARTED.md](./GETTING_STARTED.md).
 
-## Services
+## Service Topology
 
-Deploy services from the same repo/image:
+Core services:
 
-1. **API Service**
-   - Command: `node dist/api/index.js`
+- API
+- worker
+- PostgreSQL
+- Redis
 
-2. **Worker Service**
-   - Command: `node dist/worker/index.js`
+Optional service:
 
-3. **Delivery Service** (required for Telegram)
-   - Command: `pnpm -F @sentinel/delivery start`
+- delivery (Telegram bot + webhook receiver)
 
-Why split services: the worker runs BullMQ processing/scheduling and delivery runs bot + webhook receiver. Isolation avoids cross-impact during spikes.
+API and worker are intentionally separate processes. The worker owns scheduling and webhook dispatch; delivery owns Telegram-specific logic.
 
-## Required Add-ons
+## Required Configuration
 
-- **PostgreSQL**
-- **Redis**
+API and worker:
 
-## Environment Variables
-
-Set these on API and Worker unless noted:
-
-- `DATABASE_URL` (from Railway Postgres)
-- `REDIS_URL` (from Railway Redis)
+- `DATABASE_URL`
+- `REDIS_URL`
 - `ENVIO_ENDPOINT`
-- `RPC_URL_1` (and any other chain RPC URLs you need)
-- `WEBHOOK_SECRET` (optional but recommended)
-- `WORKER_INTERVAL_SECONDS` (optional, default 30)
-- `LOG_LEVEL` (optional)
+- `RPC_URL_*` for the chains you need
+- optional shared webhook secret for signed outbound webhooks
+- optional `WORKER_INTERVAL_SECONDS`
+- optional `LOG_LEVEL`
 
-Set these on Delivery service:
+Delivery:
 
-- `DATABASE_URL` (delivery DB, e.g. `sentinel_delivery`)
+- `DATABASE_URL`
 - `TELEGRAM_BOT_TOKEN`
-- `WEBHOOK_SECRET` (must match Sentinel `WEBHOOK_SECRET`)
 - `LINK_BASE_URL`
-- `PORT` / `HOST` / `LOG_LEVEL` (optional)
+- the same shared webhook secret used by the main service
+- optional `PORT`, `HOST`, `LOG_LEVEL`
 
-## Migrations
+## Single-Host Docker Compose
 
-Run DB migrations once per deployment (Railway “Release Command” or one-off run):
+This is the simplest production path if you control one Linux box.
 
-```
-node dist/scripts/migrate.js
-```
-
-This uses the bundled `schema.sql` and is safe to run multiple times.
-
-For delivery DB:
+1. Clone the repo and create both env files.
+2. Set production values in `.env` and `packages/delivery/.env`.
+3. Start the required services:
 
 ```bash
-pnpm -F @sentinel/delivery db:migrate
+docker compose up --build -d
 ```
 
-## Health Check
+If you do not need Telegram delivery yet, start only the core services:
 
-API service exposes:
-
-```
-GET /health
+```bash
+docker compose up --build -d postgres redis main-migrate api worker
 ```
 
-Delivery service exposes:
+Health checks:
 
-```text
-GET /health
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3100/health
 ```
 
-## Notes
+## Standalone Docker Images
 
-- Rate limiting is in-memory today (per instance). If you run multiple API instances, add Redis-backed rate limits.
-- Envio schema validation is enabled by default (disable with `ENVIO_VALIDATE_SCHEMA=false`).
+Main service image:
+
+- image source: repo root `Dockerfile`
+- API command: `node dist/api/index.js`
+- worker command: `node dist/worker/index.js`
+- migration command: `node dist/scripts/migrate.js`
+
+Delivery image:
+
+- image source: `packages/delivery/Dockerfile`
+- start command: `node dist/index.js`
+- migration command: `node dist/scripts/migrate.js`
+
+The delivery image carries its schema file so migrations can run without source mounts.
+
+## Hosted Platforms
+
+Railway remains a viable hosted setup:
+
+- one service for API
+- one service for worker
+- one optional service for delivery
+- one PostgreSQL add-on
+- one Redis add-on
+
+Use the same runtime commands listed above and run migrations once per deploy or release.
+
+## Operational Notes
+
+- use HTTPS in front of public webhook or delivery endpoints
+- back up PostgreSQL data; Docker volumes are not backups
+- if you scale the API horizontally, move rate limits off process memory
+- Envio schema validation is on by default; disable only if you know why
+
+## Related Docs
+
+- [GETTING_STARTED.md](./GETTING_STARTED.md) for local setup
+- [API.md](./API.md) for health and webhook routes
+- [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) for delivery contract details

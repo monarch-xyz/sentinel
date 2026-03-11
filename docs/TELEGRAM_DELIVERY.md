@@ -1,79 +1,63 @@
 # Telegram Delivery
 
-How Telegram alerts work in Sentinel v0.0.1.
+This document owns the cross-service Telegram contract. Package-local commands and runtime notes live in [../packages/delivery/README.md](../packages/delivery/README.md).
 
-## Services
+## Responsibility Split
 
-- Sentinel API + Worker
-- Delivery service (Telegram bot + webhook receiver)
+- Sentinel API stores signals
+- Sentinel worker evaluates them and dispatches webhooks
+- delivery service verifies the webhook, resolves `app_user_id`, and sends a Telegram message
 
-## Data Contract
+Sentinel itself remains webhook-first. Telegram is an adapter service.
+
+## Canonical User Mapping
 
 Delivery routes alerts by `context.app_user_id`.
 
-Current Sentinel worker sets:
+Current contract:
 
-- `context.app_user_id = signals.user_id` (Sentinel internal user id)
+- Sentinel worker sets `context.app_user_id = signals.user_id`
+- direct Telegram linking therefore uses the Sentinel `user_id`
 
-So Telegram linking must store the same value as `app_user_id`.
+If your app uses a different external user ID, translate it in your own webhook layer before forwarding to delivery.
 
-## End-to-End Flow
+## End-To-End Flow
 
-1. User sends `/start` to the Telegram bot.
-2. Bot creates short-lived `token` and returns:
-   - `GET /link?token=...`
-3. User completes linking:
-   - `POST /link/connect` with `{ token, app_user_id }`
-4. Delivery stores mapping:
-   - `app_user_id -> telegram_chat_id`
-5. Sentinel worker evaluates signals and sends signed webhook to delivery.
-6. Delivery verifies signature, resolves mapping by `context.app_user_id`, sends message to mapped Telegram chat.
+1. user sends `/start` to the Telegram bot
+2. bot creates a short-lived token
+3. user opens `/link?token=...`
+4. client posts `{ token, app_user_id }` to `/link/connect`
+5. worker evaluates a signal and dispatches a signed webhook
+6. delivery verifies the signature
+7. delivery maps `app_user_id` to a Telegram chat and sends the message
 
-## Supabase Webapp Integration
+## Required Webhook Target
 
-Recommended:
+For local Docker development:
 
-- Supabase remains your login/session system.
-- Your backend maps:
-  - `supabase_user_id -> sentinel_user_id -> sentinel_api_key`
-- When linking Telegram, call `/link/connect` with:
-  - `app_user_id = sentinel_user_id`
+```text
+http://delivery:3100/webhook/deliver
+```
 
-If you pass Supabase user id directly without translation, delivery lookup will fail.
+For production:
 
-## Required Delivery Endpoints
+- use the public URL of your deployed delivery service
 
-- `GET /health`
-- `GET /link`
-- `POST /link/connect`
-- `POST /webhook/deliver`
-- `GET /admin/stats`
+If a signal points to another webhook URL, Telegram delivery is bypassed.
 
-## Webhook Security
+## Security Contract
 
-`POST /webhook/deliver` requires:
+Incoming delivery webhooks require:
 
-- Header: `X-Sentinel-Signature: t=<timestamp>,v1=<hmac>`
-- Signature: `HMAC_SHA256(WEBHOOK_SECRET, "<timestamp>.<raw_body>")`
-- Freshness check: 5-minute max age (default)
+- `X-Sentinel-Signature`
+- `t=<timestamp>,v1=<hmac>` header format
+- HMAC over `"<timestamp>.<raw_body>"`
 
-Set the same `WEBHOOK_SECRET` value in:
+The same shared webhook secret must be configured on both the main service and the delivery service. Setup locations live in [GETTING_STARTED.md](./GETTING_STARTED.md) and [DEPLOYMENT.md](./DEPLOYMENT.md).
 
-- Sentinel (`.env`)
-- Delivery (`packages/delivery/.env`)
+## Related Docs
 
-## Signal Configuration Requirement
-
-For Telegram alerts, signals must use:
-
-- `webhook_url = http://localhost:3100/webhook/deliver` (local)
-- or your deployed delivery URL in production.
-
-If signal webhook points elsewhere, Telegram delivery is bypassed.
-
-## Bot Commands
-
-- `/start` create link token
-- `/status` show linked app accounts for the current chat
-- `/unlink` remove a linked app account
-- `/help` show help text
+- [GETTING_STARTED.md](./GETTING_STARTED.md) for local setup
+- [DEPLOYMENT.md](./DEPLOYMENT.md) for production deployment
+- [WEBAPP_INTEGRATION.md](./WEBAPP_INTEGRATION.md) for backend translation patterns
+- [../packages/delivery/README.md](../packages/delivery/README.md) for delivery package commands

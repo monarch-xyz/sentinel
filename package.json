@@ -10,6 +10,12 @@
   "scripts": {
     "dev": "concurrently \"pnpm api\" \"pnpm worker\"",
     "dev:all": "concurrently \"pnpm api\" \"pnpm worker\" \"pnpm delivery:dev\"",
+    "docker:up": "./scripts/docker-local.sh",
+    "docker:up:all": "./scripts/docker-local.sh --with-delivery",
+    "docker:down": "./scripts/docker-local.sh down",
+    "docker:reset": "./scripts/docker-local.sh reset",
+    "docker:logs": "./scripts/docker-local.sh logs",
+    "docker:logs:all": "./scripts/docker-local.sh logs --with-delivery",
     "api": "tsx watch src/api/index.ts",
     "worker": "tsx watch src/worker/index.ts",
     "build": "tsc && pnpm -F @sentinel/delivery build",
@@ -58,5 +64,6 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.1.3"
-  }
+  },
+  "packageManager": "pnpm@10.23.0+sha1.b4a44ab0dc2adf2e36371d11d8eb0dc78ffc976c"
 }

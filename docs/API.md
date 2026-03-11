@@ -1,440 +1,187 @@
-# Sentinel API Reference
+# API Reference
 
-REST API for signals, history, simulation, and Telegram delivery integration.
+This document owns the HTTP surface. Signal syntax belongs in [DSL.md](./DSL.md). Auth rules belong in [AUTH.md](./AUTH.md).
 
 ## Base URLs
 
-- Main API: `http://localhost:3000`
-- Main API namespace: `http://localhost:3000/api/v1`
-- Delivery service: `http://localhost:3100`
+- main API root: `http://localhost:3000`
+- main API namespace: `http://localhost:3000/api/v1`
+- delivery service: `http://localhost:3100`
 
-## Authentication
+## Auth Summary
 
-Main API:
+- `GET /health` is public
+- `POST /api/v1/auth/register` is public unless `REGISTER_ADMIN_KEY` is configured
+- all other `/api/v1/*` routes require `X-API-Key`
+- `POST /webhook/deliver` requires `X-Sentinel-Signature`
 
-- Public:
-  - `GET /health`
-  - `POST /api/v1/auth/register`
-- All other `/api/v1/*` endpoints require:
-
-```http
-X-API-Key: <user_api_key>
-```
-
-Delivery service:
-
-- `POST /webhook/deliver` requires `X-Sentinel-Signature`.
-- `GET /admin/stats` requires `X-Admin-Key`.
-- Link routes are token-based (`/link`, `/link/connect`).
-
-Recommended integration pattern:
-
-- Browser calls your webapp backend.
-- Webapp backend calls Sentinel and delivery services.
-- Sentinel API keys remain server-side only.
+See [AUTH.md](./AUTH.md) for the full auth model.
 
 ## Endpoint Inventory
 
-### Main API Endpoints
+### Main API
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/health` | none | Health check |
-| POST | `/api/v1/auth/register` | none | Create Sentinel user + API key |
-| POST | `/api/v1/signals` | API key | Create signal |
-| GET | `/api/v1/signals` | API key | List user signals (`?active=true` optional) |
-| GET | `/api/v1/signals/:id` | API key | Get one signal |
-| PATCH | `/api/v1/signals/:id` | API key | Update signal |
-| PATCH | `/api/v1/signals/:id/toggle` | API key | Toggle `is_active` |
-| DELETE | `/api/v1/signals/:id` | API key | Delete signal |
-| GET | `/api/v1/signals/:id/history` | API key | Evaluation + notification history (`?limit`, `?include_notifications`) |
-| POST | `/api/v1/simulate/:id/simulate` | API key | Simulate over time range |
-| POST | `/api/v1/simulate/:id/first-trigger` | API key | Find first trigger in range |
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Health check |
+| POST | `/api/v1/auth/register` | Create Sentinel user + API key |
+| POST | `/api/v1/signals` | Create signal |
+| GET | `/api/v1/signals` | List user signals |
+| GET | `/api/v1/signals/:id` | Get one signal |
+| PATCH | `/api/v1/signals/:id` | Update signal |
+| PATCH | `/api/v1/signals/:id/toggle` | Toggle `is_active` |
+| DELETE | `/api/v1/signals/:id` | Delete signal |
+| GET | `/api/v1/signals/:id/history` | Evaluation and notification history |
+| POST | `/api/v1/simulate/:id/simulate` | Simulate across a time range |
+| POST | `/api/v1/simulate/:id/first-trigger` | Find first trigger in a range |
 
-### Delivery Service Endpoints
+### Delivery Service
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/health` | none | Health check |
-| GET | `/link?token=...&app_user_id=...` | none | Hosted Telegram link page (token usually provided by bot link) |
-| POST | `/link/connect` | token in body | Link `app_user_id -> telegram_chat_id` |
-| POST | `/webhook/deliver` | `X-Sentinel-Signature` | Receive Sentinel webhook and send Telegram alert |
-| GET | `/admin/stats` | `X-Admin-Key` | Delivery stats |
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Health check |
+| GET | `/link?token=...&app_user_id=...` | Hosted Telegram link page |
+| POST | `/link/connect` | Link `app_user_id` to a Telegram chat |
+| POST | `/webhook/deliver` | Receive Sentinel webhook and deliver to Telegram |
+| GET | `/admin/stats` | Delivery stats |
 
-For Telegram delivery, set signal `webhook_url` to:
+## Register
 
-```text
-http://localhost:3100/webhook/deliver
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
 ```
 
-And configure matching `WEBHOOK_SECRET` in both services.
-
----
-
-**DSL Overview**
-
-A signal is a JSON object with this shape:
+Request body:
 
 ```json
 {
-  "scope": {
-    "chains": [1],
-    "markets": ["0x..."],
-    "addresses": ["0x..."]
-  },
-  "window": { "duration": "1h" },
-  "logic": "AND",
-  "conditions": [
-    { "type": "threshold", "metric": "Morpho.Market.utilization", "operator": ">", "value": 0.9 }
-  ]
+  "name": "Acme Alerts",
+  "key_name": "prod-key"
 }
 ```
 
-**Scope**
+Both fields are optional but must be non-empty strings if provided.
 
-- `chains` is required.
-- `markets` and `addresses` are optional.
-- If a condition omits `chain_id`, `market_id`, or `address`, the compiler will try to infer it from scope.
-- If scope contains multiple values, you must specify the field in the condition (to avoid ambiguity).
-
-**Window**
-
-- `duration` uses `{number}{unit}` where unit is `s`, `m`, `h`, `d`, or `w`.
-- Example values: `30m`, `1h`, `7d`.
-- You can override per condition with `window: { duration: "..." }`.
-- Seconds are supported via the `s` unit (e.g., `3600s`).
-
-**Condition Types**
-
-**`threshold`**
-- Compare a metric to a value.
-- Requires `chain_id`.
-- Requires `market_id` for Market and Position metrics.
-- Requires `address` for Position metrics.
-
-**`change`**
-- Compare current vs past value of a metric.
-- Same filter requirements as `threshold`.
-- `direction` must be `increase` or `decrease` (not `any`).
-
-**`group`**
-- Evaluate a condition per address, then apply an N-of-M requirement.
-- `requirement.of` must equal the number of `addresses`.
-- Inner conditions must NOT include `address` (it is injected per address).
-- Nested `group` or `aggregate` is not supported.
-- Provide `conditions` with optional `logic` (`AND` or `OR`).
-
-**`aggregate`**
-- Aggregate a metric across scope.
-- For Market metrics, `scope.markets` or `market_id` is required.
-- For Position metrics, both `scope.markets` and `scope.addresses` are required.
-- For Event metrics, `scope.addresses` and `scope.markets` are optional.
-
-**Metrics**
-
-Metrics are qualified names. The current registry lives in `src/engine/metrics.ts`.
-
-Common examples:
-- `Morpho.Market.totalSupplyAssets`
-- `Morpho.Market.totalBorrowAssets`
-- `Morpho.Market.utilization` (computed)
-- `Morpho.Position.supplyShares`
-- `Morpho.Event.Supply.assets`
-- `Morpho.Event.Supply.count` (event count metric)
-- `Morpho.Flow.netSupply` (chained event: Supply - Withdraw)
-
-**Event Filters (advanced)**
-
-You can add `filters` to event-based conditions (`threshold` or `aggregate`) to match specific event fields, for example `caller`, `isMonarch`, `txHash`.
-
-Rules:
-- Only supported for event metrics (including chained events like `Morpho.Flow.netSupply`).
-- Do not use reserved fields: `chainId`, `marketId`, `market_id`, `user`, `onBehalf`, `timestamp`.
-
-Example:
+Response:
 
 ```json
 {
-  "type": "threshold",
-  "metric": "Morpho.Event.Supply.assets",
-  "operator": ">",
-  "value": 1000,
-  "chain_id": 1,
-  "market_id": "0xM",
-  "filters": [
-    { "field": "caller", "op": "eq", "value": "0xC" },
-    { "field": "isMonarch", "op": "eq", "value": true }
-  ]
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "api_key_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
+  "api_key": "sentinel_..."
 }
 ```
 
----
-
-**Examples**
-
-**1. Simple threshold**
-
-```json
-{
-  "scope": { "chains": [1], "markets": ["0xM"] },
-  "window": { "duration": "1h" },
-  "conditions": [
-    {
-      "type": "threshold",
-      "metric": "Morpho.Market.utilization",
-      "operator": ">",
-      "value": 0.9
-    }
-  ]
-}
-```
-
-**2. Change condition (position drop)**
-
-```json
-{
-  "scope": { "chains": [1], "markets": ["0xM"], "addresses": ["0xA"] },
-  "window": { "duration": "24h" },
-  "conditions": [
-    {
-      "type": "change",
-      "metric": "Morpho.Position.supplyShares",
-      "direction": "decrease",
-      "by": { "percent": 20 },
-      "window": { "duration": "6h" }
-    }
-  ]
-}
-```
-
-**3. Group condition (multi-condition per address)**
-
-```json
-{
-  "scope": { "chains": [1], "markets": ["0xM"] },
-  "window": { "duration": "6h" },
-  "conditions": [
-    {
-      "type": "group",
-      "addresses": ["0xA", "0xB", "0xC"],
-      "requirement": { "count": 2, "of": 3 },
-      "logic": "AND",
-      "conditions": [
-        {
-          "type": "change",
-          "metric": "Morpho.Position.supplyShares",
-          "direction": "decrease",
-          "by": { "percent": 30 },
-          "window": { "duration": "3d" },
-          "market_id": "0xM",
-          "chain_id": 1
-        },
-        {
-          "type": "change",
-          "metric": "Morpho.Position.supplyShares",
-          "direction": "decrease",
-          "by": { "percent": 5 },
-          "window": { "duration": "1d" },
-          "market_id": "0xM",
-          "chain_id": 1
-        }
-      ]
-    }
-  ]
-}
-```
-
-**4. Aggregate event burst (count + size)**
-
-```json
-{
-  "scope": { "chains": [1], "markets": ["0xM"], "addresses": ["0xA", "0xB", "0xC"] },
-  "window": { "duration": "6h" },
-  "logic": "AND",
-  "conditions": [
-    {
-      "type": "aggregate",
-      "aggregation": "sum",
-      "metric": "Morpho.Event.Supply.count",
-      "operator": ">",
-      "value": 25,
-      "chain_id": 1,
-      "market_id": "0xM"
-    },
-    {
-      "type": "aggregate",
-      "aggregation": "sum",
-      "metric": "Morpho.Event.Supply.assets",
-      "operator": ">",
-      "value": 1000000,
-      "chain_id": 1,
-      "market_id": "0xM"
-    }
-  ]
-}
-```
-
----
-
-**Create Signal**
+## Create Signal
 
 ```http
 POST /api/v1/signals
 Content-Type: application/json
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
+```
 
+Request body:
+
+```json
 {
-  "name": "My Alert",
-  "description": "Optional description",
-  "definition": { ... },
-  "webhook_url": "https://your-webhook.com/alert",
+  "name": "High Utilization",
+  "description": "Optional",
+  "definition": { "...": "see DSL.md" },
+  "webhook_url": "https://your-webhook.example/alert",
   "cooldown_minutes": 5
 }
 ```
 
-**Response**
+Use [DSL.md](./DSL.md) for the canonical condition and metric reference.
 
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "My Alert",
-  "description": "Optional description",
-  "definition": { ... },
-  "webhook_url": "https://your-webhook.com/alert",
-  "cooldown_minutes": 5,
-  "is_active": true,
-  "created_at": "2026-02-02T15:30:00Z",
-  "updated_at": "2026-02-02T15:30:00Z"
-}
-```
+## Signal CRUD
 
-**List Signals**
+List:
 
 ```http
-GET /api/v1/signals
-X-API-Key: your-api-key
+GET /api/v1/signals?active=true
+X-API-Key: sentinel_...
 ```
 
-**Response**
+Get one:
 
-```json
-[
-  {
-    "id": "...",
-    "name": "...",
-    "definition": { ... },
-    "webhook_url": "...",
-    "cooldown_minutes": 5,
-    "is_active": true,
-    "created_at": "...",
-    "updated_at": "..."
-  }
-]
+```http
+GET /api/v1/signals/:id
+X-API-Key: sentinel_...
 ```
 
-**Update Signal**
+Partial update:
 
 ```http
 PATCH /api/v1/signals/:id
 Content-Type: application/json
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
 
 {
-  "is_active": false,
-  "cooldown_minutes": 10
+  "cooldown_minutes": 10,
+  "is_active": false
 }
 ```
 
-**Toggle Active**
+Toggle:
 
 ```http
 PATCH /api/v1/signals/:id/toggle
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
 ```
 
----
+Delete:
 
-**Signal History**
+```http
+DELETE /api/v1/signals/:id
+X-API-Key: sentinel_...
+```
+
+## History
 
 ```http
 GET /api/v1/signals/:id/history?limit=100&include_notifications=true
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
 ```
 
-Returns:
-- `evaluations`: every scheduler run (triggered and non-triggered)
-- `notifications`: webhook delivery attempts for triggered runs
+Response shape:
 
----
+```json
+{
+  "signal_id": "550e8400-e29b-41d4-a716-446655440000",
+  "evaluations": [],
+  "notifications": [],
+  "count": {
+    "evaluations": 0,
+    "notifications": 0
+  }
+}
+```
 
-**Simulation**
+## Simulation
+
+Simulate across a time range:
 
 ```http
 POST /api/v1/simulate/:id/simulate
 Content-Type: application/json
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
 
 {
   "start_time": "2026-01-01T00:00:00Z",
   "end_time": "2026-02-01T00:00:00Z",
   "interval_ms": 3600000,
-  "compact": false
+  "compact": true
 }
 ```
 
-**Response**
-
-```json
-{
-  "signal_id": "550e8400-e29b-41d4-a716-446655440000",
-  "range": { "start_time": "2026-01-01T00:00:00Z", "end_time": "2026-02-01T00:00:00Z" },
-  "steps": 25,
-  "triggers": [
-    {
-      "timestamp": "2026-01-01T00:00:00.000Z",
-      "triggered": false,
-      "operator": "gt",
-      "left_value": 120,
-      "right_value": 100,
-      "window_start": "2025-12-31T23:00:00.000Z",
-      "block_numbers": { "current": 19000000, "windowStart": 18999900 },
-      "execution_ms": 42
-    }
-  ]
-}
-```
-
-Note: `left_value`/`right_value`/`operator` are only present when the signal has a single simple condition.
-
-Limits:
-- Max steps: `MAX_SIMULATION_STEPS` (default 2000)
-- Rate limit: `SIMULATE_RATE_LIMIT` requests/min per IP (default 60)
-
-**Compact Response**
-
-Set `compact: true` to return only trigger timestamps:
-
-```json
-{
-  "signal_id": "550e8400-e29b-41d4-a716-446655440000",
-  "range": { "start_time": "2026-01-01T00:00:00Z", "end_time": "2026-02-01T00:00:00Z" },
-  "steps": 25,
-  "triggered_count": 2,
-  "triggered_timestamps": [
-    "2026-01-15T10:30:00.000Z",
-    "2026-01-22T14:00:00.000Z"
-  ]
-}
-```
-
----
-
-**Find First Trigger**
+Find first trigger:
 
 ```http
 POST /api/v1/simulate/:id/first-trigger
 Content-Type: application/json
-X-API-Key: your-api-key
+X-API-Key: sentinel_...
 
 {
   "start_time": "2026-01-01T00:00:00Z",
@@ -443,35 +190,9 @@ X-API-Key: your-api-key
 }
 ```
 
-**Response (not triggered)**
+## Webhook Payload
 
-```json
-{
-  "signal_id": "550e8400-e29b-41d4-a716-446655440000",
-  "triggered": false,
-  "range": { "start_time": "2026-01-01T00:00:00Z", "end_time": "2026-02-01T00:00:00Z" }
-}
-```
-
-**Response (triggered)**
-
-```json
-{
-  "signal_id": "550e8400-e29b-41d4-a716-446655440000",
-  "triggered": true,
-  "first_triggered_at": "2026-01-15T10:30:00.000Z",
-  "window_start": "2026-01-15T09:30:00.000Z",
-  "operator": "gt",
-  "left_value": 120,
-  "right_value": 100,
-  "block_numbers": { "current": 19000000, "windowStart": 18999900 },
-  "execution_ms": 42
-}
-```
-
----
-
-**Webhook Payload**
+Outgoing Sentinel webhooks use this payload shape:
 
 ```json
 {
@@ -493,59 +214,20 @@ X-API-Key: your-api-key
 }
 ```
 
-`context.app_user_id` is populated from Sentinel signal ownership (`signals.user_id`).
-For direct Telegram delivery mapping, link Telegram with that same value.
+For direct Telegram delivery, `context.app_user_id` should match the Telegram link mapping. See [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md).
 
-Webhook behavior:
-- Timeout: 10 seconds
-- Retries: up to `WEBHOOK_MAX_RETRIES` (default 3) with exponential backoff
-- Expected response: 2xx
-- Idempotency: `Idempotency-Key: <signal_id>:<triggered_at>`
-- Signature: `X-Sentinel-Signature: t=<unix_seconds>,v1=<hex_hmac>` and `X-Sentinel-Timestamp` (if `WEBHOOK_SECRET` is set), where `v1 = HMAC_SHA256(secret, "<timestamp>.<payload>")`.
+## Delivery Notes
 
----
+If you are using the delivery service:
 
-**Error Responses**
+- local worker-to-delivery target: `http://delivery:3100/webhook/deliver`
+- production target: your public delivery URL
 
-Validation errors return:
+Do not use `localhost` as the worker webhook target unless the worker is actually running on the host instead of in Docker.
 
-```json
-{
-  "error": "Validation failed",
-  "details": [
-    { "path": ["definition", "conditions"], "message": "Required" }
-  ]
-}
-```
+## Related Docs
 
-Generic errors return:
-
-```json
-{ "error": "Internal server error" }
-```
-
----
-
-**Register**
-
-Create a user and API key:
-
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{
-  "name": "Acme Alerts",
-  "key_name": "prod-key"
-}
-```
-
-**Response**
-
-```json
-{
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "api_key_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
-  "api_key": "sentinel_..."
-}
-```
+- Signal syntax and examples: [DSL.md](./DSL.md)
+- Auth rules: [AUTH.md](./AUTH.md)
+- Telegram delivery contract: [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md)
+- Local setup and curl smoke tests: [GETTING_STARTED.md](./GETTING_STARTED.md)
