@@ -11,6 +11,8 @@ export type { DataFetcher, DataFetcherOptions } from "./fetcher.js";
 
 // Morpho-specific implementation
 export { createMorphoFetcher } from "./morpho-fetcher.js";
+export { planMorphoEventRead, planMorphoStateRead } from "./source-plan.js";
+export type { PlannedEnvioEventRead, PlannedRpcStateRead } from "./source-plan.js";
 
 export {
   compileCondition,
@@ -22,7 +24,6 @@ export type {
   CompiledCondition,
   CompiledAggregateCondition,
   CompiledGroupCondition,
-  CompilationContext,
 } from "./compiler.js";
 
 export {

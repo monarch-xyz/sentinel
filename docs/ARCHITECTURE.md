@@ -75,12 +75,13 @@ Sentinel uses a hybrid model:
 
 | Query type | Source | Why |
 | --- | --- | --- |
-| current state | Envio | indexed and cheap for latest reads |
+| current state | RPC | one consistent path for current and historical state |
 | events over time | Envio | timestamped event history |
 | historical state snapshot | RPC | precise point-in-time block reads |
 | timestamp to block resolution | RPC | Envio does not support time-travel state reads |
 
 The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md).
+Provider choice is intentionally kept behind the engine fetcher layer so the DSL and evaluator do not care whether a read comes from Envio, RPC, or a future source.
 
 ## Evaluation Flow
 
@@ -105,6 +106,7 @@ Conceptually:
 - evaluator then fetches current and historical values and compares them
 
 That separation keeps the external DSL simple while keeping the evaluator generic.
+The current runtime also keeps source planning separate from evaluation: compiled conditions produce state and event refs, and the fetcher decides which provider executes them.
 
 ## Metric Model
 

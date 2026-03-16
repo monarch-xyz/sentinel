@@ -23,7 +23,6 @@ import type {
   ComparisonOperator,
   GroupCondition,
   MetricType,
-  SignalScope,
   ThresholdCondition,
   Condition as UserCondition,
 } from "../types/signal.js";
@@ -31,12 +30,8 @@ import type {
 import { assertNever } from "../utils/errors.js";
 
 import {
-  ChainedEventMetricDef,
-  ComputedMetricDef,
-  EventMetricDef,
   type MetricDef,
   getMetric,
-  isValidMetric,
 } from "./metrics.js";
 
 /**
@@ -79,15 +74,6 @@ export type CompiledCondition =
   | InternalCondition
   | CompiledGroupCondition
   | CompiledAggregateCondition;
-
-/**
- * Compilation context - provides scope information for building filters
- */
-export interface CompilationContext {
-  scope: SignalScope;
-  /** Default chain ID to use if not specified */
-  defaultChainId?: number;
-}
 
 // ============================================
 // Operator Mapping

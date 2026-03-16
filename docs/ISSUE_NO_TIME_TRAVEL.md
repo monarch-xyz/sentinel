@@ -7,7 +7,8 @@
 
 ## Sentinel Strategy
 
-- **Current state + events:** Envio GraphQL.
+- **Current state:** RPC `eth_call`.
+- **Events:** Envio GraphQL.
 - **Point-in-time state:** RPC `eth_call` at resolved block number.
 - **Event aggregation:** aggregate returned rows in memory.
 - **Timestamp -> block resolution:** RPC block lookup logic.
@@ -16,4 +17,4 @@
 
 - Threshold and change evaluations remain supported.
 - Event-based conditions remain supported.
-- Historical state checks rely on RPC, not Envio.
+- All state checks rely on RPC, so current and historical reads share one execution path.

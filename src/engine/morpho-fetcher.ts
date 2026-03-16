@@ -18,6 +18,7 @@ import {
 import type { EventRef, StateRef } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, EventFetcher } from "./fetcher.js";
+import { planMorphoEventRead, planMorphoStateRead } from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
@@ -60,23 +61,6 @@ function extractMarketField(result: MarketResult, field: string): number {
 }
 
 /**
- * Extract filter values from StateRef
- */
-function extractFilters(ref: StateRef): { chainId?: number; marketId?: string; user?: string } {
-  const result: { chainId?: number; marketId?: string; user?: string } = {};
-  for (const filter of ref.filters) {
-    if (filter.field === "chainId" && filter.op === "eq") {
-      result.chainId = Number(filter.value);
-    } else if (filter.field === "marketId" && filter.op === "eq") {
-      result.marketId = String(filter.value);
-    } else if (filter.field === "user" && filter.op === "eq") {
-      result.user = String(filter.value);
-    }
-  }
-  return result;
-}
-
-/**
  * Create a Morpho-specific DataFetcher
  *
  * @param envio - Event fetcher instance for events
@@ -89,75 +73,67 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
    * Fetch current state from RPC (latest block)
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
-    const filters = extractFilters(ref);
-    const chainId = filters.chainId ?? defaultChainId;
-    const marketId = filters.marketId;
-
-    if (!marketId) {
-      throw new Error("marketId filter required for state queries");
-    }
+    const plan = planMorphoStateRead(ref, undefined, defaultChainId);
 
     if (verbose) {
       logger.info(
-        { entity: ref.entity_type, field: ref.field, chainId },
+        { entity: plan.entityType, field: plan.field, chainId: plan.chainId, source: plan.source },
         "Fetching current state from RPC",
       );
     }
 
-    if (ref.entity_type === "Position") {
-      const user = filters.user;
-      if (!user) {
-        throw new Error("user filter required for Position queries");
-      }
-      const result = await readPosition(chainId, marketId, user);
-      return extractPositionField(result, ref.field);
+    if (plan.entityType === "Position") {
+      const result = await readPosition(plan.chainId, plan.marketId, plan.user as string);
+      return extractPositionField(result, plan.field);
     }
 
-    if (ref.entity_type === "Market") {
-      const result = await readMarket(chainId, marketId);
-      return extractMarketField(result, ref.field);
+    if (plan.entityType === "Market") {
+      const result = await readMarket(plan.chainId, plan.marketId);
+      return extractMarketField(result, plan.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${ref.entity_type}`);
+    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
   }
 
   /**
    * Fetch historical state from RPC at specific block
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
-    const filters = extractFilters(ref);
-    const chainId = filters.chainId ?? defaultChainId;
-    const marketId = filters.marketId;
-
-    if (!marketId) {
-      throw new Error("marketId filter required for state queries");
-    }
+    const plan = planMorphoStateRead(ref, timestamp, defaultChainId);
 
     // Resolve timestamp to block number
-    const blockNumber = await resolveBlockByTimestamp(chainId, timestamp);
+    const blockNumber = await resolveBlockByTimestamp(plan.chainId, timestamp);
 
     if (verbose) {
       logger.info(
-        { entity: ref.entity_type, field: ref.field, chainId, blockNumber, timestamp },
+        {
+          entity: plan.entityType,
+          field: plan.field,
+          chainId: plan.chainId,
+          blockNumber,
+          timestamp,
+          source: plan.source,
+        },
         "Fetching historical state from RPC",
       );
     }
 
-    if (ref.entity_type === "Position") {
-      const user = filters.user;
-      if (!user) {
-        throw new Error("user filter required for Position queries");
-      }
-      const result = await readPositionAtBlock(chainId, marketId, user, BigInt(blockNumber));
-      return extractPositionField(result, ref.field);
+    if (plan.entityType === "Position") {
+      const result = await readPositionAtBlock(
+        plan.chainId,
+        plan.marketId,
+        plan.user as string,
+        BigInt(blockNumber),
+      );
+      return extractPositionField(result, plan.field);
     }
 
-    if (ref.entity_type === "Market") {
-      const result = await readMarketAtBlock(chainId, marketId, BigInt(blockNumber));
-      return extractMarketField(result, ref.field);
+    if (plan.entityType === "Market") {
+      const result = await readMarketAtBlock(plan.chainId, plan.marketId, BigInt(blockNumber));
+      return extractMarketField(result, plan.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${ref.entity_type}`);
+    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
   }
 
   return {
@@ -177,13 +153,20 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
      * Fetch events from Envio (events have timestamps, no time-travel needed)
      */
     fetchEvents: async (ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
+      const plan = planMorphoEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
       if (verbose) {
         logger.info(
-          { eventType: ref.event_type, field: ref.field, aggregation: ref.aggregation },
+          {
+            eventType: plan.ref.event_type,
+            field: plan.ref.field,
+            aggregation: plan.ref.aggregation,
+            chainId: plan.chainId,
+            source: plan.source,
+          },
           "Fetching events from Envio",
         );
       }
-      return envio.fetchEvents(ref, startTimeMs, endTimeMs);
+      return envio.fetchEvents(plan.ref, plan.startTimeMs, plan.endTimeMs);
     },
   };
 }

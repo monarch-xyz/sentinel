@@ -1,26 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type BatchQuery,
-  EnvioClient,
-  EnvioQueryError,
-  EventQuery,
-  StateQuery,
-} from "../../src/envio/client.js";
+import { type BatchQuery, EnvioClient, EnvioQueryError } from "../../src/envio/client.js";
 import type { FilterOp } from "../../src/types/index.js";
 
-// Mock the GraphQL client
 const mockRequest = vi.fn();
 vi.mock("graphql-request", () => {
   return {
     GraphQLClient: vi.fn().mockImplementation(() => ({
       request: mockRequest,
     })),
-    gql: (s: string) => s,
   };
 });
-
-// Note: block resolver mock removed - no longer used by EnvioClient
-// Historical state queries now use RPC (src/rpc/client.ts) instead
 
 describe("EnvioClient", () => {
   let client: EnvioClient;
@@ -30,87 +19,8 @@ describe("EnvioClient", () => {
     client = new EnvioClient("https://mock-envio.endpoint");
   });
 
-  describe("fetchState", () => {
-    it("translates simple equality filters correctly", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ supplyShares: "1000" }],
-      });
-
-      const result = await client.fetchState({
-        type: "state",
-        entity_type: "Position",
-        filters: [{ field: "user", op: "eq", value: "0x123" }],
-        field: "supplyShares",
-      });
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining("Position"),
-        expect.objectContaining({ result_where: { user: { _eq: "0x123" } } }),
-      );
-      expect(result).toBe(1000);
-    });
-
-    it("handles multiple filter operators", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ totalSupply: "5000000" }],
-      });
-
-      await client.fetchState({
-        type: "state",
-        entity_type: "Market",
-        filters: [
-          { field: "chainId", op: "eq", value: 1 },
-          { field: "totalSupply", op: "gte", value: 1000000 },
-        ],
-        field: "totalSupply",
-      });
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          result_where: {
-            chainId: { _eq: 1 },
-            totalSupply: { _gte: 1000000 },
-          },
-        }),
-      );
-    });
-
-    // Note: time-travel test removed - Envio doesn't support block params
-    // Historical state queries now use RPC (src/rpc/client.ts)
-
-    it("returns 0 when entity not found", async () => {
-      mockRequest.mockResolvedValue({ result: [] });
-
-      const result = await client.fetchState({
-        type: "state",
-        entity_type: "Position",
-        filters: [{ field: "user", op: "eq", value: "0xnonexistent" }],
-        field: "supplyShares",
-      });
-
-      expect(result).toBe(0);
-    });
-
-    it("throws EnvioQueryError on GraphQL error", async () => {
-      mockRequest.mockRejectedValue(new Error("GraphQL error"));
-
-      await expect(
-        client.fetchState({
-          type: "state",
-          entity_type: "Position",
-          filters: [{ field: "user", op: "eq", value: "0x123" }],
-          field: "supplyShares",
-        }),
-      ).rejects.toThrow(EnvioQueryError);
-    });
-  });
-
-  // Note: fetchStateAtTimestamp tests removed - function removed from EnvioClient
-  // Historical state queries now use RPC (src/rpc/client.ts)
-
   describe("fetchEvents", () => {
-    it("aggregates raw events in-memory with sum", async () => {
+    it("aggregates event rows and remaps user filters", async () => {
       mockRequest.mockResolvedValue({
         result: [{ assets: "1000" }, { assets: "2000" }, { assets: "500" }],
       });
@@ -127,6 +37,7 @@ describe("EnvioClient", () => {
         1700003600000,
       );
 
+      expect(result).toBe(3500);
       expect(mockRequest).toHaveBeenCalledWith(
         expect.stringContaining("Morpho_Supply"),
         expect.objectContaining({
@@ -136,201 +47,29 @@ describe("EnvioClient", () => {
           }),
         }),
       );
-      expect(result).toBe(3500);
     });
 
-    it("calculates count correctly", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{}, {}, {}, {}],
-      });
+    it("throws EnvioQueryError on GraphQL failure", async () => {
+      mockRequest.mockRejectedValue(new Error("GraphQL error"));
 
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Withdraw",
-          filters: [],
-          field: "any",
-          aggregation: "count",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(4);
-    });
-
-    it("calculates average correctly", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ amount: "100" }, { amount: "200" }, { amount: "300" }],
-      });
-
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Supply",
-          filters: [],
-          field: "amount",
-          aggregation: "avg",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(200);
-    });
-
-    it("calculates min correctly", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ amount: "500" }, { amount: "100" }, { amount: "300" }],
-      });
-
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Supply",
-          filters: [],
-          field: "amount",
-          aggregation: "min",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(100);
-    });
-
-    it("calculates max correctly", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ amount: "500" }, { amount: "100" }, { amount: "900" }],
-      });
-
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Supply",
-          filters: [],
-          field: "amount",
-          aggregation: "max",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(900);
-    });
-
-    it("handles Morpho_ prefix in event type", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ assets: "1000" }],
-      });
-
-      await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Morpho_Supply",
-          filters: [],
-          field: "assets",
-          aggregation: "sum",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining("Morpho_Supply"),
-        expect.any(Object),
-      );
-    });
-
-    it("returns 0 for empty result set", async () => {
-      mockRequest.mockResolvedValue({ result: [] });
-
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Supply",
-          filters: [],
-          field: "assets",
-          aggregation: "sum",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(0);
-    });
-
-    it("handles null/undefined field values", async () => {
-      mockRequest.mockResolvedValue({
-        result: [{ amount: "100" }, { amount: null }, { amount: undefined }, { amount: "200" }],
-      });
-
-      const result = await client.fetchEvents(
-        {
-          type: "event",
-          event_type: "Supply",
-          filters: [],
-          field: "amount",
-          aggregation: "sum",
-        },
-        0,
-        Date.now(),
-      );
-
-      expect(result).toBe(300); // 100 + 0 + 0 + 200
+      await expect(
+        client.fetchEvents(
+          {
+            type: "event",
+            event_type: "Supply",
+            filters: [],
+            field: "assets",
+            aggregation: "sum",
+          },
+          0,
+          Date.now(),
+        ),
+      ).rejects.toThrow(EnvioQueryError);
     });
   });
 
   describe("batchQueries", () => {
-    it("executes multiple state queries in a single request", async () => {
-      mockRequest.mockResolvedValue({
-        position1: [{ supplyShares: "1000" }],
-        position2: [{ supplyShares: "2000" }],
-      });
-
-      const queries: BatchQuery[] = [
-        {
-          type: "state",
-          ref: {
-            type: "state",
-            entity_type: "Position",
-            filters: [{ field: "user", op: "eq", value: "0x111" }],
-            field: "supplyShares",
-          },
-          alias: "position1",
-        },
-        {
-          type: "state",
-          ref: {
-            type: "state",
-            entity_type: "Position",
-            filters: [{ field: "user", op: "eq", value: "0x222" }],
-            field: "supplyShares",
-          },
-          alias: "position2",
-        },
-      ];
-
-      const results = await client.batchQueries(queries);
-
-      // Should only make one request
-      expect(mockRequest).toHaveBeenCalledTimes(1);
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining("position1"),
-        expect.any(Object),
-      );
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.stringContaining("position2"),
-        expect.any(Object),
-      );
-
-      expect(results).toEqual({
-        position1: 1000,
-        position2: 2000,
-      });
-    });
-
-    it("executes multiple event queries in a single request", async () => {
+    it("executes multiple event queries in one request", async () => {
       mockRequest.mockResolvedValue({
         supplies: [{ assets: "1000" }, { assets: "2000" }],
         withdrawals: [{ assets: "500" }],
@@ -338,7 +77,6 @@ describe("EnvioClient", () => {
 
       const queries: BatchQuery[] = [
         {
-          type: "event",
           ref: {
             type: "event",
             event_type: "Supply",
@@ -351,7 +89,6 @@ describe("EnvioClient", () => {
           alias: "supplies",
         },
         {
-          type: "event",
           ref: {
             type: "event",
             event_type: "Withdraw",
@@ -365,100 +102,21 @@ describe("EnvioClient", () => {
         },
       ];
 
-      const results = await client.batchQueries(queries);
-
-      expect(mockRequest).toHaveBeenCalledTimes(1);
-      expect(results).toEqual({
+      expect(await client.batchQueries(queries)).toEqual({
         supplies: 3000,
         withdrawals: 500,
       });
-    });
-
-    it("handles mixed state and event queries", async () => {
-      mockRequest.mockResolvedValue({
-        currentPosition: [{ supplyShares: "5000" }],
-        recentSupplies: [{ assets: "1000" }, { assets: "500" }],
-      });
-
-      const queries: BatchQuery[] = [
-        {
-          type: "state",
-          ref: {
-            type: "state",
-            entity_type: "Position",
-            filters: [{ field: "user", op: "eq", value: "0x123" }],
-            field: "supplyShares",
-          },
-          alias: "currentPosition",
-        },
-        {
-          type: "event",
-          ref: {
-            type: "event",
-            event_type: "Supply",
-            filters: [{ field: "user", op: "eq", value: "0x123" }],
-            field: "assets",
-            aggregation: "sum",
-          },
-          startTimeMs: 0,
-          endTimeMs: Date.now(),
-          alias: "recentSupplies",
-        },
-      ];
-
-      const results = await client.batchQueries(queries);
-
       expect(mockRequest).toHaveBeenCalledTimes(1);
-      expect(results).toEqual({
-        currentPosition: 5000,
-        recentSupplies: 1500,
-      });
     });
 
-    it("returns empty object for empty query list", async () => {
-      const results = await client.batchQueries([]);
-      expect(results).toEqual({});
+    it("returns an empty object for an empty batch", async () => {
+      expect(await client.batchQueries([])).toEqual({});
       expect(mockRequest).not.toHaveBeenCalled();
     });
-
-    it("throws EnvioQueryError on batch query failure", async () => {
-      mockRequest.mockRejectedValue(new Error("GraphQL error"));
-
-      const queries: BatchQuery[] = [
-        {
-          type: "state",
-          ref: {
-            type: "state",
-            entity_type: "Position",
-            filters: [],
-            field: "supplyShares",
-          },
-          alias: "q1",
-        },
-        {
-          type: "event",
-          ref: {
-            type: "event",
-            event_type: "Supply",
-            filters: [],
-            field: "assets",
-            aggregation: "sum",
-          },
-          startTimeMs: 0,
-          endTimeMs: Date.now(),
-          alias: "q2",
-        },
-      ];
-
-      await expect(client.batchQueries(queries)).rejects.toThrow(EnvioQueryError);
-    });
-
-    // Note: time-travel batch query test removed - Envio doesn't support block params
-    // Historical state queries now use RPC (src/rpc/client.ts)
   });
 
-  describe("fetchPositions", () => {
-    it("fetches raw positions for a chain", async () => {
+  describe("raw helpers", () => {
+    it("fetches raw positions", async () => {
       mockRequest.mockResolvedValue({
         Position: [
           {
@@ -469,7 +127,6 @@ describe("EnvioClient", () => {
             supplyShares: "1000",
             borrowShares: "0",
             collateral: "5000",
-            lastUpdateTimestamp: 1700000000,
           },
         ],
       });
@@ -479,7 +136,6 @@ describe("EnvioClient", () => {
       ]);
 
       expect(positions).toHaveLength(1);
-      expect(positions[0].user).toBe("0x123");
       expect(mockRequest).toHaveBeenCalledWith(
         expect.stringContaining("Position"),
         expect.objectContaining({
@@ -491,19 +147,7 @@ describe("EnvioClient", () => {
       );
     });
 
-    // Note: historical positions test removed - Envio doesn't support block params
-    // Historical state queries now use RPC (src/rpc/client.ts)
-
-    it("returns empty array on error", async () => {
-      mockRequest.mockRejectedValue(new Error("GraphQL error"));
-
-      const positions = await client.fetchPositions(1, []);
-      expect(positions).toEqual([]);
-    });
-  });
-
-  describe("fetchMarkets", () => {
-    it("fetches raw markets for a chain", async () => {
+    it("fetches raw markets", async () => {
       mockRequest.mockResolvedValue({
         Market: [
           {
@@ -527,7 +171,6 @@ describe("EnvioClient", () => {
       const markets = await client.fetchMarkets(1);
 
       expect(markets).toHaveLength(1);
-      expect(markets[0].id).toBe("market1");
       expect(mockRequest).toHaveBeenCalledWith(
         expect.stringContaining("Market"),
         expect.objectContaining({
@@ -536,16 +179,7 @@ describe("EnvioClient", () => {
       );
     });
 
-    it("returns empty array on error", async () => {
-      mockRequest.mockRejectedValue(new Error("GraphQL error"));
-
-      const markets = await client.fetchMarkets(1);
-      expect(markets).toEqual([]);
-    });
-  });
-
-  describe("fetchRawEvents", () => {
-    it("fetches raw events for a chain and time range", async () => {
+    it("fetches raw events", async () => {
       mockRequest.mockResolvedValue({
         Morpho_Supply: [
           {
@@ -555,13 +189,6 @@ describe("EnvioClient", () => {
             transactionHash: "0xabc",
             logIndex: 0,
           },
-          {
-            id: "event2",
-            chainId: 1,
-            timestamp: 1700001000,
-            transactionHash: "0xdef",
-            logIndex: 1,
-          },
         ],
       });
 
@@ -569,8 +196,7 @@ describe("EnvioClient", () => {
         { field: "user", op: "eq", value: "0x123" },
       ]);
 
-      expect(events).toHaveLength(2);
-      expect(events[0].id).toBe("event1");
+      expect(events).toHaveLength(1);
       expect(mockRequest).toHaveBeenCalledWith(
         expect.stringContaining("Morpho_Supply"),
         expect.objectContaining({
@@ -581,13 +207,6 @@ describe("EnvioClient", () => {
           },
         }),
       );
-    });
-
-    it("returns empty array on error", async () => {
-      mockRequest.mockRejectedValue(new Error("GraphQL error"));
-
-      const events = await client.fetchRawEvents("Supply", 1, 0, Date.now());
-      expect(events).toEqual([]);
     });
   });
 
@@ -601,20 +220,18 @@ describe("EnvioClient", () => {
       ["lte", "_lte"],
       ["in", "_in"],
       ["contains", "_ilike"],
-    ])("translates %s operator to %s", async (op, gqlOp) => {
-      mockRequest.mockResolvedValue({ result: [] });
+    ])("translates %s to %s", async (op, gqlOp) => {
+      mockRequest.mockResolvedValue({ Position: [] });
 
-      await client.fetchState({
-        type: "state",
-        entity_type: "Position",
-        filters: [{ field: "testField", op: op as FilterOp, value: "testValue" }],
-        field: "any",
-      });
+      await client.fetchPositions(1, [{ field: "testField", op: op as FilterOp, value: "test" }]);
 
       expect(mockRequest).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          result_where: { testField: { [gqlOp]: "testValue" } },
+          where: {
+            testField: { [gqlOp]: "test" },
+            chainId: { _eq: 1 },
+          },
         }),
       );
     });

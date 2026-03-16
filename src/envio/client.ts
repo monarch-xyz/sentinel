@@ -1,6 +1,6 @@
 import { GraphQLClient } from "graphql-request";
 import { config } from "../config/index.js";
-import type { EventRef, Filter, StateRef } from "../types/index.js";
+import type { EventRef, Filter } from "../types/index.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -33,24 +33,14 @@ export class EnvioQueryError extends Error {
   }
 }
 
-/**
- * Query types for batching
- */
-export interface StateQuery {
-  type: "state";
-  ref: StateRef;
-  alias: string;
-}
-
 export interface EventQuery {
-  type: "event";
   ref: EventRef;
   startTimeMs: number;
   endTimeMs: number;
   alias: string;
 }
 
-export type BatchQuery = StateQuery | EventQuery;
+export type BatchQuery = EventQuery;
 
 export interface BatchResult {
   [alias: string]: number;
@@ -180,25 +170,6 @@ export class EnvioClient {
   }
 
   /**
-   * Build a state query fragment for batching
-   * Note: Envio does NOT support time-travel (block: {number: X}).
-   * For historical state, use RPC via src/rpc/client.ts instead.
-   */
-  private buildStateQueryFragment(query: StateQuery): {
-    fragment: string;
-    variables: Record<string, GraphQLFilterValue>;
-  } {
-    const where = this.translateFilters(query.ref.filters);
-
-    return {
-      fragment: `${query.alias}: ${query.ref.entity_type}(where: $${query.alias}_where, limit: 1) {
-        ${query.ref.field}
-      }`,
-      variables: { [`${query.alias}_where`]: where },
-    };
-  }
-
-  /**
    * Build an event query fragment for batching
    */
   private buildEventQueryFragment(query: EventQuery): {
@@ -241,11 +212,7 @@ export class EnvioClient {
    */
   private buildVariableDefinitions(queries: BatchQuery[]): string {
     return queries
-      .map((q) => {
-        const entityName =
-          q.type === "state" ? q.ref.entity_type : this.normalizeEventEntityName(q.ref.event_type);
-        return `$${q.alias}_where: ${entityName}_bool_exp!`;
-      })
+      .map((q) => `$${q.alias}_where: ${this.normalizeEventEntityName(q.ref.event_type)}_bool_exp!`)
       .join(", ");
   }
 
@@ -257,30 +224,22 @@ export class EnvioClient {
 
     const normalizedQueries: BatchQuery[] = [];
     for (const query of queries) {
-      if (query.type === "event") {
-        const remappedFilters = this.remapEventFilters(query.ref.filters);
-        await this.validateEventFilterFields(query.ref.event_type, remappedFilters);
-        normalizedQueries.push({
-          ...query,
-          ref: {
-            ...query.ref,
-            filters: remappedFilters,
-          },
-        });
-      } else {
-        normalizedQueries.push(query);
-      }
+      const remappedFilters = this.remapEventFilters(query.ref.filters);
+      await this.validateEventFilterFields(query.ref.event_type, remappedFilters);
+      normalizedQueries.push({
+        ...query,
+        ref: {
+          ...query.ref,
+          filters: remappedFilters,
+        },
+      });
     }
 
     const fragments: string[] = [];
     let variables: Record<string, GraphQLFilterValue> = {};
 
     for (const query of normalizedQueries) {
-      const built =
-        query.type === "state"
-          ? this.buildStateQueryFragment(query)
-          : this.buildEventQueryFragment(query);
-
+      const built = this.buildEventQueryFragment(query);
       fragments.push(built.fragment);
       variables = { ...variables, ...built.variables };
     }
@@ -298,13 +257,7 @@ export class EnvioClient {
 
       for (const query of normalizedQueries) {
         const rows = (data[query.alias] || []) as GraphQLRow[];
-
-        if (query.type === "state") {
-          const entity = rows[0];
-          results[query.alias] = entity ? Number(entity[query.ref.field]) : 0;
-        } else {
-          results[query.alias] = this.aggregateInMemory(rows, query.ref);
-        }
+        results[query.alias] = this.aggregateInMemory(rows, query.ref);
       }
 
       return results;
@@ -344,28 +297,11 @@ export class EnvioClient {
   }
 
   /**
-   * Fetch current indexed state from Envio.
-   * Note: Envio does NOT support block-parameter time-travel.
-   * Point-in-time state reads use RPC via src/rpc/client.ts.
-   */
-  async fetchState(ref: StateRef): Promise<number> {
-    const result = await this.batchQueries([
-      {
-        type: "state",
-        ref,
-        alias: "result",
-      },
-    ]);
-    return result.result;
-  }
-
-  /**
    * Fetch and aggregate events in a time window
    */
   async fetchEvents(ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> {
     const result = await this.batchQueries([
       {
-        type: "event",
         ref,
         startTimeMs,
         endTimeMs,
