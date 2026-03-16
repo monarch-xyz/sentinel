@@ -70,6 +70,7 @@ Main service image:
 - API command: `node dist/api/index.js`
 - worker command: `node dist/worker/index.js`
 - migration command: `node dist/scripts/migrate.js`
+- carries the canonical `schema.sql` file used by both bootstrap and migrations
 
 Delivery image:
 

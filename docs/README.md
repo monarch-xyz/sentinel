@@ -25,7 +25,7 @@ This folder is intentionally organized around canonical owners. If a topic appea
 | --- | --- | --- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design | Compiler/evaluator flow, Envio vs RPC, and service responsibilities |
 | [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) | ADR-style reasoning | Why the current design looks the way it does |
-| [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md) | Specific data-source constraint | Why historical state uses RPC instead of Envio time-travel |
+| [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md) | Specific data-source constraint | Why state reads use RPC while events use Envio |
 
 ## Planning And Status
 

@@ -61,6 +61,7 @@ Rules:
 - duration format is `{number}{unit}`
 - supported units: `s`, `m`, `h`, `d`, `w`
 - examples: `30m`, `1h`, `7d`, `3600s`
+- the public DSL window is duration-based only
 - a condition may override the signal-level window with its own `window`
 
 ## Condition Types

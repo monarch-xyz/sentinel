@@ -26,8 +26,11 @@ PostgreSQL
    |
 worker (scheduler + evaluator + webhook dispatch)
    |
-   +--> Envio GraphQL for indexed state and events
-   +--> RPC for point-in-time state
+   +--> source planner
+         |
+         +--> Envio GraphQL for event history
+         +--> RPC for current and historical state
+         +--> RPC block resolution for timestamp -> block
    |
    v
 webhook target
@@ -81,6 +84,7 @@ Sentinel uses a hybrid model:
 | timestamp to block resolution | RPC | Envio does not support time-travel state reads |
 
 The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md).
+
 Provider choice is intentionally kept behind the engine fetcher layer so the DSL and evaluator do not care whether a read comes from Envio, RPC, or a future source.
 
 ## Evaluation Flow
@@ -89,11 +93,12 @@ Provider choice is intentionally kept behind the engine fetcher layer so the DSL
 2. the API validates and compiles the DSL
 3. the compiled definition is stored in PostgreSQL
 4. the worker scheduler picks up active signals
-5. the worker resolves the needed data through Envio or RPC
-6. the evaluator produces a triggered or non-triggered result
-7. history is written to PostgreSQL
-8. if triggered, Sentinel sends a webhook
-9. optional delivery service verifies the webhook and sends a Telegram message
+5. the worker resolves the needed data through the source planner
+6. the planner routes state reads to RPC and event reads to Envio
+7. the evaluator produces a triggered or non-triggered result
+8. history is written to PostgreSQL
+9. if triggered, Sentinel sends a webhook
+10. optional delivery service verifies the webhook and sends a Telegram message
 
 ## Compilation Model
 
@@ -106,6 +111,7 @@ Conceptually:
 - evaluator then fetches current and historical values and compares them
 
 That separation keeps the external DSL simple while keeping the evaluator generic.
+
 The current runtime also keeps source planning separate from evaluation: compiled conditions produce state and event refs, and the fetcher decides which provider executes them.
 
 ## Metric Model
@@ -134,7 +140,8 @@ To extend Sentinel:
 
 - add metrics in `src/engine/metrics.ts`
 - extend compiler logic in `src/engine/compile-signal.ts`
-- add fetch paths in Envio or RPC clients
+- extend source planning in `src/engine/source-plan.ts`
+- add provider-specific fetch paths in Envio or RPC clients
 - add delivery channels as separate services behind the webhook boundary
 
 ## Related Docs

@@ -90,6 +90,18 @@ This document tracks the major design decisions behind the current implementatio
 - fix: keep the API-key flow simple for now
 - rationale: stable fundamentals beat premature monetization plumbing
 
+### Decision 15: Explicit Source Planning
+
+- problem: provider choice was leaking into fetcher internals and docs drifted
+- fix: centralize source planning behind the engine boundary
+- rationale: keep the DSL and evaluator independent from Envio vs RPC decisions
+
+### Decision 16: Canonical SQL Schema File
+
+- problem: database bootstrap and migrations were maintained in two schema sources
+- fix: make `src/db/schema.sql` the single schema source for the main service
+- rationale: schema drift is an operational bug, not just a documentation problem
+
 ## Related Docs
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) for the current runtime design

@@ -15,7 +15,7 @@ Composable signal monitoring for DeFi. Sentinel stores user-scoped signals, eval
 
 - `src/api` — REST API and auth middleware
 - `src/worker` — scheduler, evaluator, and webhook dispatch
-- `src/engine` — DSL compilation and evaluation logic
+- `src/engine` — DSL compilation, source planning, and evaluation logic
 - `packages/delivery` — Telegram delivery service
 - `docs` — canonical project documentation
 
