@@ -9,7 +9,6 @@ const SignalScopeSchema = z.object({
 
 const TimeWindowSchema = z.object({
   duration: z.string(),
-  lookback_blocks: z.number().int().positive().optional(),
 });
 
 const ComparisonOperatorSchema = z.enum([">", "<", ">=", "<=", "==", "!="]);
