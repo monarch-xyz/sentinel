@@ -27,9 +27,15 @@ API and worker:
 - `REDIS_URL`
 - `ENVIO_ENDPOINT`
 - `RPC_URL_*` for the chains you need
+- `AUTH_SIWE_DOMAIN`
+- `AUTH_SIWE_URI`
 - optional shared webhook secret for signed outbound webhooks
+- optional `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`, `NONCE_TTL_MINUTES`
+- optional `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if using Sentinel-native Telegram integration routes
 - optional `WORKER_INTERVAL_SECONDS`
 - optional `LOG_LEVEL`
+
+If API and delivery run as separate containers on the same private network, set `DELIVERY_BASE_URL` to the delivery service hostname rather than `localhost`.
 
 Delivery:
 
@@ -37,6 +43,7 @@ Delivery:
 - `TELEGRAM_BOT_TOKEN`
 - `LINK_BASE_URL`
 - the same shared webhook secret used by the main service
+- optional `ADMIN_KEY` if you want a separate secret for `/admin/*` and `/internal/*`
 - optional `PORT`, `HOST`, `LOG_LEVEL`
 
 ## Single-Host Docker Compose

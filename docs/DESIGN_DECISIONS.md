@@ -66,6 +66,18 @@ This document tracks the major design decisions behind the current implementatio
 - fix: issue per-user keys through `/auth/register`
 - rationale: this is the minimum auth surface that can still evolve
 
+### Decision 10a: Dual Auth Over One Canonical Owner
+
+- problem: browser users and API clients need different auth transports but must see the same resources
+- fix: keep `users.id` as the canonical owner and let both sessions and API keys resolve to that same ID
+- rationale: signal ownership, delivery mapping, and auth should not fork into separate identity systems
+
+### Decision 10b: Provider-Agnostic Identities
+
+- problem: SIWE solves the first login flow but not the eventual email or Google flows
+- fix: store login methods in `auth_identities` keyed to `users.id`
+- rationale: credentials can change without changing the owner ID that signals belong to
+
 ### Decision 11: Signed Webhooks And Idempotency
 
 - problem: delivery targets need integrity and replay protection
@@ -101,6 +113,12 @@ This document tracks the major design decisions behind the current implementatio
 - problem: database setup was split across Docker shell snippets and whole-schema reapply scripts
 - fix: move database creation to Postgres init scripts and manage schema evolution with versioned SQL migrations
 - rationale: production upgrades need explicit, repeatable schema history rather than startup side effects
+
+### Decision 17: Sentinel-Native Telegram Status Endpoints
+
+- problem: the web app should not need to speak directly to delivery or know the raw `app_user_id` wiring
+- fix: expose Telegram link status and token-link routes through Sentinel, backed by delivery internal endpoints
+- rationale: the web app stays thin while the delivery-service boundary remains intact
 
 ## Related Docs
 

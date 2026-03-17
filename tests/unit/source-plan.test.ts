@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EventRef, StateRef } from "../../src/types/index.js";
 import { planMorphoEventRead, planMorphoStateRead } from "../../src/engine/source-plan.js";
+import type { EventRef, StateRef } from "../../src/types/index.js";
 
 describe("source plan", () => {
   it("plans state reads through RPC using the default chain", () => {

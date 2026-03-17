@@ -6,7 +6,7 @@ This folder is intentionally organized around canonical owners. If a topic appea
 
 | Doc | Owns | Use it for |
 | --- | --- | --- |
-| [GETTING_STARTED.md](./GETTING_STARTED.md) | Local setup | Boot the stack locally, create an API key, and verify the app |
+| [GETTING_STARTED.md](./GETTING_STARTED.md) | Local setup | Boot the stack locally, log in, mint an API key, and verify the app |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Production setup | Docker and hosted deployment guidance |
 | [DSL.md](./DSL.md) | Signal definition language | Scope, windows, conditions, metrics, and canonical examples |
 | [API.md](./API.md) | HTTP surface | Endpoints, request shapes, webhook payloads, and simulation routes |
@@ -15,9 +15,9 @@ This folder is intentionally organized around canonical owners. If a topic appea
 
 | Doc | Owns | Use it for |
 | --- | --- | --- |
-| [AUTH.md](./AUTH.md) | Auth model | API keys, register gate, webhook signature model |
-| [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) | Cross-service Telegram contract | `app_user_id`, webhook target, bot link flow |
-| [WEBAPP_INTEGRATION.md](./WEBAPP_INTEGRATION.md) | Backend integration contract | Supabase mapping, backend call pattern, Telegram translator decisions |
+| [AUTH.md](./AUTH.md) | Auth model | SIWE, sessions, API keys, register gate, webhook signature model |
+| [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) | Cross-service Telegram contract | `app_user_id`, webhook target, token-link flow, internal status routes |
+| [WEBAPP_INTEGRATION.md](./WEBAPP_INTEGRATION.md) | Backend integration contract | web app as Sentinel console, session flow, thin-BFF decisions |
 
 ## Internals
 

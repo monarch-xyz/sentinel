@@ -138,6 +138,11 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 - [x] **Auth + API Keys** (2026-02-07)
     - [x] `/auth/register` issues DB-backed API keys
     - [x] API key middleware on all endpoints
+- [x] **Native Browser Auth + Integrations** (2026-03-17)
+    - [x] `auth_identities`, `user_sessions`, and SIWE nonce storage
+    - [x] Dual auth middleware: API key or Sentinel session
+    - [x] Native `/auth/siwe/*`, `/auth/me`, and `/auth/logout` routes
+    - [x] Native `/me/integrations/telegram*` routes backed by Delivery
 - [x] **Envio Schema Validation** (2026-02-07)
     - [x] Runtime schema checks for event filters
     - [x] Field mapping for `market_id` + `onBehalf`

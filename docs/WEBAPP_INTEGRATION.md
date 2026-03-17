@@ -1,59 +1,97 @@
 # Webapp Integration
 
-This document owns the backend integration contract for applications that sit in front of Sentinel.
+This document owns the backend integration contract for web applications that sit in front of Sentinel.
 
 ## Core Model
 
-Use Sentinel as a backend service with per-user API keys.
+Sentinel now exposes both browser auth and API auth directly.
 
-- your app owns end-user auth
-- Sentinel owns signal evaluation and delivery
-- your backend mediates calls between them
+Use this split:
 
-Do not expose Sentinel API keys directly to browser clients.
+- Sentinel owns signal evaluation, delivery, login identities, browser sessions, and API keys
+- your web app acts as the primary console and UX layer
+- Next.js can stay a thin client or thin BFF instead of becoming the long-term identity owner
 
-## Required Mapping
+## Canonical Owner
 
-Persist this mapping in your application database:
+Today the canonical owner is still `users.id`.
 
-- `app_user_id`
-- `sentinel_user_id`
-- `sentinel_api_key`
+That ID is used for:
 
-If you use Supabase, `app_user_id` is usually the Supabase user ID.
+- signal ownership
+- API-key ownership
+- browser session ownership
+- Telegram link ownership
 
-## Backend Call Pattern
+Treat the current `users` row as the single Sentinel account/owner record.
 
-1. user authenticates with your app
-2. browser calls your backend
-3. backend looks up or creates Sentinel credentials
-4. backend calls Sentinel with that user’s API key
-5. backend stores signal IDs and related metadata as needed
+## Browser Call Pattern
+
+Recommended path:
+
+1. browser requests `POST /api/v1/auth/siwe/nonce`
+2. wallet signs a SIWE message for the configured Sentinel domain and URI
+3. browser posts `message` and `signature` to `POST /api/v1/auth/siwe/verify`
+4. Sentinel sets the session cookie and returns the same session token for bearer-style clients
+5. browser calls Sentinel product routes directly or through a very thin BFF
+
+Protected product routes accept:
+
+- session cookie
+- session bearer token
+- API key
+
+## API Client Pattern
+
+Programmatic clients should keep using API keys.
+
+Recommended path:
+
+1. create a Sentinel owner and key through `POST /api/v1/auth/register`
+2. store the returned `user_id` and `api_key`
+3. call protected routes with `X-API-Key`
+
+If you want to gate self-serve key creation, set `REGISTER_ADMIN_KEY`.
+
+## Console Pattern
+
+The normal product shape is:
+
+- humans sign in through browser auth
+- humans manage their signals and integrations from the web app
+- the web app becomes the main control console
+- API clients reuse the same underlying owner model through API keys
+
+This means the web app is not a separate identity silo. It is the main UI for the same Sentinel control plane.
 
 ## Telegram Contract
 
 For direct delivery integration:
 
-- Telegram linking must use `app_user_id = sentinel_user_id`
-- this matches the current worker contract for `context.app_user_id`
+- Telegram linking uses `app_user_id = users.id`
+- the worker already emits `context.app_user_id = signal.user_id`
+- `GET /api/v1/me/integrations/telegram` reads the current user’s link status through Sentinel
+- `POST /api/v1/me/integrations/telegram/link` lets the web app exchange a Telegram token for the current Sentinel user
 
-If you want Telegram keyed by your app’s own IDs instead, add a translator:
+The web app no longer needs to know or submit the raw Sentinel owner ID to delivery directly.
 
-1. worker sends webhook to your backend
-2. backend rewrites `context.app_user_id`
-3. backend forwards the webhook to delivery
+## When To Still Use A Thin BFF
 
-Without that translator, use the Sentinel user ID as the Telegram link identity.
+A thin BFF is still useful for:
 
-## Signal History Access
+- UI-specific composition
+- caching or coalescing requests
+- hiding non-browser-safe internal calls
+- future billing or entitlement checks that are not part of Sentinel yet
 
-Signal history remains user-scoped to the Sentinel API key.
+What the BFF should not own long term:
 
-- route: `GET /api/v1/signals/:id/history`
-- recommended path: browser -> your backend -> Sentinel
+- the canonical Sentinel user/account mapping
+- session issuance for Sentinel-owned auth
+- Telegram owner translation for the common direct-delivery path
 
 ## Related Docs
 
-- [AUTH.md](./AUTH.md) for the key model
+- [AUTH.md](./AUTH.md) for session and API-key rules
 - [API.md](./API.md) for routes
 - [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) for the delivery-side contract

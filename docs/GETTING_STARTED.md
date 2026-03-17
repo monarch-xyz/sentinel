@@ -29,6 +29,10 @@ Main service `.env`:
 - recommended: `RPC_URL_*` for the chains you care about
 - optional: `WEBHOOK_SECRET` if you will use signed delivery
 - optional: `REGISTER_ADMIN_KEY` if you want to gate `POST /api/v1/auth/register`
+- optional but recommended for browser auth: `AUTH_SIWE_DOMAIN`, `AUTH_SIWE_URI`
+- optional: `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if you want Sentinel-native Telegram status routes
+
+When you run the Docker stack, Compose overrides `DELIVERY_BASE_URL` to `http://delivery:3100` so the API container can reach the delivery container over the Docker network.
 
 Delivery service `packages/delivery/.env`:
 
@@ -36,6 +40,7 @@ Delivery service `packages/delivery/.env`:
 - required: `TELEGRAM_BOT_TOKEN`
 - required: `LINK_BASE_URL`
 - use the same shared webhook secret as the main service when delivery is enabled
+- optional: `ADMIN_KEY` if you want a dedicated secret for delivery admin/internal routes
 
 The example files already include the local Docker database URLs.
 
@@ -101,6 +106,30 @@ Use the returned key on all protected API calls:
 X-API-Key: sentinel_...
 ```
 
+## Browser Login Smoke Test
+
+1. Request a nonce:
+
+```bash
+curl -sS -X POST http://localhost:3000/api/v1/auth/siwe/nonce
+```
+
+2. Build a SIWE message for the returned `nonce`, `domain`, and `uri`.
+3. Sign it in your wallet client.
+4. Verify it:
+
+```bash
+curl -sS -X POST http://localhost:3000/api/v1/auth/siwe/verify \
+  -H "Content-Type: application/json" \
+  -d '{"message":"<signed-siwe-message>","signature":"0x..."}'
+```
+
+The response returns both a session cookie and a `session_token`. You can use that token as:
+
+```http
+Authorization: Bearer sentinel_session_...
+```
+
 ## Create Your First Signal
 
 Use the endpoint contract in [API.md](./API.md) and the canonical signal examples in [DSL.md](./DSL.md).
@@ -117,7 +146,7 @@ Do not use `http://localhost:3100/webhook/deliver` for container-to-container de
 
 1. Start the full stack with `pnpm docker:up:all`.
 2. Send `/start` to the bot.
-3. Open the returned link and connect it with your Sentinel `user_id`.
+3. Open the returned link and connect it with your Sentinel `user_id`, or exchange the token through `POST /api/v1/me/integrations/telegram/link` once you have a session.
 4. Create a signal whose `webhook_url` points at the delivery service.
 5. Wait for the worker to evaluate and dispatch the webhook.
 

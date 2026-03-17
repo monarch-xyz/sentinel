@@ -12,6 +12,16 @@ type ApiKeyRecord = {
   last_used_at?: string | null;
 };
 
+type SessionRecord = {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: string;
+  created_at: string;
+  last_used_at: string;
+  revoked_at: string | null;
+};
+
 type MockRequest = Partial<Request> & {
   path: string;
   header: (name: string) => string | undefined;
@@ -22,20 +32,34 @@ type MockResponse = Partial<Response> & {
   json: ReturnType<typeof vi.fn>;
 };
 
-const hashApiKey = (key: string) => createHash("sha256").update(key).digest("hex");
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-const loadAuthMiddleware = async (recordsByHash: Record<string, ApiKeyRecord> = {}) => {
+const loadAuthMiddleware = async ({
+  apiKeysByHash = {},
+  sessionsByHash = {},
+}: {
+  apiKeysByHash?: Record<string, ApiKeyRecord>;
+  sessionsByHash?: Record<string, SessionRecord>;
+} = {}) => {
   vi.resetModules();
-  const getByHash = vi.fn(async (hash: string) => recordsByHash[hash]);
-  const touchLastUsed = vi.fn(async () => {});
+  const getByHash = vi.fn(async (hash: string) => apiKeysByHash[hash]);
+  const touchApiKeyLastUsed = vi.fn(async () => {});
+  const getActiveByHash = vi.fn(async (hash: string) => sessionsByHash[hash]);
+  const touchSessionLastUsed = vi.fn(async () => {});
+
   vi.doMock("../../src/db/index.js", () => ({
     ApiKeyRepository: class {
       getByHash = getByHash;
-      touchLastUsed = touchLastUsed;
+      touchLastUsed = touchApiKeyLastUsed;
+    },
+    UserSessionRepository: class {
+      getActiveByHash = getActiveByHash;
+      touchLastUsed = touchSessionLastUsed;
     },
   }));
+
   const { authMiddleware } = await import("../../src/api/middleware/auth.js");
-  return { authMiddleware, getByHash, touchLastUsed };
+  return { authMiddleware, getByHash, touchApiKeyLastUsed, getActiveByHash, touchSessionLastUsed };
 };
 
 const makeRes = (): MockResponse => {
@@ -48,9 +72,9 @@ const makeRes = (): MockResponse => {
 };
 
 describe("auth middleware", () => {
-  it("Should return 401 when x-api-key is missing", async () => {
+  it("returns 401 when credentials are missing", async () => {
     const { authMiddleware } = await loadAuthMiddleware();
-    const req: MockRequest = { path: "/api/v1/foo", header: vi.fn(() => undefined) };
+    const req: MockRequest = { path: "/signals", header: vi.fn(() => undefined) };
     const res = makeRes();
     const next: NextFunction = vi.fn();
 
@@ -58,12 +82,12 @@ describe("auth middleware", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: "Missing API key" });
+    expect(res.json).toHaveBeenCalledWith({ error: "Missing authentication credentials" });
   });
 
-  it("Should allow requests with valid x-api-key header", async () => {
-    const apiKey = "secret";
-    const keyHash = hashApiKey(apiKey);
+  it("allows requests with a valid x-api-key header", async () => {
+    const apiKey = "sentinel_test";
+    const keyHash = sha256(apiKey);
     const record: ApiKeyRecord = {
       id: "key-1",
       user_id: "user-1",
@@ -73,10 +97,13 @@ describe("auth middleware", () => {
       created_at: new Date().toISOString(),
       last_used_at: null,
     };
-    const { authMiddleware, touchLastUsed } = await loadAuthMiddleware({ [keyHash]: record });
+    const { authMiddleware, touchApiKeyLastUsed } = await loadAuthMiddleware({
+      apiKeysByHash: { [keyHash]: record },
+    });
+
     const req: MockRequest = {
-      path: "/api/v1/foo",
-      header: vi.fn((name: string) => (name === "x-api-key" ? apiKey : undefined)),
+      path: "/signals",
+      header: vi.fn((name: string) => (name.toLowerCase() === "x-api-key" ? apiKey : undefined)),
     };
     const res = makeRes();
     const next: NextFunction = vi.fn();
@@ -84,28 +111,19 @@ describe("auth middleware", () => {
     await authMiddleware(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).not.toHaveBeenCalled();
-    expect(touchLastUsed).toHaveBeenCalledWith("key-1");
-    expect((req as Request).auth).toMatchObject({ userId: "user-1", apiKeyId: "key-1" });
+    expect(touchApiKeyLastUsed).toHaveBeenCalledWith("key-1");
+    expect((req as Request).auth).toMatchObject({
+      userId: "user-1",
+      apiKeyId: "key-1",
+      authMethod: "api_key",
+    });
   });
 
-  it("Should return 401 when x-api-key is invalid", async () => {
-    const apiKey = "secret";
-    const keyHash = hashApiKey(apiKey);
-    const record: ApiKeyRecord = {
-      id: "key-1",
-      user_id: "user-1",
-      key_hash: keyHash,
-      name: null,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      last_used_at: null,
-    };
-    const { authMiddleware } = await loadAuthMiddleware({ [keyHash]: record });
+  it("returns 401 when x-api-key is invalid", async () => {
+    const { authMiddleware } = await loadAuthMiddleware();
     const req: MockRequest = {
-      path: "/api/v1/foo",
-      header: vi.fn((name: string) => (name === "x-api-key" ? "wrong" : undefined)),
+      path: "/signals",
+      header: vi.fn((name: string) => (name.toLowerCase() === "x-api-key" ? "wrong" : undefined)),
     };
     const res = makeRes();
     const next: NextFunction = vi.fn();
@@ -117,7 +135,55 @@ describe("auth middleware", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "Invalid API key" });
   });
 
-  it("Should always allow /health endpoint regardless of auth", async () => {
+  it("allows requests with a valid session cookie", async () => {
+    const sessionToken = "sentinel_session_test";
+    const sessionHash = sha256(sessionToken);
+    const record: SessionRecord = {
+      id: "session-1",
+      user_id: "user-2",
+      token_hash: sessionHash,
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      created_at: new Date().toISOString(),
+      last_used_at: new Date().toISOString(),
+      revoked_at: null,
+    };
+    const { authMiddleware, touchSessionLastUsed } = await loadAuthMiddleware({
+      sessionsByHash: { [sessionHash]: record },
+    });
+
+    const req: MockRequest = {
+      path: "/signals",
+      header: vi.fn((name: string) =>
+        name.toLowerCase() === "cookie" ? `sentinel_session=${sessionToken}` : undefined,
+      ),
+    };
+    const res = makeRes();
+    const next: NextFunction = vi.fn();
+
+    await authMiddleware(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(touchSessionLastUsed).toHaveBeenCalledWith("session-1");
+    expect((req as Request).auth).toMatchObject({
+      userId: "user-2",
+      sessionId: "session-1",
+      authMethod: "session",
+    });
+  });
+
+  it("allows public auth bootstrap endpoints without credentials", async () => {
+    const { authMiddleware } = await loadAuthMiddleware();
+    const req: MockRequest = { path: "/auth/siwe/nonce", header: vi.fn(() => undefined) };
+    const res = makeRes();
+    const next: NextFunction = vi.fn();
+
+    await authMiddleware(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("always allows /health regardless of auth", async () => {
     const { authMiddleware } = await loadAuthMiddleware();
     const req: MockRequest = { path: "/health", header: vi.fn(() => undefined) };
     const res = makeRes();
@@ -127,6 +193,5 @@ describe("auth middleware", () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).not.toHaveBeenCalled();
   });
 });

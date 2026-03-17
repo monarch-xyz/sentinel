@@ -25,6 +25,11 @@ export const config = {
   auth: {
     // If set, /api/v1/auth/register requires X-Admin-Key with this value.
     registerAdminKey: process.env.REGISTER_ADMIN_KEY ?? "",
+    sessionCookieName: process.env.SESSION_COOKIE_NAME ?? "sentinel_session",
+    sessionTtlHours: Number.parseInt(process.env.SESSION_TTL_HOURS ?? "720", 10),
+    nonceTtlMinutes: Number.parseInt(process.env.NONCE_TTL_MINUTES ?? "10", 10),
+    siweDomain: process.env.AUTH_SIWE_DOMAIN ?? "localhost:3000",
+    siweUri: process.env.AUTH_SIWE_URI ?? "http://localhost:3000",
   },
 
   // Worker
@@ -46,6 +51,13 @@ export const config = {
     timeoutMs: Number.parseInt(process.env.WEBHOOK_TIMEOUT_MS ?? "10000", 10),
     maxRetries: Number.parseInt(process.env.WEBHOOK_MAX_RETRIES ?? "3", 10),
     secret: process.env.WEBHOOK_SECRET ?? "",
+  },
+
+  // Optional internal delivery integration
+  delivery: {
+    baseUrl: process.env.DELIVERY_BASE_URL ?? "http://localhost:3100",
+    adminKey: process.env.DELIVERY_ADMIN_KEY ?? process.env.WEBHOOK_SECRET ?? "",
+    timeoutMs: Number.parseInt(process.env.DELIVERY_TIMEOUT_MS ?? "5000", 10),
   },
 
   // Logging

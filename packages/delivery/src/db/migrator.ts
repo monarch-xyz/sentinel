@@ -1,4 +1,4 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ClientBase } from "pg";
@@ -34,7 +34,9 @@ export async function findDeliveryMigrationsPath(): Promise<string> {
     if (await fileExists(candidate)) return candidate;
   }
 
-  throw new Error(`Migration directory not found. Tried: ${candidates.join(", ")}`);
+  throw new Error(
+    `Migration directory not found. Tried: ${candidates.join(", ")}`,
+  );
 }
 
 async function ensureMigrationsTable(client: ClientBase): Promise<void> {
@@ -61,7 +63,9 @@ async function loadAppliedMigrations(client: ClientBase): Promise<Set<string>> {
   return new Set(rows.map((row) => row.id));
 }
 
-export async function runDeliveryMigrations(client: ClientBase): Promise<MigrationResult> {
+export async function runDeliveryMigrations(
+  client: ClientBase,
+): Promise<MigrationResult> {
   const migrationsPath = await findDeliveryMigrationsPath();
   const files = await listMigrationFiles(migrationsPath);
 
@@ -80,7 +84,9 @@ export async function runDeliveryMigrations(client: ClientBase): Promise<Migrati
     await client.query("BEGIN");
     try {
       await client.query(sql);
-      await client.query(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES ($1)`, [fileName]);
+      await client.query(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES ($1)`, [
+        fileName,
+      ]);
       await client.query("COMMIT");
       applied += 1;
     } catch (error) {

@@ -20,10 +20,7 @@ export interface PlannedEnvioEventRead {
   endTimeMs: number;
 }
 
-function getEqFilterValue<T extends FilterValue>(
-  filters: Filter[],
-  field: string,
-): T | undefined {
+function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: string): T | undefined {
   const match = filters.find((filter) => filter.field === field && filter.op === "eq");
   return match?.value as T | undefined;
 }

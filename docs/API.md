@@ -12,8 +12,11 @@ This document owns the HTTP surface. Signal syntax belongs in [DSL.md](./DSL.md)
 
 - `GET /health` is public
 - `POST /api/v1/auth/register` is public unless `REGISTER_ADMIN_KEY` is configured
-- all other `/api/v1/*` routes require `X-API-Key`
+- `POST /api/v1/auth/siwe/nonce` is public
+- `POST /api/v1/auth/siwe/verify` is public
+- all other `/api/v1/*` routes require either `X-API-Key` or a Sentinel session
 - `POST /webhook/deliver` requires `X-Sentinel-Signature`
+- delivery internal status/link routes require `X-Admin-Key`
 
 See [AUTH.md](./AUTH.md) for the full auth model.
 
@@ -22,9 +25,15 @@ See [AUTH.md](./AUTH.md) for the full auth model.
 ### Main API
 
 | Method | Path | Purpose |
-|--------|------|---------|
+| --- | --- | --- |
 | GET | `/health` | Health check |
-| POST | `/api/v1/auth/register` | Create Sentinel user + API key |
+| POST | `/api/v1/auth/register` | Create Sentinel owner + API key |
+| POST | `/api/v1/auth/siwe/nonce` | Issue SIWE nonce |
+| POST | `/api/v1/auth/siwe/verify` | Verify SIWE message and create session |
+| GET | `/api/v1/auth/me` | Return authenticated profile |
+| POST | `/api/v1/auth/logout` | Revoke the current session |
+| GET | `/api/v1/me/integrations/telegram` | Return Telegram link status for the current user |
+| POST | `/api/v1/me/integrations/telegram/link` | Link a Telegram token to the current user |
 | POST | `/api/v1/signals` | Create signal |
 | GET | `/api/v1/signals` | List user signals |
 | GET | `/api/v1/signals/:id` | Get one signal |
@@ -38,14 +47,18 @@ See [AUTH.md](./AUTH.md) for the full auth model.
 ### Delivery Service
 
 | Method | Path | Purpose |
-|--------|------|---------|
+| --- | --- | --- |
 | GET | `/health` | Health check |
 | GET | `/link?token=...&app_user_id=...` | Hosted Telegram link page |
 | POST | `/link/connect` | Link `app_user_id` to a Telegram chat |
 | POST | `/webhook/deliver` | Receive Sentinel webhook and deliver to Telegram |
 | GET | `/admin/stats` | Delivery stats |
+| GET | `/internal/integrations/telegram/:appUserId` | Internal Telegram status lookup |
+| POST | `/internal/integrations/telegram/:appUserId/link` | Internal token-to-user Telegram link |
 
-## Register
+## Auth Flows
+
+### Register For API-Key Access
 
 ```http
 POST /api/v1/auth/register
@@ -61,8 +74,6 @@ Request body:
 }
 ```
 
-Both fields are optional but must be non-empty strings if provided.
-
 Response:
 
 ```json
@@ -73,6 +84,155 @@ Response:
 }
 ```
 
+### Browser Login With SIWE
+
+Issue a nonce:
+
+```http
+POST /api/v1/auth/siwe/nonce
+```
+
+Response:
+
+```json
+{
+  "provider": "wallet",
+  "nonce": "abc123...",
+  "expires_at": "2026-03-17T08:10:00.000Z",
+  "domain": "localhost:3000",
+  "uri": "http://localhost:3000"
+}
+```
+
+Verify the signed message:
+
+```http
+POST /api/v1/auth/siwe/verify
+Content-Type: application/json
+
+{
+  "message": "localhost:3000 wants you to sign in with your Ethereum account: ...",
+  "signature": "0x...",
+  "name": "Local Dev"
+}
+```
+
+Response:
+
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "session_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
+  "session_token": "sentinel_session_...",
+  "expires_at": "2026-04-16T08:00:00.000Z",
+  "created": true,
+  "auth_method": "session",
+  "identity": {
+    "provider": "wallet",
+    "provider_subject": "0xabc..."
+  }
+}
+```
+
+Successful verification also sets an `HttpOnly` session cookie.
+
+### Authenticated Profile
+
+```http
+GET /api/v1/auth/me
+Cookie: sentinel_session=sentinel_session_...
+```
+
+or
+
+```http
+GET /api/v1/auth/me
+X-API-Key: sentinel_...
+```
+
+Response:
+
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Local Dev",
+  "created_at": "2026-03-17T08:00:00.000Z",
+  "auth_method": "session",
+  "api_key_id": null,
+  "session_id": "2e4d1e12-3a0d-4b0c-9b54-7a1f4d8c3ed1",
+  "identities": [
+    {
+      "id": "8f2c...",
+      "provider": "wallet",
+      "provider_subject": "0xabc...",
+      "created_at": "2026-03-17T08:00:00.000Z",
+      "metadata": {
+        "address": "0xabc...",
+        "chain_id": 1
+      }
+    }
+  ]
+}
+```
+
+### Logout
+
+```http
+POST /api/v1/auth/logout
+Cookie: sentinel_session=sentinel_session_...
+```
+
+Response:
+
+```json
+{
+  "success": true
+}
+```
+
+## Telegram Integration Endpoints
+
+Status:
+
+```http
+GET /api/v1/me/integrations/telegram
+Cookie: sentinel_session=sentinel_session_...
+```
+
+Response when linked:
+
+```json
+{
+  "provider": "telegram",
+  "linked": true,
+  "app_user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "telegram_username": "sentinel_user",
+  "linked_at": "2026-03-17T08:00:00.000Z"
+}
+```
+
+Response when not linked:
+
+```json
+{
+  "provider": "telegram",
+  "linked": false,
+  "app_user_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+Link a Telegram token the user received from the bot:
+
+```http
+POST /api/v1/me/integrations/telegram/link
+Content-Type: application/json
+Cookie: sentinel_session=sentinel_session_...
+
+{
+  "token": "telegram-pending-link-token"
+}
+```
+
 ## Create Signal
 
 ```http
@@ -80,6 +240,8 @@ POST /api/v1/signals
 Content-Type: application/json
 X-API-Key: sentinel_...
 ```
+
+Protected product routes also accept a Sentinel session cookie or bearer token.
 
 Request body:
 
@@ -92,8 +254,6 @@ Request body:
   "cooldown_minutes": 5
 }
 ```
-
-Use [DSL.md](./DSL.md) for the canonical condition and metric reference.
 
 ## Signal CRUD
 
@@ -215,19 +375,3 @@ Outgoing Sentinel webhooks use this payload shape:
 ```
 
 For direct Telegram delivery, `context.app_user_id` should match the Telegram link mapping. See [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md).
-
-## Delivery Notes
-
-If you are using the delivery service:
-
-- local worker-to-delivery target: `http://delivery:3100/webhook/deliver`
-- production target: your public delivery URL
-
-Do not use `localhost` as the worker webhook target unless the worker is actually running on the host instead of in Docker.
-
-## Related Docs
-
-- Signal syntax and examples: [DSL.md](./DSL.md)
-- Auth rules: [AUTH.md](./AUTH.md)
-- Telegram delivery contract: [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md)
-- Local setup and curl smoke tests: [GETTING_STARTED.md](./GETTING_STARTED.md)

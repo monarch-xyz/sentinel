@@ -29,10 +29,7 @@ import type {
 
 import { assertNever } from "../utils/errors.js";
 
-import {
-  type MetricDef,
-  getMetric,
-} from "./metrics.js";
+import { type MetricDef, getMetric } from "./metrics.js";
 
 /**
  * Result of compiling a group condition - needs special handling

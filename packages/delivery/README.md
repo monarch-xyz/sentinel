@@ -34,6 +34,7 @@ Delivery migrations live in `src/db/migrations/` and are applied in filename ord
 | `LINK_BASE_URL` | Public base URL for the Telegram pairing page at `/link` |
 | `APP_BASE_URL` | User-facing Sentinel app URL shown in bot messages |
 | shared webhook secret | Verifies incoming Sentinel webhooks |
+| `ADMIN_KEY` | Optional dedicated secret for `/admin/*` and `/internal/*` routes |
 | `PORT` | HTTP port, default `3100` |
 | `HOST` | Bind host, default `0.0.0.0` |
 
@@ -49,10 +50,12 @@ For Docker, this points at the `sentinel_delivery` database inside the shared Po
 | POST | `/link/connect` | Link `app_user_id` to Telegram chat |
 | POST | `/webhook/deliver` | Receive Sentinel webhook and send alert |
 | GET | `/admin/stats` | Delivery stats |
+| GET | `/internal/integrations/telegram/:appUserId` | Internal Telegram status lookup |
+| POST | `/internal/integrations/telegram/:appUserId/link` | Internal token-to-user link |
 
 Current implementation detail:
 
-- `X-Admin-Key` for `/admin/stats` uses the shared webhook secret
+- `X-Admin-Key` uses `ADMIN_KEY` when set, otherwise falls back to the shared webhook secret
 
 ## Local Notes
 

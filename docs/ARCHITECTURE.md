@@ -10,15 +10,27 @@ Sentinel has three main responsibilities:
 2. evaluate them on a schedule
 3. dispatch webhooks when conditions trigger
 
-Telegram delivery is intentionally split into a separate service.
+It now also owns its own control-plane auth:
+
+- login identities
+- browser sessions
+- API keys
+- authenticated integration status routes
+
+Telegram delivery is still intentionally split into a separate service.
 
 ## Component Map
 
 ```text
-user / backend
+user / API client
    |
    v
-API (create, list, update signals)
+API control plane
+  - auth identities
+  - sessions
+  - API keys
+  - signal CRUD
+  - integration status
    |
    v
 PostgreSQL
@@ -41,18 +53,21 @@ optional delivery service (Telegram)
 
 ## Main Runtime Boundaries
 
-### API
+### API Control Plane
 
 Owns:
 
 - request validation
 - auth middleware
+- login and session routes
+- API-key issuance
 - signal CRUD
 - simulation endpoints
+- authenticated integration status routes
 
 The API compiles signal definitions at write time before they are stored.
 
-### Worker
+### Worker Data Plane
 
 Owns:
 
@@ -60,6 +75,8 @@ Owns:
 - evaluating compiled signal definitions
 - writing evaluation history
 - dispatching webhooks
+
+The worker does not care whether a signal owner authenticated through SIWE, API keys, or a future provider. It only cares about the stored owner ID on the signal.
 
 ### Delivery
 
@@ -70,7 +87,36 @@ Owns:
 - signature verification for incoming webhooks
 - routing `app_user_id` to Telegram chat IDs
 
-Delivery is optional. Sentinel itself is webhook-first.
+Delivery is optional. Sentinel itself remains webhook-first.
+
+## Canonical Owner Model
+
+Today the canonical owner is `users.id`.
+
+That same ID is used in:
+
+- `signals.user_id`
+- `api_keys.user_id`
+- `user_sessions.user_id`
+- `auth_identities.user_id`
+- webhook `context.app_user_id`
+- delivery `users.app_user_id`
+
+This is why dual auth works cleanly: both session auth and API-key auth resolve to the same owner model.
+
+## Evaluation Flow
+
+1. a client creates a signal through the API
+2. the API authenticates the caller to one Sentinel owner ID
+3. the API validates and compiles the DSL
+4. the compiled definition is stored in PostgreSQL
+5. the worker scheduler picks up active signals
+6. the worker resolves the needed data through the source planner
+7. the planner routes state reads to RPC and event reads to Envio
+8. the evaluator produces a triggered or non-triggered result
+9. history is written to PostgreSQL
+10. if triggered, Sentinel sends a webhook
+11. optional delivery service verifies the webhook and sends a Telegram message
 
 ## Data Sources
 
@@ -87,52 +133,15 @@ The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAV
 
 Provider choice is intentionally kept behind the engine fetcher layer so the DSL and evaluator do not care whether a read comes from Envio, RPC, or a future source.
 
-## Evaluation Flow
-
-1. a client creates a signal through the API
-2. the API validates and compiles the DSL
-3. the compiled definition is stored in PostgreSQL
-4. the worker scheduler picks up active signals
-5. the worker resolves the needed data through the source planner
-6. the planner routes state reads to RPC and event reads to Envio
-7. the evaluator produces a triggered or non-triggered result
-8. history is written to PostgreSQL
-9. if triggered, Sentinel sends a webhook
-10. optional delivery service verifies the webhook and sends a Telegram message
-
-## Compilation Model
-
-Sentinel stores a normalized internal form of the user DSL.
-
-Conceptually:
-
-- user DSL says: "position collateral decreased 20% over 7d"
-- compiler rewrites that into: "current collateral < historical collateral * 0.8"
-- evaluator then fetches current and historical values and compares them
-
-That separation keeps the external DSL simple while keeping the evaluator generic.
-
-The current runtime also keeps source planning separate from evaluation: compiled conditions produce state and event refs, and the fetcher decides which provider executes them.
-
-## Metric Model
-
-Metrics are registry-driven, not hardcoded per endpoint.
-
-Current groups:
-
-- state metrics, such as `Morpho.Position.collateral`
-- computed metrics, such as `Morpho.Market.utilization`
-- event metrics, such as `Morpho.Event.Supply.assets`
-- chained event metrics, such as `Morpho.Flow.netSupply`
-
-The user-facing metric rules are documented in [DSL.md](./DSL.md). The current registry lives in `src/engine/metrics.ts`.
-
 ## Operational Boundaries
 
 - API and worker should run as separate processes in production
 - Redis backs BullMQ job distribution
-- PostgreSQL stores signals, API keys, history, and delivery mappings
+- PostgreSQL stores signals, auth identities, sessions, API keys, and run history
+- delivery keeps its own Telegram-specific database
 - rate limiting for simulation is currently process-local
+
+The core protection against auth churn affecting evaluations is process separation: login/session traffic hits the API control plane, while evaluation work happens in the worker.
 
 ## Extension Points
 
@@ -142,11 +151,13 @@ To extend Sentinel:
 - extend compiler logic in `src/engine/compile-signal.ts`
 - extend source planning in `src/engine/source-plan.ts`
 - add provider-specific fetch paths in Envio or RPC clients
+- add login providers through `auth_identities`
 - add delivery channels as separate services behind the webhook boundary
 
 ## Related Docs
 
 - [DSL.md](./DSL.md) for user-facing signal structure
 - [API.md](./API.md) for HTTP routes
-- [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) for why the system looks this way
+- [AUTH.md](./AUTH.md) for the control-plane auth model
 - [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) for delivery-specific contracts
+- [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) for why the system looks this way

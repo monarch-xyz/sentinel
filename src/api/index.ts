@@ -10,6 +10,7 @@ import { createLogger } from "../utils/logger.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import authRouter from "./routes/auth.js";
+import meRouter from "./routes/me.js";
 import signalsRouter from "./routes/signals.js";
 import simulateRouter from "./routes/simulate.js";
 
@@ -28,6 +29,7 @@ app.get("/health", (req, res) => {
 // API Routes
 app.use("/api/v1", authMiddleware);
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/me", meRouter);
 app.use("/api/v1/signals", signalsRouter);
 app.use("/api/v1/simulate", simulateRouter);
 

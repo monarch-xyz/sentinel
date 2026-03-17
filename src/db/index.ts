@@ -295,6 +295,11 @@ export class UserRepository {
     const { rows } = await pool.query(query, [name ?? null]);
     return rows[0];
   }
+
+  async getById(id: string): Promise<UserRecord | undefined> {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    return rows[0];
+  }
 }
 
 export interface ApiKeyRecord {
@@ -328,7 +333,258 @@ export class ApiKeyRepository {
   }
 }
 
+export interface AuthIdentityRecord {
+  id: string;
+  user_id: string;
+  provider: string;
+  provider_subject: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+interface FindOrCreateIdentityInput {
+  provider: string;
+  providerSubject: string;
+  metadata?: Record<string, unknown>;
+  userName?: string | null;
+}
+
+export class AuthIdentityRepository {
+  async listByUserId(userId: string): Promise<AuthIdentityRecord[]> {
+    const { rows } = await pool.query(
+      "SELECT * FROM auth_identities WHERE user_id = $1 ORDER BY created_at ASC",
+      [userId],
+    );
+    return rows;
+  }
+
+  async findByProviderSubject(
+    provider: string,
+    providerSubject: string,
+  ): Promise<AuthIdentityRecord | undefined> {
+    const { rows } = await pool.query(
+      "SELECT * FROM auth_identities WHERE provider = $1 AND provider_subject = $2",
+      [provider, providerSubject],
+    );
+    return rows[0];
+  }
+
+  async findUserByProviderSubject(
+    provider: string,
+    providerSubject: string,
+  ): Promise<UserRecord | undefined> {
+    const { rows } = await pool.query(
+      `SELECT users.*
+       FROM auth_identities
+       INNER JOIN users ON users.id = auth_identities.user_id
+       WHERE auth_identities.provider = $1 AND auth_identities.provider_subject = $2`,
+      [provider, providerSubject],
+    );
+    return rows[0];
+  }
+
+  async findOrCreateUser(
+    input: FindOrCreateIdentityInput,
+  ): Promise<{ user: UserRecord; identity: AuthIdentityRecord; created: boolean }> {
+    const existingIdentity = await this.findByProviderSubject(
+      input.provider,
+      input.providerSubject,
+    );
+    const existingUser = existingIdentity
+      ? await this.findUserByProviderSubject(input.provider, input.providerSubject)
+      : undefined;
+
+    if (existingIdentity && existingUser) {
+      return { user: existingUser, identity: existingIdentity, created: false };
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const freshExistingIdentity = await client.query<AuthIdentityRecord>(
+        "SELECT * FROM auth_identities WHERE provider = $1 AND provider_subject = $2",
+        [input.provider, input.providerSubject],
+      );
+
+      if (freshExistingIdentity.rows[0]) {
+        const freshUser = await client.query<UserRecord>("SELECT * FROM users WHERE id = $1", [
+          freshExistingIdentity.rows[0].user_id,
+        ]);
+        await client.query("COMMIT");
+
+        if (!freshUser.rows[0]) {
+          throw new Error("Identity exists without a linked user");
+        }
+
+        return {
+          user: freshUser.rows[0],
+          identity: freshExistingIdentity.rows[0],
+          created: false,
+        };
+      }
+
+      const userResult = await client.query<UserRecord>(
+        `
+          INSERT INTO users (name)
+          VALUES ($1)
+          RETURNING *
+        `,
+        [input.userName ?? null],
+      );
+
+      const identityResult = await client.query<AuthIdentityRecord>(
+        `
+          INSERT INTO auth_identities (user_id, provider, provider_subject, metadata)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (provider, provider_subject) DO NOTHING
+          RETURNING *
+        `,
+        [
+          userResult.rows[0].id,
+          input.provider,
+          input.providerSubject,
+          JSON.stringify(input.metadata ?? {}),
+        ],
+      );
+
+      if (!identityResult.rows[0]) {
+        await client.query("ROLLBACK");
+
+        const raceIdentity = await this.findByProviderSubject(
+          input.provider,
+          input.providerSubject,
+        );
+        const raceUser = await this.findUserByProviderSubject(
+          input.provider,
+          input.providerSubject,
+        );
+        if (!raceIdentity || !raceUser) {
+          throw new Error("Failed to resolve identity after unique conflict");
+        }
+
+        return {
+          user: raceUser,
+          identity: raceIdentity,
+          created: false,
+        };
+      }
+
+      await client.query("COMMIT");
+      return {
+        user: userResult.rows[0],
+        identity: identityResult.rows[0],
+        created: true,
+      };
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback failures, the original error is more useful
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+export interface UserSessionRecord {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: string;
+  created_at: string;
+  last_used_at: string;
+  revoked_at: string | null;
+}
+
+export class UserSessionRepository {
+  async create(userId: string, tokenHash: string, expiresAt: Date): Promise<UserSessionRecord> {
+    const { rows } = await pool.query(
+      `
+        INSERT INTO user_sessions (user_id, token_hash, expires_at)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `,
+      [userId, tokenHash, expiresAt],
+    );
+    return rows[0];
+  }
+
+  async getActiveByHash(tokenHash: string): Promise<UserSessionRecord | undefined> {
+    const { rows } = await pool.query(
+      `
+        SELECT *
+        FROM user_sessions
+        WHERE token_hash = $1
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+      `,
+      [tokenHash],
+    );
+    return rows[0];
+  }
+
+  async touchLastUsed(id: string): Promise<void> {
+    await pool.query("UPDATE user_sessions SET last_used_at = NOW() WHERE id = $1", [id]);
+  }
+
+  async revoke(id: string): Promise<void> {
+    await pool.query(
+      `
+        UPDATE user_sessions
+        SET revoked_at = NOW()
+        WHERE id = $1 AND revoked_at IS NULL
+      `,
+      [id],
+    );
+  }
+}
+
+export interface AuthNonceRecord {
+  id: string;
+  provider: string;
+  nonce: string;
+  expires_at: string;
+  created_at: string;
+  consumed_at: string | null;
+}
+
+export class AuthNonceRepository {
+  async create(provider: string, nonce: string, expiresAt: Date): Promise<AuthNonceRecord> {
+    const { rows } = await pool.query(
+      `
+        INSERT INTO auth_nonces (provider, nonce, expires_at)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `,
+      [provider, nonce, expiresAt],
+    );
+    return rows[0];
+  }
+
+  async consume(provider: string, nonce: string): Promise<AuthNonceRecord | undefined> {
+    const { rows } = await pool.query(
+      `
+        UPDATE auth_nonces
+        SET consumed_at = NOW()
+        WHERE provider = $1
+          AND nonce = $2
+          AND consumed_at IS NULL
+          AND expires_at > NOW()
+        RETURNING *
+      `,
+      [provider, nonce],
+    );
+    return rows[0];
+  }
+}
+
 // Export singleton instances
 export const signalRepository = new SignalRepository();
 export const notificationLogRepository = new NotificationLogRepository();
 export const signalRunLogRepository = new SignalRunLogRepository();
+export const authIdentityRepository = new AuthIdentityRepository();
+export const userSessionRepository = new UserSessionRepository();
+export const authNonceRepository = new AuthNonceRepository();

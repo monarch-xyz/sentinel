@@ -1,4 +1,5 @@
-import { Hono } from "hono";
+import { timingSafeEqual } from "node:crypto";
+import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { sendAlert } from "../bot/index.js";
@@ -159,6 +160,64 @@ function renderLinkPage(token: string, appUserId: string): string {
 </html>`;
 }
 
+function keysMatch(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided, "utf8");
+  const expectedBuf = Buffer.from(expected, "utf8");
+  if (providedBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return timingSafeEqual(providedBuf, expectedBuf);
+}
+
+function getAdminKey(): string {
+  return env.ADMIN_KEY?.trim() || env.WEBHOOK_SECRET;
+}
+
+function requireAdmin(c: Context) {
+  const provided = c.req.header("X-Admin-Key") ?? c.req.header("x-admin-key");
+  const expected = getAdminKey();
+  if (!provided || !expected || !keysMatch(provided, expected)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  return null;
+}
+
+async function linkPendingTelegramAccount(appUserId: string, token: string) {
+  const pending = await repo.getPendingLink(token);
+  if (!pending) {
+    return null;
+  }
+
+  const user = await repo.createUserByAppUserId(
+    appUserId,
+    pending.telegram_chat_id,
+    pending.telegram_username,
+  );
+  await repo.deletePendingLink(token);
+  return user;
+}
+
+function serializeTelegramStatus(
+  appUserId: string,
+  user: Awaited<ReturnType<typeof repo.getUserByAppUserId>>,
+) {
+  if (!user) {
+    return {
+      provider: "telegram" as const,
+      linked: false,
+      app_user_id: appUserId,
+    };
+  }
+
+  return {
+    provider: "telegram" as const,
+    linked: true,
+    app_user_id: user.app_user_id,
+    telegram_username: user.telegram_username,
+    linked_at: user.linked_at,
+  };
+}
+
 // ============ Middleware ============
 
 api.use(
@@ -214,17 +273,10 @@ api.post("/link/connect", async (c) => {
   }
 
   const { token, app_user_id } = parsed.data;
-  const pending = await repo.getPendingLink(token);
-  if (!pending) {
+  const user = await linkPendingTelegramAccount(app_user_id, token);
+  if (!user) {
     return c.json({ error: "Token not found or expired" }, 404);
   }
-
-  const user = await repo.createUserByAppUserId(
-    app_user_id,
-    pending.telegram_chat_id,
-    pending.telegram_username,
-  );
-  await repo.deletePendingLink(token);
 
   logger.info("App account linked", {
     appUserId: user.app_user_id,
@@ -236,6 +288,76 @@ api.post("/link/connect", async (c) => {
     app_user_id: user.app_user_id,
     message: "Telegram is now linked to your Sentinel app account.",
   });
+});
+
+const InternalAppUserIdSchema = z.object({
+  app_user_id: z.string().min(1).max(255),
+});
+
+const InternalLinkSchema = z.object({
+  token: z.string().min(1),
+});
+
+api.get("/internal/integrations/telegram/:appUserId", async (c) => {
+  const unauthorized = requireAdmin(c);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const parsed = InternalAppUserIdSchema.safeParse({
+    app_user_id: c.req.param("appUserId"),
+  });
+
+  if (!parsed.success) {
+    return c.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      400,
+    );
+  }
+
+  const user = await repo.getUserByAppUserId(parsed.data.app_user_id);
+  return c.json(serializeTelegramStatus(parsed.data.app_user_id, user));
+});
+
+api.post("/internal/integrations/telegram/:appUserId/link", async (c) => {
+  const unauthorized = requireAdmin(c);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const params = InternalAppUserIdSchema.safeParse({
+    app_user_id: c.req.param("appUserId"),
+  });
+  if (!params.success) {
+    return c.json(
+      { error: "Invalid request", details: params.error.flatten() },
+      400,
+    );
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const parsedBody = InternalLinkSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return c.json(
+      { error: "Invalid request", details: parsedBody.error.flatten() },
+      400,
+    );
+  }
+
+  const user = await linkPendingTelegramAccount(
+    params.data.app_user_id,
+    parsedBody.data.token,
+  );
+  if (!user) {
+    return c.json({ error: "Token not found or expired" }, 404);
+  }
+
+  logger.info("App account linked via internal API", {
+    appUserId: user.app_user_id,
+    chatId: user.telegram_chat_id,
+  });
+
+  return c.json(serializeTelegramStatus(params.data.app_user_id, user));
 });
 
 // ============ Webhook Endpoint ============
@@ -338,10 +460,9 @@ api.post("/webhook/deliver", async (c) => {
 // ============ Admin Endpoints (protected) ============
 
 api.get("/admin/stats", async (c) => {
-  // Simple auth via header for now
-  const authKey = c.req.header("X-Admin-Key");
-  if (authKey !== env.WEBHOOK_SECRET) {
-    return c.json({ error: "Unauthorized" }, 401);
+  const unauthorized = requireAdmin(c);
+  if (unauthorized) {
+    return unauthorized;
   }
 
   // Get basic stats

@@ -13,7 +13,9 @@ async function migrate() {
   try {
     await client.connect();
     const result = await runDeliveryMigrations(client);
-    console.log(`✅ Delivery migrations complete (${result.applied}/${result.total} applied)`);
+    console.log(
+      `✅ Delivery migrations complete (${result.applied}/${result.total} applied)`,
+    );
   } finally {
     await client.end();
   }

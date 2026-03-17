@@ -64,6 +64,7 @@ services:
       REDIS_URL: redis://redis:6379
       API_HOST: 0.0.0.0
       API_PORT: 3000
+      DELIVERY_BASE_URL: http://delivery:3100
     command: ["node", "dist/api/index.js"]
     depends_on:
       main-migrate:
