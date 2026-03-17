@@ -94,7 +94,7 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
     - [x] `SignalEvaluator` class (`condition.ts`) - orchestrates evaluation with EnvioClient
 
 ## Phase 2: Signal Infrastructure
-- [x] **PostgreSQL Schema** (`src/db/schema.sql`)
+- [x] **PostgreSQL Schema** (`src/db/migrations/0001_initial.sql`)
     - [x] Signals, notification logs, snapshot blocks
     - [x] Evaluation cache table
     - [x] Repository classes with CRUD operations

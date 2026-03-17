@@ -25,7 +25,7 @@ I'll send you alerts when your DeFi positions trigger conditions you've set up.
 *To get started:*
 1. Click the button below to connect your app account
 2. Enter your Sentinel app user ID on the link page
-3. Create signals on [Monarch](https://monarchlend.xyz)
+3. Create signals in the [Sentinel app](${env.APP_BASE_URL})
 4. Receive alerts here when they trigger!
 
 _Link expires in 15 minutes_`,
@@ -92,7 +92,7 @@ bot.command("help", async (ctx) => {
 
 *How it works:*
 1. Link your app account with /start
-2. Create signals on [Monarch](https://monarchlend.xyz)
+2. Create signals in the [Sentinel app](${env.APP_BASE_URL})
 3. Receive alerts here when conditions trigger
 
 *Need help?*

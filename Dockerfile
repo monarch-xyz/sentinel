@@ -25,7 +25,7 @@ USER nodejs
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/src/db/schema.sql ./schema.sql
+COPY --from=build /app/src/db/migrations ./migrations
 
 ENV NODE_ENV=production
 EXPOSE 3000

@@ -53,6 +53,7 @@ case "$mode" in
   up)
     ensure_env_file ".env" ".env.example"
     ensure_env_file "packages/delivery/.env" "packages/delivery/.env.example"
+    docker compose rm -f -s main-migrate delivery-migrate >/dev/null 2>&1 || true
 
     if [ "$with_delivery" = "1" ]; then
       echo "Starting Sentinel core + delivery services..."

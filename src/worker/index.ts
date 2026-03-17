@@ -6,7 +6,7 @@
  * 2. Processor - evaluates signals and dispatches notifications
  */
 
-import { closeDb, initDb } from "../db/index.js";
+import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { closeConnection } from "./connection.js";
@@ -19,8 +19,7 @@ const start = async () => {
   try {
     logger.info("Starting Sentinel Worker process");
 
-    // Initialize DB connection
-    await initDb();
+    await verifyDbConnection();
 
     // Setup workers
     const processorWorker = setupWorker();

@@ -2,7 +2,6 @@ import pg from "pg";
 import { config } from "../config/index.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
-import { loadMainSchemaSql } from "./schema-file.js";
 
 const logger = createLogger("db");
 const { Pool } = pg;
@@ -11,13 +10,12 @@ export const pool = new Pool({
   connectionString: config.database.url,
 });
 
-export async function initDb() {
+export async function verifyDbConnection() {
   try {
-    const schemaSql = await loadMainSchemaSql();
-    await pool.query(schemaSql);
-    logger.info("Database initialized successfully");
+    await pool.query("SELECT 1");
+    logger.info("Database connection verified");
   } catch (error: unknown) {
-    logger.error({ error: getErrorMessage(error) }, "Database initialization failed");
+    logger.error({ error: getErrorMessage(error) }, "Database connection check failed");
     throw error;
   }
 }

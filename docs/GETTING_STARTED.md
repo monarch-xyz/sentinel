@@ -39,6 +39,12 @@ Delivery service `packages/delivery/.env`:
 
 The example files already include the local Docker database URLs.
 
+Database lifecycle:
+
+- Docker Postgres creates `sentinel` on first boot via `POSTGRES_DB`
+- Docker Postgres creates `sentinel_delivery` on first boot via `docker/postgres/init`
+- versioned SQL migrations then run before the app services start
+
 ## Start The Stack
 
 Core stack only:
@@ -63,6 +69,7 @@ pnpm docker:reset
 ```
 
 If you prefer raw Docker Compose, the wrappers call `docker compose` underneath.
+The wrappers also recreate the one-shot migration containers so pending migrations are reapplied cleanly on each startup.
 
 ## Health Checks
 

@@ -96,11 +96,11 @@ This document tracks the major design decisions behind the current implementatio
 - fix: centralize source planning behind the engine boundary
 - rationale: keep the DSL and evaluator independent from Envio vs RPC decisions
 
-### Decision 16: Canonical SQL Schema File
+### Decision 16: Versioned SQL Migrations
 
-- problem: database bootstrap and migrations were maintained in two schema sources
-- fix: make `src/db/schema.sql` the single schema source for the main service
-- rationale: schema drift is an operational bug, not just a documentation problem
+- problem: database setup was split across Docker shell snippets and whole-schema reapply scripts
+- fix: move database creation to Postgres init scripts and manage schema evolution with versioned SQL migrations
+- rationale: production upgrades need explicit, repeatable schema history rather than startup side effects
 
 ## Related Docs
 

@@ -10,10 +10,12 @@ Core services:
 - worker
 - PostgreSQL
 - Redis
+- main-migrate
 
 Optional service:
 
 - delivery (Telegram bot + webhook receiver)
+- delivery-migrate
 
 API and worker are intentionally separate processes. The worker owns scheduling and webhook dispatch; delivery owns Telegram-specific logic.
 
@@ -55,6 +57,12 @@ If you do not need Telegram delivery yet, start only the core services:
 docker compose up --build -d postgres redis main-migrate api worker
 ```
 
+Database bootstrap model:
+
+- `sentinel` is created by the Postgres container via `POSTGRES_DB`
+- `sentinel_delivery` is created on first boot by the init script in `docker/postgres/init`
+- `main-migrate` and `delivery-migrate` apply versioned SQL migrations before app services start
+
 Health checks:
 
 ```bash
@@ -70,15 +78,14 @@ Main service image:
 - API command: `node dist/api/index.js`
 - worker command: `node dist/worker/index.js`
 - migration command: `node dist/scripts/migrate.js`
-- carries the canonical `schema.sql` file used by both bootstrap and migrations
+- carries the compiled app plus the versioned SQL migrations directory
 
 Delivery image:
 
 - image source: `packages/delivery/Dockerfile`
 - start command: `node dist/index.js`
 - migration command: `node dist/scripts/migrate.js`
-
-The delivery image carries its schema file so migrations can run without source mounts.
+- carries its own versioned SQL migrations directory
 
 ## Hosted Platforms
 
@@ -91,6 +98,7 @@ Railway remains a viable hosted setup:
 - one Redis add-on
 
 Use the same runtime commands listed above and run migrations once per deploy or release.
+Do not rely on application startup to mutate schema; run the migrator service as an explicit release step.
 
 ## Operational Notes
 

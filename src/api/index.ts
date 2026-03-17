@@ -4,7 +4,7 @@
 
 import express from "express";
 import { config } from "../config/index.js";
-import { closeDb, initDb } from "../db/index.js";
+import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getErrorMessage, toErrorWithMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -42,8 +42,7 @@ app.use(
 
 const start = async () => {
   try {
-    // Initialize database
-    await initDb();
+    await verifyDbConnection();
 
     const port = config.api.port;
     app.listen(port, () => {

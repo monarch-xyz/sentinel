@@ -35,7 +35,7 @@ RUN pnpm install --prod --no-frozen-lockfile
 
 # Copy built files
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src/db/schema.sql ./schema.sql
+COPY --from=builder /app/src/db/migrations ./migrations
 
 # Run
 ENV NODE_ENV=production

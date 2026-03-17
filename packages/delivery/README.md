@@ -23,18 +23,22 @@ pnpm -F @sentinel/delivery db:migrate
 pnpm -F @sentinel/delivery db:migrate:prod
 ```
 
+Delivery migrations live in `src/db/migrations/` and are applied in filename order.
+
 ## Required Environment
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Delivery PostgreSQL database |
 | `TELEGRAM_BOT_TOKEN` | Token from BotFather |
-| `LINK_BASE_URL` | Public base URL for `/link` |
+| `LINK_BASE_URL` | Public base URL for the Telegram pairing page at `/link` |
+| `APP_BASE_URL` | User-facing Sentinel app URL shown in bot messages |
 | shared webhook secret | Verifies incoming Sentinel webhooks |
 | `PORT` | HTTP port, default `3100` |
 | `HOST` | Bind host, default `0.0.0.0` |
 
 The shared webhook secret must match the main Sentinel service.
+For Docker, this points at the `sentinel_delivery` database inside the shared Postgres container.
 
 ## HTTP Surface
 

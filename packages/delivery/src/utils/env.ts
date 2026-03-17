@@ -18,6 +18,7 @@ const envSchema = z.object({
     .min(32)
     .describe("Shared secret with Sentinel for webhook auth"),
   LINK_BASE_URL: z.string().url().default("https://sentinel.monarchlend.xyz"),
+  APP_BASE_URL: z.string().url().default("https://monarchlend.xyz"),
 
   // Optional
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
