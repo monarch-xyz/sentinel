@@ -51,6 +51,8 @@ function applyUserFilterToNode(node: ExpressionNode, address: string): Expressio
       return { ...node, filters: upsertUserFilter(node.filters, address) };
     case "event":
       return { ...node, filters: upsertUserFilter(node.filters, address) };
+    case "raw_event":
+      return node;
     case "expression":
       return {
         ...node,
@@ -305,6 +307,7 @@ export class SignalEvaluator {
         windowDuration: signal.window.duration,
         now,
         windowStart,
+        fetchRawEvents: this.fetcher.fetchRawEvents,
         // Delegate to the protocol-specific DataFetcher
         fetchState: (ref, ts) => this.fetcher.fetchState(ref, ts),
         fetchEvents: (ref, start, end) => this.fetcher.fetchEvents(ref, start, end),

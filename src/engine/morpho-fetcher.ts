@@ -1,9 +1,11 @@
 /**
  * MorphoDataFetcher - Morpho Blue specific implementation of DataFetcher
  *
- * Uses RPC for all state queries (both current and historical):
- * - State: RPC eth_call (reliable, no Envio quirks with filters)
- * - Events: Envio GraphQL (events have timestamps, no time-travel needed)
+ * Uses RPC for all state queries and the unified indexing boundary for
+ * historical/indexed data:
+ * - State: RPC eth_call
+ * - Indexed metrics/entities: indexing client (currently Envio)
+ * - Raw decoded event scans: indexing client (currently HyperSync)
  */
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
@@ -15,10 +17,10 @@ import {
   readPosition,
   readPositionAtBlock,
 } from "../rpc/index.js";
-import type { EventRef, StateRef } from "../types/index.js";
+import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
-import type { DataFetcher, DataFetcherOptions, EventFetcher } from "./fetcher.js";
-import { planMorphoEventRead, planMorphoStateRead } from "./source-plan.js";
+import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
+import { planMorphoEventRead, planMorphoRawEventRead, planMorphoStateRead } from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
@@ -63,11 +65,15 @@ function extractMarketField(result: MarketResult, field: string): number {
 /**
  * Create a Morpho-specific DataFetcher
  *
- * @param envio - Event fetcher instance for events
+ * @param indexing - Unified indexing/history client
  * @param options - Fetcher options (chainId, verbose)
  */
-export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOptions): DataFetcher {
+export function createMorphoFetcher(
+  indexing: IndexingDataClient,
+  options: DataFetcherOptions,
+): DataFetcher {
   const { chainId: defaultChainId, verbose = false } = options;
+  const rawEventFetcher = indexing.fetchRawEvents;
 
   /**
    * Fetch current state from RPC (latest block)
@@ -77,7 +83,13 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
 
     if (verbose) {
       logger.info(
-        { entity: plan.entityType, field: plan.field, chainId: plan.chainId, source: plan.source },
+        {
+          entity: plan.entityType,
+          field: plan.field,
+          chainId: plan.chainId,
+          family: plan.family,
+          provider: plan.provider,
+        },
         "Fetching current state from RPC",
       );
     }
@@ -112,7 +124,8 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
           chainId: plan.chainId,
           blockNumber,
           timestamp,
-          source: plan.source,
+          family: plan.family,
+          provider: plan.provider,
         },
         "Fetching historical state from RPC",
       );
@@ -150,7 +163,7 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
     },
 
     /**
-     * Fetch events from Envio (events have timestamps, no time-travel needed)
+     * Fetch indexed semantic events through the unified indexing boundary.
      */
     fetchEvents: async (ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
       const plan = planMorphoEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
@@ -161,12 +174,33 @@ export function createMorphoFetcher(envio: EventFetcher, options: DataFetcherOpt
             field: plan.ref.field,
             aggregation: plan.ref.aggregation,
             chainId: plan.chainId,
-            source: plan.source,
+            family: plan.family,
+            provider: plan.provider,
           },
-          "Fetching events from Envio",
+          "Fetching indexed events from indexing client",
         );
       }
-      return envio.fetchEvents(plan.ref, plan.startTimeMs, plan.endTimeMs);
+      return indexing.fetchEvents(plan.ref, plan.startTimeMs, plan.endTimeMs);
     },
+
+    fetchRawEvents: rawEventFetcher
+      ? async (ref: RawEventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
+          const plan = planMorphoRawEventRead(ref, startTimeMs, endTimeMs);
+          if (verbose) {
+            logger.info(
+              {
+                chainId: plan.chainId,
+                family: plan.family,
+                provider: plan.provider,
+                aggregation: plan.ref.aggregation,
+                queryCount: plan.ref.queries.length,
+                signature: plan.ref.queries[0]?.eventSignature,
+              },
+              "Fetching raw events from indexing client",
+            );
+          }
+          return rawEventFetcher(plan.ref, plan.startTimeMs, plan.endTimeMs);
+        }
+      : undefined,
   };
 }

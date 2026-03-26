@@ -25,10 +25,11 @@ API and worker:
 
 - `DATABASE_URL`
 - `REDIS_URL`
-- `ENVIO_ENDPOINT`
 - `RPC_URL_*` for the chains you need
 - `AUTH_SIWE_DOMAIN`
 - `AUTH_SIWE_URI`
+- optional `ENVIO_ENDPOINT` if you want indexed semantic signals
+- optional `ENVIO_API_TOKEN` if you want `raw-events`
 - optional shared webhook secret for signed outbound webhooks
 - optional `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`, `NONCE_TTL_MINUTES`
 - optional `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if using Sentinel-native Telegram integration routes
@@ -36,6 +37,13 @@ API and worker:
 - optional `LOG_LEVEL`
 
 If API and delivery run as separate containers on the same private network, set `DELIVERY_BASE_URL` to the delivery service hostname rather than `localhost`.
+
+Missing optional source config does not take the service down:
+
+- without `ENVIO_ENDPOINT`, indexed semantic signal families are disabled
+- without `ENVIO_API_TOKEN`, `raw-events` are disabled
+- the API rejects unsupported signal definitions and activation attempts with a clear `409`
+- `/health` advertises which source families are enabled
 
 Delivery:
 

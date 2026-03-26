@@ -47,6 +47,12 @@ export interface TimeWindow {
  */
 export type MetricType = string;
 
+export interface ConditionFilter {
+  field: string;
+  op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "contains";
+  value: string | number | boolean | Array<string | number>;
+}
+
 // ============================================
 // Conditions
 // ============================================
@@ -61,11 +67,7 @@ export interface ThresholdCondition {
   /** Optional per-condition window override */
   window?: TimeWindow;
   /** Optional event-only filters (for event metrics) */
-  filters?: Array<{
-    field: string;
-    op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "contains";
-    value: string | number | boolean | Array<string | number>;
-  }>;
+  filters?: ConditionFilter[];
   /** Chain ID (required) */
   chain_id: number;
   /** Market ID (required for Market/Position metrics) */
@@ -115,18 +117,55 @@ export interface AggregateCondition {
   /** Optional per-condition window override */
   window?: TimeWindow;
   /** Optional event-only filters (for event metrics) */
-  filters?: Array<{
-    field: string;
-    op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "contains";
-    value: string | number | boolean | Array<string | number>;
-  }>;
+  filters?: ConditionFilter[];
   /** Chain ID (required) */
   chain_id: number;
   /** Market ID (optional for aggregation) */
   market_id?: string;
 }
 
-export type Condition = ThresholdCondition | ChangeCondition | GroupCondition | AggregateCondition;
+export interface RawEventSpec {
+  /** Prebuilt preset for common events. */
+  kind: "erc20_transfer" | "contract_event" | "swap";
+  /** Optional contract address filter for the emitting contracts. */
+  contract_addresses?: string[];
+  /**
+   * Full ABI event signature for generic events.
+   *
+   * Example:
+   * "Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)"
+   */
+  signature?: string;
+  /**
+   * Optional swap protocol presets to include. If omitted for `kind = "swap"`,
+   * Sentinel queries all supported swap presets.
+   */
+  protocols?: Array<"uniswap_v2" | "uniswap_v3">;
+}
+
+export interface RawEventsCondition {
+  type: "raw-events";
+  aggregation: "sum" | "avg" | "min" | "max" | "count";
+  operator: ComparisonOperator;
+  value: number;
+  /** Decoded event field to aggregate. Optional only for count. */
+  field?: string;
+  /** Optional per-condition window override */
+  window?: TimeWindow;
+  /** Optional filters evaluated against decoded event arguments and metadata fields. */
+  filters?: ConditionFilter[];
+  /** Chain ID (required unless it can be inferred from scope) */
+  chain_id?: number;
+  /** Raw event definition executed via HyperSync. */
+  event: RawEventSpec;
+}
+
+export type Condition =
+  | ThresholdCondition
+  | ChangeCondition
+  | GroupCondition
+  | AggregateCondition
+  | RawEventsCondition;
 
 // ============================================
 // Signal Definition

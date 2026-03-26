@@ -4,6 +4,28 @@
 
 import "dotenv/config";
 
+function readEnv(name: string): string {
+  return process.env[name]?.trim() ?? "";
+}
+
+function readPositiveIntegerEnv(name: string, fallback: number): number {
+  const raw = readEnv(name);
+  if (!raw) {
+    return fallback;
+  }
+
+  if (!/^\d+$/.test(raw)) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 export const config = {
   // Database
   database: {
@@ -39,11 +61,18 @@ export const config = {
 
   // Envio
   envio: {
-    endpoint: process.env.ENVIO_ENDPOINT ?? "",
+    endpoint: readEnv("ENVIO_ENDPOINT"),
     validateSchema:
       process.env.ENVIO_VALIDATE_SCHEMA !== undefined
         ? process.env.ENVIO_VALIDATE_SCHEMA === "true"
         : process.env.NODE_ENV !== "test",
+  },
+
+  hypersync: {
+    apiToken: readEnv("ENVIO_API_TOKEN"),
+    maxLogsPerRequest: readPositiveIntegerEnv("HYPERSYNC_MAX_LOGS_PER_REQUEST", 10000),
+    maxLogsPerQuery: readPositiveIntegerEnv("HYPERSYNC_MAX_LOGS_PER_QUERY", 100000),
+    maxPagesPerQuery: readPositiveIntegerEnv("HYPERSYNC_MAX_PAGES_PER_QUERY", 25),
   },
 
   // Webhook

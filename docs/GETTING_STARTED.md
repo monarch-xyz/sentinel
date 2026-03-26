@@ -25,14 +25,21 @@ cp packages/delivery/.env.example packages/delivery/.env
 
 Main service `.env`:
 
-- required: `ENVIO_ENDPOINT`
+- required: `DATABASE_URL`
+- recommended: `REDIS_URL`
 - recommended: `RPC_URL_*` for the chains you care about
+- optional: `ENVIO_ENDPOINT` to enable indexed semantic signals
+- optional: `ENVIO_API_TOKEN` to enable `raw-events`
 - optional: `WEBHOOK_SECRET` if you will use signed delivery
 - optional: `REGISTER_ADMIN_KEY` if you want to gate `POST /api/v1/auth/register`
 - optional but recommended for browser auth: `AUTH_SIWE_DOMAIN`, `AUTH_SIWE_URI`
 - optional: `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if you want Sentinel-native Telegram status routes
 
 When you run the Docker stack, Compose overrides `DELIVERY_BASE_URL` to `http://delivery:3100` so the API container can reach the delivery container over the Docker network.
+
+If `ENVIO_ENDPOINT` is missing, indexed semantic refs stay disabled.
+If `ENVIO_API_TOKEN` is missing, `raw-events` stay disabled.
+Sentinel still boots, reports that through `GET /health`, and rejects unsupported signal definitions through the API.
 
 Delivery service `packages/delivery/.env`:
 
@@ -86,6 +93,36 @@ docker compose ps
 
 If you only started the core stack, `3100` will not be up.
 
+`GET /health` now includes source-family capability status so you can verify whether `state`, `indexed`, and `raw` are enabled before wiring the product UI.
+
+## Live Integration Tests
+
+Most tests run locally with no extra setup:
+
+```bash
+pnpm test
+```
+
+Live network suites are opt-in and environment-gated:
+
+- fixed snapshot Envio + RPC checks:
+  `RUN_LIVE_SNAPSHOT_TESTS=true pnpm test:integration:fixed`
+- live RPC block resolver checks:
+  `RUN_LIVE_RPC_INTEGRATION_TESTS=true pnpm test:integration:rpc`
+- live HyperSync raw-event checks:
+  `RUN_LIVE_HYPERSYNC_TESTS=true pnpm test:integration:hypersync`
+
+For the live HyperSync suite, configure:
+
+- `ENVIO_API_TOKEN` for HyperSync access
+- `RPC_URL_1` for mainnet timestamp -> block resolution
+- optional `HYPERSYNC_URL_1` if you want to override the default endpoint
+
+For the fixed Envio + RPC snapshot suite, configure:
+
+- `ENVIO_ENDPOINT`
+- `RPC_URL_1`
+
 ## Create An API Key
 
 ```bash
@@ -134,6 +171,12 @@ Authorization: Bearer sentinel_session_...
 
 Use the endpoint contract in [API.md](./API.md) and the canonical signal examples in [DSL.md](./DSL.md).
 
+Before writing a signal, choose one DSL reference family:
+
+- state metrics for current or historical onchain state
+- indexed metrics for semantic indexed entities and event history
+- raw events for decoded log scans like ERC-20 transfers or swap activity
+
 If you are running the delivery container locally, the signal `webhook_url` should be:
 
 ```text
@@ -154,7 +197,7 @@ The delivery contract is documented in [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVER
 
 ## Next Docs
 
-- [DSL.md](./DSL.md) for signal definitions and examples
+- [DSL.md](./DSL.md) for signal definitions, reference families, and examples
 - [ARCHITECTURE.md](./ARCHITECTURE.md) for internal system design
 - [API.md](./API.md) for routes and payloads
 - [AUTH.md](./AUTH.md) for auth and register-gate behavior

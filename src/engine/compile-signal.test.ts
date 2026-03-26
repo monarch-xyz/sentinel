@@ -177,4 +177,206 @@ describe("compileSignalDefinition", () => {
 
     expect(() => compileSignalDefinition(definition)).toThrow("direction");
   });
+
+  it("infers raw-events chain_id from scope", () => {
+    const compiled = compileSignalDefinition({
+      scope: { chains: [8453] },
+      window: { duration: "1h" },
+      conditions: [
+        {
+          type: "raw-events",
+          aggregation: "count",
+          operator: ">",
+          value: 10,
+          event: {
+            kind: "erc20_transfer",
+          },
+        },
+      ],
+    });
+
+    expect(compiled.ast.conditions).toHaveLength(1);
+    expect(compiled.ast.conditions[0]).toMatchObject({
+      type: "condition",
+      left: {
+        type: "raw_event",
+        chainId: 8453,
+        aggregation: "count",
+      },
+    });
+  });
+
+  it("rejects raw-events chain_id inference when scope.chains is ambiguous", () => {
+    expect(() =>
+      compileSignalDefinition({
+        scope: { chains: [1, 8453] },
+        window: { duration: "1h" },
+        conditions: [
+          {
+            type: "raw-events",
+            aggregation: "count",
+            operator: ">",
+            value: 10,
+            event: {
+              kind: "erc20_transfer",
+            },
+          },
+        ],
+      }),
+    ).toThrow("chain_id is ambiguous");
+  });
+
+  describe("public DSL contract examples", () => {
+    it("compiles the state metric threshold example", () => {
+      const compiled = compileSignalDefinition({
+        scope: { chains: [1], markets: ["0xM"] },
+        window: { duration: "1h" },
+        conditions: [
+          {
+            type: "threshold",
+            metric: "Morpho.Market.utilization",
+            operator: ">",
+            value: 0.9,
+            chain_id: 1,
+            market_id: "0xM",
+          },
+        ],
+      });
+
+      expect(compiled.ast.conditions[0]).toMatchObject({
+        type: "condition",
+        left: {
+          type: "expression",
+          operator: "div",
+        },
+      });
+    });
+
+    it("compiles the indexed metric aggregate example", () => {
+      const compiled = compileSignalDefinition({
+        scope: { chains: [1], markets: ["0xM"] },
+        window: { duration: "1h" },
+        conditions: [
+          {
+            type: "aggregate",
+            aggregation: "sum",
+            metric: "Morpho.Event.Supply.assets",
+            operator: ">",
+            value: 1000000,
+            chain_id: 1,
+            market_id: "0xM",
+          },
+        ],
+      });
+
+      expect(compiled.ast.conditions[0]).toMatchObject({
+        type: "aggregate",
+        metric: "Morpho.Event.Supply.assets",
+        aggregation: "sum",
+        chainId: 1,
+        marketIds: ["0xM"],
+      });
+    });
+
+    it("compiles the raw ERC20 transfer example", () => {
+      const compiled = compileSignalDefinition({
+        scope: { chains: [1] },
+        window: { duration: "1h" },
+        conditions: [
+          {
+            type: "raw-events",
+            aggregation: "sum",
+            field: "value",
+            operator: ">",
+            value: 1000000,
+            chain_id: 1,
+            window: { duration: "1h" },
+            event: {
+              kind: "erc20_transfer",
+              contract_addresses: ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+            },
+            filters: [{ field: "from", op: "eq", value: "0xC..." }],
+          },
+        ],
+      });
+
+      expect(compiled.ast.conditions[0]).toMatchObject({
+        type: "condition",
+        left: {
+          type: "raw_event",
+          aggregation: "sum",
+          field: "value",
+          queries: [{ normalizer: "none" }],
+        },
+      });
+    });
+
+    it("compiles the raw swap preset example", () => {
+      const compiled = compileSignalDefinition({
+        scope: { chains: [1] },
+        window: { duration: "30m" },
+        conditions: [
+          {
+            type: "raw-events",
+            aggregation: "sum",
+            field: "amount0_abs",
+            operator: ">",
+            value: 500000,
+            chain_id: 1,
+            window: { duration: "30m" },
+            event: {
+              kind: "swap",
+              protocols: ["uniswap_v2", "uniswap_v3"],
+              contract_addresses: ["0xPoolA", "0xPoolB"],
+            },
+            filters: [{ field: "recipient", op: "eq", value: "0xRecipient" }],
+          },
+        ],
+      });
+
+      expect(compiled.ast.conditions[0]).toMatchObject({
+        type: "condition",
+        left: {
+          type: "raw_event",
+          aggregation: "sum",
+          field: "amount0_abs",
+          queries: [{ normalizer: "uniswap_v2_swap" }, { normalizer: "uniswap_v3_swap" }],
+        },
+      });
+    });
+
+    it("compiles the raw custom contract event example", () => {
+      const compiled = compileSignalDefinition({
+        scope: { chains: [1] },
+        window: { duration: "30m" },
+        conditions: [
+          {
+            type: "raw-events",
+            aggregation: "sum",
+            field: "amount0In",
+            operator: ">",
+            value: 500000,
+            chain_id: 1,
+            window: { duration: "30m" },
+            event: {
+              kind: "contract_event",
+              contract_addresses: ["0xPool"],
+              signature:
+                "Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)",
+            },
+          },
+        ],
+      });
+
+      expect(compiled.ast.conditions[0]).toMatchObject({
+        type: "condition",
+        left: {
+          type: "raw_event",
+          aggregation: "sum",
+          field: "amount0In",
+          queries: [{ normalizer: "none" }],
+        },
+      });
+    });
+  });
 });

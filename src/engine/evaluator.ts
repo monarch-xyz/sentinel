@@ -1,4 +1,11 @@
-import type { ComparisonOp, EventRef, ExpressionNode, MathOp, StateRef } from "../types/index.js";
+import type {
+  ComparisonOp,
+  EventRef,
+  ExpressionNode,
+  MathOp,
+  RawEventRef,
+  StateRef,
+} from "../types/index.js";
 import { parseDuration } from "../utils/duration.js";
 
 // Re-export for engine consumers
@@ -30,6 +37,7 @@ export interface EvalContext {
   // Methods to be implemented for data fetching
   fetchState: (ref: StateRef, timestamp?: number) => Promise<number>;
   fetchEvents: (ref: EventRef, start: number, end: number) => Promise<number>;
+  fetchRawEvents?: (ref: RawEventRef, start: number, end: number) => Promise<number>;
 }
 
 /**
@@ -67,6 +75,11 @@ export async function evaluateNode(node: ExpressionNode, context: EvalContext): 
       }
       return context.fetchEvents(node, start, context.now);
     }
+    case "raw_event":
+      if (!context.fetchRawEvents) {
+        throw new EvaluationError("Raw event fetcher is not configured", "FETCH_FAILED", node);
+      }
+      return context.fetchRawEvents(node, context.windowStart, context.now);
     case "expression": {
       const left = await evaluateNode(node.left, context);
       const right = await evaluateNode(node.right, context);

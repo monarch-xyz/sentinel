@@ -10,6 +10,7 @@ import type {
   ComparisonOperator,
   Condition as DslCondition,
   GroupCondition,
+  RawEventsCondition,
   SignalDefinition,
   SignalScope,
   ThresholdCondition,
@@ -92,7 +93,7 @@ function applyScopeToCondition(
   scope: SignalScope,
   options: { includeAddress?: boolean } = {},
 ): DslCondition {
-  if (cond.type === "group" || cond.type === "aggregate") {
+  if (cond.type === "group" || cond.type === "aggregate" || cond.type === "raw-events") {
     return cond;
   }
 
@@ -187,9 +188,13 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
   }
   const innerConditions = cond.conditions;
   for (const innerCondition of innerConditions) {
-    if (innerCondition.type === "group" || innerCondition.type === "aggregate") {
+    if (
+      innerCondition.type === "group" ||
+      innerCondition.type === "aggregate" ||
+      innerCondition.type === "raw-events"
+    ) {
       throw new ValidationError(
-        "Nested group/aggregate conditions are not supported",
+        "Nested group/aggregate/raw-events conditions are not supported",
         "conditions",
       );
     }
@@ -226,6 +231,19 @@ function compileGroupWithScope(cond: GroupCondition, scope: SignalScope): Compil
     logic: cond.logic ?? "AND",
     perAddressConditions: compiledInner,
   };
+}
+
+function compileRawEventsWithScope(
+  cond: RawEventsCondition,
+  scope: SignalScope,
+): CompiledCondition {
+  const chainId = cond.chain_id ?? selectFromScope(scope.chains, "chain_id");
+  enforceScopeContains(scope.chains, chainId, "chain_id");
+
+  return compileCondition({
+    ...cond,
+    chain_id: chainId,
+  });
 }
 
 function compileAggregateWithScope(
@@ -288,6 +306,9 @@ function compileDslCondition(cond: DslCondition, scope: SignalScope): CompiledCo
   }
   if (cond.type === "aggregate") {
     return compileAggregateWithScope(cond, scope);
+  }
+  if (cond.type === "raw-events") {
+    return compileRawEventsWithScope(cond, scope);
   }
 
   const scopedCondition = applyScopeToCondition(cond, scope);

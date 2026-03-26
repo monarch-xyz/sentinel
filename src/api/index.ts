@@ -5,6 +5,7 @@
 import express from "express";
 import { config } from "../config/index.js";
 import { closeDb, verifyDbConnection } from "../db/index.js";
+import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
 import { getErrorMessage, toErrorWithMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -23,7 +24,11 @@ app.use(requestLogger);
 
 // Health check
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    capabilities: getSourceCapabilityHealth(),
+  });
 });
 
 // API Routes
@@ -45,6 +50,25 @@ app.use(
 const start = async () => {
   try {
     await verifyDbConnection();
+    const capabilities = getSourceCapabilities();
+    const capabilityHealth = getSourceCapabilityHealth(capabilities);
+
+    for (const family of ["state", "indexed", "raw"] as const) {
+      const capability = capabilities[family];
+      const health = capabilityHealth[capability.family];
+      if (capability.enabled) {
+        logger.info({ family: capability.family, provider: capability.provider }, health.message);
+      } else {
+        logger.warn(
+          {
+            family: capability.family,
+            provider: capability.provider,
+            requiredEnv: capability.requiredEnv,
+          },
+          health.message,
+        );
+      }
+    }
 
     const port = config.api.port;
     app.listen(port, () => {

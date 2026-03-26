@@ -53,6 +53,52 @@ const AggregateConditionSchema = z.object({
   market_id: z.string().optional(),
 });
 
+const RawEventSpecSchema = z
+  .object({
+    kind: z.enum(["erc20_transfer", "contract_event", "swap"]),
+    contract_addresses: z.array(z.string()).optional(),
+    signature: z.string().optional(),
+    protocols: z.array(z.enum(["uniswap_v2", "uniswap_v3"])).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === "contract_event" && !value.signature) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "signature is required for contract_event raw-events",
+        path: ["signature"],
+      });
+    }
+    if (value.kind === "swap" && value.protocols && value.protocols.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "protocols must not be empty for swap raw-events",
+        path: ["protocols"],
+      });
+    }
+  });
+
+const RawEventsConditionSchema = z
+  .object({
+    type: z.literal("raw-events"),
+    aggregation: z.enum(["sum", "avg", "min", "max", "count"]),
+    operator: ComparisonOperatorSchema,
+    value: z.number(),
+    field: z.string().optional(),
+    window: TimeWindowSchema.optional(),
+    filters: z.array(FilterSchema).optional(),
+    chain_id: z.number().int().positive().optional(),
+    event: RawEventSpecSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (value.aggregation !== "count" && !value.field) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "field is required for raw-events aggregation unless aggregation is count",
+        path: ["field"],
+      });
+    }
+  });
+
 // biome-ignore lint/style/useConst: Circular reference requires let for forward declaration
 let ConditionSchema: z.ZodTypeAny;
 
@@ -75,6 +121,7 @@ ConditionSchema = z.union([
   ChangeConditionSchema,
   GroupConditionSchema,
   AggregateConditionSchema,
+  RawEventsConditionSchema,
 ]);
 
 const SignalDefinitionSchema = z.object({

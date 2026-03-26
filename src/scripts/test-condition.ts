@@ -27,13 +27,12 @@
  */
 
 import { readFileSync } from "node:fs";
-import { config } from "../config/index.js";
 import { compileSignalDefinition } from "../engine/compile-signal.js";
 import { type CompiledCondition, compileConditions } from "../engine/compiler.js";
 import { type EvaluatableSignal, evaluateConditionSet } from "../engine/condition.js";
 import type { EvalContext } from "../engine/evaluator.js";
 import { createMorphoFetcher } from "../engine/morpho-fetcher.js";
-import { EnvioClient } from "../envio/client.js";
+import { createIndexingClient } from "../indexing/client.js";
 import type { SignalDefinition } from "../types/signal.js";
 import type { Condition as UserCondition } from "../types/signal.js";
 import { parseDuration } from "../utils/duration.js";
@@ -254,12 +253,12 @@ async function main() {
   const windowMs = parseDuration(args.window);
   const windowStart = now - windowMs;
 
-  // Create Envio client and Morpho-specific data fetcher
-  const envio = new EnvioClient(config.envio.endpoint);
-  const fetcher = createMorphoFetcher(envio, {
+  // Create the Morpho fetcher with the unified indexing boundary.
+  const fetcher = createMorphoFetcher(createIndexingClient(), {
     chainId: args.chainId,
     verbose: args.verbose,
   });
+  const rawEventFetcher = fetcher.fetchRawEvents;
 
   // Wrap fetcher with verbose logging if requested
   const context: EvalContext = {
@@ -286,6 +285,18 @@ async function main() {
       }
       return value;
     },
+    fetchRawEvents: rawEventFetcher
+      ? async (ref, start, end) => {
+          const value = await rawEventFetcher(ref, start, end);
+          if (args.verbose) {
+            const queryLabel = ref.queries.length === 1 ? "query" : "queries";
+            console.log(
+              `  fetchRawEvents(${ref.queries.length} ${queryLabel}, ${ref.aggregation}) [HyperSync] = ${value}`,
+            );
+          }
+          return value;
+        }
+      : undefined,
   };
 
   try {

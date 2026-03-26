@@ -8,12 +8,33 @@ export interface Filter {
 
 export interface EventRef {
   type: "event";
+  /** Indexed event aggregation backed by Envio GraphQL. */
   event_type: string;
   filters: Filter[];
   field: string;
   aggregation: "sum" | "count" | "avg" | "min" | "max";
   /** Optional custom window duration (e.g., "2d", "7d"). Overrides signal-level window. */
   window?: string;
+}
+
+export type RawEventNormalizer = "none" | "uniswap_v2_swap" | "uniswap_v3_swap";
+
+export interface RawEventQuery {
+  eventSignature: string;
+  topic0: string;
+  normalizer: RawEventNormalizer;
+}
+
+export interface RawEventRef {
+  type: "raw_event";
+  /** Raw log aggregation backed by HyperSync. */
+  source: "hypersync";
+  chainId: number;
+  queries: RawEventQuery[];
+  contractAddresses?: string[];
+  field?: string;
+  aggregation: "sum" | "count" | "avg" | "min" | "max";
+  filters?: Filter[];
 }
 
 export interface StateRef {
@@ -44,7 +65,7 @@ export interface Constant {
   value: number;
 }
 
-export type ExpressionNode = EventRef | StateRef | BinaryExpression | Constant;
+export type ExpressionNode = EventRef | RawEventRef | StateRef | BinaryExpression | Constant;
 
 export type ComparisonOp = "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventFetcher } from "../../src/engine/fetcher.js";
+import type { EventFetcher, RawEventFetcher } from "../../src/engine/fetcher.js";
 import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.js";
 import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
 import {
@@ -8,7 +8,7 @@ import {
   readPosition,
   readPositionAtBlock,
 } from "../../src/rpc/index.js";
-import type { EventRef, StateRef } from "../../src/types/index.js";
+import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.js";
 
 vi.mock("../../src/envio/blocks.js", () => ({
   resolveBlockByTimestamp: vi.fn(),
@@ -54,6 +54,21 @@ describe("createMorphoFetcher", () => {
     event_type: "Supply",
     filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
     field: "assets",
+    aggregation: "sum",
+  };
+
+  const rawEventRef: RawEventRef = {
+    type: "raw_event",
+    source: "hypersync",
+    chainId: 1,
+    queries: [
+      {
+        eventSignature: "event Transfer(address indexed from, address indexed to, uint256 value)",
+        topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        normalizer: "none",
+      },
+    ],
+    field: "value",
     aggregation: "sum",
   };
 
@@ -141,5 +156,20 @@ describe("createMorphoFetcher", () => {
     await expect(fetcher.fetchState(missingMarket)).rejects.toThrow(
       "marketId filter required for state queries",
     );
+  });
+
+  it("forwards raw event queries when a raw event fetcher is configured", async () => {
+    const rawEventFetcher: RawEventFetcher = {
+      fetchRawEvents: vi.fn().mockResolvedValue(321),
+    };
+    const fetcher = createMorphoFetcher(
+      { ...eventFetcher, fetchRawEvents: rawEventFetcher.fetchRawEvents },
+      { chainId: 1 },
+    );
+
+    const value = await fetcher.fetchRawEvents?.(rawEventRef, 1000, 2000);
+
+    expect(value).toBe(321);
+    expect(rawEventFetcher.fetchRawEvents).toHaveBeenCalledWith(rawEventRef, 1000, 2000);
   });
 });

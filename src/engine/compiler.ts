@@ -6,6 +6,7 @@
  * - Internal AST (ExpressionNode, Condition) - easy to evaluate
  */
 
+import { toEventSelector } from "viem";
 import type {
   BinaryExpression,
   ComparisonOp,
@@ -14,6 +15,7 @@ import type {
   ExpressionNode,
   Filter,
   Condition as InternalCondition,
+  RawEventQuery,
   StateRef,
 } from "../types/index.js";
 
@@ -23,6 +25,7 @@ import type {
   ComparisonOperator,
   GroupCondition,
   MetricType,
+  RawEventsCondition,
   ThresholdCondition,
   Condition as UserCondition,
 } from "../types/signal.js";
@@ -183,6 +186,76 @@ export function validateEventFilters(filters?: Filter[]): void {
 
 function constant(value: number): Constant {
   return { type: "constant", value };
+}
+
+function normalizeRawEventSignature(signature: string): string {
+  const trimmed = signature.trim();
+  if (!trimmed) {
+    throw new Error("raw event signature is required");
+  }
+  return trimmed.startsWith("event ") ? trimmed : `event ${trimmed}`;
+}
+
+const ERC20_TRANSFER_SIGNATURE =
+  "event Transfer(address indexed from, address indexed to, uint256 value)";
+const UNISWAP_V2_SWAP_SIGNATURE =
+  "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)";
+const UNISWAP_V3_SWAP_SIGNATURE =
+  "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)";
+
+const SWAP_PROTOCOL_QUERY_MAP = {
+  uniswap_v2: {
+    eventSignature: UNISWAP_V2_SWAP_SIGNATURE,
+    topic0: toEventSelector(UNISWAP_V2_SWAP_SIGNATURE),
+    normalizer: "uniswap_v2_swap" as const,
+  },
+  uniswap_v3: {
+    eventSignature: UNISWAP_V3_SWAP_SIGNATURE,
+    topic0: toEventSelector(UNISWAP_V3_SWAP_SIGNATURE),
+    normalizer: "uniswap_v3_swap" as const,
+  },
+} satisfies Record<NonNullable<RawEventsCondition["event"]["protocols"]>[number], RawEventQuery>;
+
+function buildRawEventQueries(cond: RawEventsCondition): RawEventQuery[] {
+  switch (cond.event.kind) {
+    case "erc20_transfer":
+      return [
+        {
+          eventSignature: ERC20_TRANSFER_SIGNATURE,
+          topic0: toEventSelector(ERC20_TRANSFER_SIGNATURE),
+          normalizer: "none",
+        },
+      ];
+    case "contract_event": {
+      const signature = normalizeRawEventSignature(cond.event.signature ?? "");
+      return [
+        {
+          eventSignature: signature,
+          topic0: toEventSelector(signature),
+          normalizer: "none",
+        },
+      ];
+    }
+    case "swap": {
+      const protocols = Array.from(
+        new Set(cond.event.protocols ?? ["uniswap_v2", "uniswap_v3"]),
+      ) as Array<keyof typeof SWAP_PROTOCOL_QUERY_MAP>;
+      if (protocols.length === 0) {
+        throw new Error("swap raw-events must include at least one protocol");
+      }
+      return protocols.map((protocol) => {
+        const query = SWAP_PROTOCOL_QUERY_MAP[protocol];
+        if (!query) {
+          throw new Error(`unsupported swap raw-events protocol "${protocol}"`);
+        }
+        return { ...query };
+      });
+    }
+    default: {
+      const _exhaustive: never = cond.event.kind;
+      return assertNever(_exhaustive, "Unknown raw event kind");
+    }
+  }
 }
 
 /**
@@ -616,6 +689,12 @@ function compileGroup(cond: GroupCondition): CompiledGroupCondition {
     if ("type" in compiled && compiled.type === "aggregate") {
       throw new Error("Nested aggregate conditions are not supported in group");
     }
+    if ("type" in compiled && compiled.type === "condition") {
+      const left = compiled.left;
+      if (left.type === "raw_event") {
+        throw new Error("Nested raw-events conditions are not supported in group");
+      }
+    }
     return compiled as InternalCondition;
   });
 
@@ -660,6 +739,36 @@ function compileAggregate(cond: AggregateCondition): CompiledAggregateCondition 
   };
 }
 
+function compileRawEvents(cond: RawEventsCondition): InternalCondition {
+  if (cond.chain_id === undefined) {
+    throw new Error("chain_id is required for raw-events condition");
+  }
+
+  if (cond.aggregation !== "count" && !cond.field) {
+    throw new Error("field is required for raw-events aggregation unless aggregation is count");
+  }
+
+  const queries = buildRawEventQueries(cond);
+  const rawEventRef = {
+    type: "raw_event" as const,
+    source: "hypersync" as const,
+    chainId: cond.chain_id,
+    queries,
+    contractAddresses: cond.event.contract_addresses,
+    field: cond.field ?? (cond.event.kind === "erc20_transfer" ? "value" : undefined),
+    aggregation: cond.aggregation,
+    filters: cond.filters,
+  };
+
+  return {
+    type: "condition",
+    left: rawEventRef,
+    operator: OPERATOR_MAP[cond.operator],
+    right: constant(cond.value),
+    window: cond.window?.duration,
+  };
+}
+
 // ============================================
 // Main Compiler Entry Point
 // ============================================
@@ -680,6 +789,8 @@ export function compileCondition(
       return compileGroup(cond);
     case "aggregate":
       return compileAggregate(cond);
+    case "raw-events":
+      return compileRawEvents(cond);
     default: {
       const _exhaustive: never = cond;
       return assertNever(_exhaustive, "Unknown condition type");

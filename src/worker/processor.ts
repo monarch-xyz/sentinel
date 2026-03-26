@@ -3,7 +3,7 @@ import { pool } from "../db/index.js";
 import { normalizeStoredDefinition } from "../engine/compile-signal.js";
 import { type EvaluatableSignal, SignalEvaluator } from "../engine/condition.js";
 import { createMorphoFetcher } from "../engine/morpho-fetcher.js";
-import { EnvioClient } from "../envio/client.js";
+import { createIndexingClient } from "../indexing/client.js";
 import type { WebhookPayload } from "../types/index.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
@@ -30,10 +30,11 @@ interface WorkerSignalRow {
 }
 
 export const setupWorker = () => {
-  const envio = new EnvioClient();
-  // Note: chainId is resolved per-signal in the evaluate() method
-  // We create a default fetcher here; the SignalEvaluator will use the signal's chain
-  const fetcher = createMorphoFetcher(envio, { chainId: 1 });
+  // createMorphoFetcher takes a default chainId, but per-signal chain selection is
+  // resolved from compiled filters inside source planning. The compiler injects
+  // chain_id into refs, then planMorphoStateRead / planMorphoEventRead call
+  // resolveChainId and override this default when signal filters specify a chain.
+  const fetcher = createMorphoFetcher(createIndexingClient(), { chainId: 1 });
   const evaluator = new SignalEvaluator(fetcher);
 
   const worker = new Worker(

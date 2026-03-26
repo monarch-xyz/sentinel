@@ -78,6 +78,10 @@ See: [docs/ISSUE_NO_TIME_TRAVEL.md](docs/ISSUE_NO_TIME_TRAVEL.md)
 - [x] Initial scaffold & Git repo
 - [x] Core recursive `evaluateNode` engine
 - [x] Initial unit tests for evaluator
+- [x] **HyperSync Raw Events** (2026-03-25)
+    - [x] Added `raw-events` DSL condition for HyperSync-backed raw log scans
+    - [x] Added HyperSync client integration with decoded event aggregation
+    - [x] Differentiated indexed event metrics from raw event scans in docs and engine types
 - [x] **Envio Client** (`src/envio/client.ts`)
     - [x] GraphQL request logic
     - [x] Batching support (hoisting queries)

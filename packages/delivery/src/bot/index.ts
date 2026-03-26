@@ -24,9 +24,10 @@ I'll send you alerts when your DeFi positions trigger conditions you've set up.
 
 *To get started:*
 1. Click the button below to connect your app account
-2. Enter your Sentinel app user ID on the link page
-3. Create signals in the [Sentinel app](${env.APP_BASE_URL})
-4. Receive alerts here when they trigger!
+2. Sign in to Sentinel if prompted
+3. Sentinel will finish the Telegram link automatically
+4. Create signals in the [Sentinel app](${env.APP_BASE_URL})
+5. Receive alerts here when they trigger!
 
 _Link expires in 15 minutes_`,
     {

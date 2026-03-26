@@ -7,12 +7,39 @@ export { SignalEvaluator } from "./condition.js";
 export type { SignalEvaluationResult } from "./condition.js";
 
 // DataFetcher abstraction
-export type { DataFetcher, DataFetcherOptions } from "./fetcher.js";
+export type {
+  DataFetcher,
+  DataFetcherOptions,
+  IndexedEventFetcher,
+  IndexingDataClient,
+} from "./fetcher.js";
 
 // Morpho-specific implementation
 export { createMorphoFetcher } from "./morpho-fetcher.js";
-export { planMorphoEventRead, planMorphoStateRead } from "./source-plan.js";
-export type { PlannedEnvioEventRead, PlannedRpcStateRead } from "./source-plan.js";
+export { planMorphoEventRead, planMorphoRawEventRead, planMorphoStateRead } from "./source-plan.js";
+export type {
+  PlannedEnvioEventRead,
+  PlannedIndexedEventRead,
+  PlannedRawEventRead,
+  PlannedRpcStateRead,
+} from "./source-plan.js";
+export {
+  createSourceCapabilityError,
+  SourceCapabilityError,
+  assertSignalDefinitionSourcesEnabled,
+  collectSignalSourceUsage,
+  createSourceCapabilities,
+  getDisabledSourceCapabilities,
+  getSourceCapabilities,
+  getSourceCapabilityHealth,
+} from "./source-capabilities.js";
+export type {
+  SignalSourceUsage,
+  SourceCapabilities,
+  SourceCapability,
+  SourceFamily,
+  SourceProvider,
+} from "./source-capabilities.js";
 
 export {
   compileCondition,

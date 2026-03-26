@@ -5,6 +5,7 @@ import {
   type Constant,
   type EventRef,
   type ExpressionNode,
+  type RawEventRef,
   type StateRef,
 } from "../types/index.js";
 import {
@@ -346,6 +347,36 @@ describe("evaluateNode", () => {
       expect(result).toBe(1000);
       const expectedStart = now - 2 * 24 * 60 * 60 * 1000;
       expect(fetchEvents).toHaveBeenCalledWith(eventRef, expectedStart, now);
+    });
+  });
+
+  describe("raw event references", () => {
+    it("fetches raw events through the HyperSync fetcher", async () => {
+      const fetchRawEvents = vi.fn().mockResolvedValue(42);
+      const now = Date.now();
+      const ctx = createMockContext({ fetchRawEvents, now, windowStart: now - 3600000 });
+
+      const rawEventRef: RawEventRef = {
+        type: "raw_event",
+        source: "hypersync",
+        chainId: 1,
+        queries: [
+          {
+            eventSignature:
+              "event Transfer(address indexed from, address indexed to, uint256 value)",
+            topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            normalizer: "none",
+          },
+        ],
+        field: "value",
+        aggregation: "sum",
+        contractAddresses: ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+      };
+
+      const result = await evaluateNode(rawEventRef, ctx);
+
+      expect(result).toBe(42);
+      expect(fetchRawEvents).toHaveBeenCalledWith(rawEventRef, ctx.windowStart, now);
     });
   });
 
