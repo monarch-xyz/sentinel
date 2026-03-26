@@ -1,5 +1,5 @@
 import { encodeAbiParameters, toEventSelector } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../src/config/index.js";
 import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
 import { HyperSyncClient, clearHyperSyncClientCache } from "../../src/hypersync/client.js";
@@ -28,6 +28,12 @@ describe("HyperSyncClient", () => {
     maxLogsPerQuery: number;
     maxPagesPerQuery: number;
   };
+  const originalHypersyncConfig = {
+    apiToken: mutableHypersyncConfig.apiToken,
+    maxLogsPerRequest: mutableHypersyncConfig.maxLogsPerRequest,
+    maxLogsPerQuery: mutableHypersyncConfig.maxLogsPerQuery,
+    maxPagesPerQuery: mutableHypersyncConfig.maxPagesPerQuery,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,6 +42,14 @@ describe("HyperSyncClient", () => {
     mutableHypersyncConfig.maxLogsPerRequest = 1000;
     mutableHypersyncConfig.maxLogsPerQuery = 10000;
     mutableHypersyncConfig.maxPagesPerQuery = 10;
+  });
+
+  afterEach(() => {
+    clearHyperSyncClientCache();
+    mutableHypersyncConfig.apiToken = originalHypersyncConfig.apiToken;
+    mutableHypersyncConfig.maxLogsPerRequest = originalHypersyncConfig.maxLogsPerRequest;
+    mutableHypersyncConfig.maxLogsPerQuery = originalHypersyncConfig.maxLogsPerQuery;
+    mutableHypersyncConfig.maxPagesPerQuery = originalHypersyncConfig.maxPagesPerQuery;
   });
 
   it("aggregates decoded ERC20 transfer values with decoded-argument filters", async () => {

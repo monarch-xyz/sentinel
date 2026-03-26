@@ -22,19 +22,16 @@ import type { EventRef } from "../types/index.js";
  * data families without scattering provider-specific construction logic.
  */
 export class IndexingClient implements IndexingDataClient {
-  readonly fetchRawEvents: NonNullable<IndexingDataClient["fetchRawEvents"]>;
+  readonly fetchRawEvents?: IndexingDataClient["fetchRawEvents"];
 
   constructor(
     private readonly indexedFetcher?: IndexedEventFetcher,
     rawEventFetcher?: RawEventFetcher,
   ) {
-    this.fetchRawEvents = async (ref, startTimeMs, endTimeMs) => {
-      if (!rawEventFetcher) {
-        throw createSourceCapabilityError("raw", "raw event fetcher is not configured");
-      }
-
-      return rawEventFetcher.fetchRawEvents(ref, startTimeMs, endTimeMs);
-    };
+    if (rawEventFetcher) {
+      this.fetchRawEvents = async (ref, startTimeMs, endTimeMs) =>
+        rawEventFetcher.fetchRawEvents(ref, startTimeMs, endTimeMs);
+    }
   }
 
   async fetchEvents(ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> {

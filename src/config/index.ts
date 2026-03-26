@@ -52,9 +52,9 @@ export const config = {
 
   hypersync: {
     apiToken: readEnv("ENVIO_API_TOKEN"),
-    maxLogsPerRequest: Number.parseInt(process.env.HYPERSYNC_MAX_LOGS_PER_REQUEST ?? "10000", 10),
-    maxLogsPerQuery: Number.parseInt(process.env.HYPERSYNC_MAX_LOGS_PER_QUERY ?? "100000", 10),
-    maxPagesPerQuery: Number.parseInt(process.env.HYPERSYNC_MAX_PAGES_PER_QUERY ?? "25", 10),
+    maxLogsPerRequest: Number.parseInt(readEnv("HYPERSYNC_MAX_LOGS_PER_REQUEST") || "10000", 10),
+    maxLogsPerQuery: Number.parseInt(readEnv("HYPERSYNC_MAX_LOGS_PER_QUERY") || "100000", 10),
+    maxPagesPerQuery: Number.parseInt(readEnv("HYPERSYNC_MAX_PAGES_PER_QUERY") || "25", 10),
   },
 
   // Webhook

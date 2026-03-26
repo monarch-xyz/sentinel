@@ -237,7 +237,9 @@ function buildRawEventQueries(cond: RawEventsCondition): RawEventQuery[] {
       ];
     }
     case "swap": {
-      const protocols = cond.event.protocols ?? ["uniswap_v2", "uniswap_v3"];
+      const protocols = Array.from(
+        new Set(cond.event.protocols ?? ["uniswap_v2", "uniswap_v3"]),
+      ) as Array<keyof typeof SWAP_PROTOCOL_QUERY_MAP>;
       if (protocols.length === 0) {
         throw new Error("swap raw-events must include at least one protocol");
       }

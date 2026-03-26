@@ -613,5 +613,28 @@ describe("Compiler", () => {
         queries: [{ normalizer: "uniswap_v2_swap" }, { normalizer: "uniswap_v3_swap" }],
       });
     });
+
+    it("deduplicates repeated swap protocols before building raw event queries", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "sum",
+        operator: ">",
+        value: 5000,
+        field: "amount0_abs",
+        chain_id: 1,
+        event: {
+          kind: "swap",
+          protocols: ["uniswap_v3", "uniswap_v3", "uniswap_v2"],
+        },
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      expect(result.left).toMatchObject({
+        type: "raw_event",
+        queries: [{ normalizer: "uniswap_v3_swap" }, { normalizer: "uniswap_v2_swap" }],
+      });
+      expect(result.left.type === "raw_event" ? result.left.queries : []).toHaveLength(2);
+    });
   });
 });

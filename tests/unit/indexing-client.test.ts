@@ -53,29 +53,11 @@ describe("createIndexingClient", () => {
       field: "assets",
       aggregation: "sum",
     };
-    const rawRef: RawEventRef = {
-      type: "raw_event",
-      source: "hypersync",
-      chainId: 1,
-      queries: [
-        {
-          eventSignature: "event Transfer(address indexed from, address indexed to, uint256 value)",
-          topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          normalizer: "none",
-        },
-      ],
-      field: "value",
-      aggregation: "sum",
-    };
-
     await expect(client.fetchEvents(indexedRef, 1000, 2000)).rejects.toMatchObject({
       family: "indexed",
       provider: "envio",
     });
 
-    await expect(client.fetchRawEvents(rawRef, 1000, 2000)).rejects.toMatchObject({
-      family: "raw",
-      provider: "hypersync",
-    });
+    expect(client.fetchRawEvents).toBeUndefined();
   });
 });
