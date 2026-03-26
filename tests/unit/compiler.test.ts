@@ -12,6 +12,7 @@ import type {
   AggregateCondition,
   ChangeCondition,
   GroupCondition,
+  RawEventsCondition,
   ThresholdCondition,
 } from "../../src/types/signal.js";
 
@@ -535,6 +536,82 @@ describe("Compiler", () => {
       const result = compileConditions(conditions);
 
       expect(result.logic).toBe("AND");
+    });
+  });
+
+  describe("compileCondition - raw-events", () => {
+    it("compiles raw ERC20 transfer aggregation into a raw_event expression", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "sum",
+        operator: ">",
+        value: 1000,
+        field: "value",
+        chain_id: 1,
+        event: {
+          kind: "erc20_transfer",
+          contract_addresses: ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+        },
+        filters: [{ field: "from", op: "eq", value: "0x1111111111111111111111111111111111111111" }],
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      expect(result.operator).toBe("gt");
+      expect(result.left).toMatchObject({
+        type: "raw_event",
+        source: "hypersync",
+        chainId: 1,
+        field: "value",
+        aggregation: "sum",
+        contractAddresses: ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+        queries: [
+          {
+            topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            normalizer: "none",
+          },
+        ],
+      });
+    });
+
+    it("rejects raw-events sum aggregation without a field", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "sum",
+        operator: ">",
+        value: 1,
+        chain_id: 1,
+        event: {
+          kind: "contract_event",
+          signature: "Swap(address indexed sender, uint amount0In, uint amount1In)",
+        },
+      };
+
+      expect(() => compileCondition(userCondition)).toThrow("field is required");
+    });
+
+    it("compiles swap preset into multi-query normalized raw event reads", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "sum",
+        operator: ">",
+        value: 5000,
+        field: "amount0_abs",
+        chain_id: 1,
+        event: {
+          kind: "swap",
+          protocols: ["uniswap_v2", "uniswap_v3"],
+        },
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      expect(result.left).toMatchObject({
+        type: "raw_event",
+        field: "amount0_abs",
+        aggregation: "sum",
+        queries: [{ normalizer: "uniswap_v2_swap" }, { normalizer: "uniswap_v3_swap" }],
+      });
     });
   });
 });

@@ -27,6 +27,8 @@
     "typecheck": "tsc --noEmit && pnpm -F @sentinel/delivery typecheck",
     "test:integration": "vitest run tests/integration/",
     "test:integration:fixed": "RUN_LIVE_SNAPSHOT_TESTS=true vitest run tests/integration/fixed-snapshot*.integration.test.ts",
+    "test:integration:rpc": "RUN_LIVE_RPC_INTEGRATION_TESTS=true vitest run tests/integration/blocks.integration.test.ts",
+    "test:integration:hypersync": "RUN_LIVE_HYPERSYNC_TESTS=true vitest run tests/integration/hypersync.integration.test.ts",
     "test:condition": "tsx src/scripts/test-condition.ts",
     "test:live:envio-rpc": "tsx src/scripts/validate-live-envio-rpc.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
@@ -38,6 +40,7 @@
     "delivery:build": "pnpm -F @sentinel/delivery build"
   },
   "dependencies": {
+    "@envio-dev/hypersync-client": "^1.1.0",
     "@types/node-cron": "^3.0.11",
     "axios": "^1.6.2",
     "bullmq": "^5.0.0",

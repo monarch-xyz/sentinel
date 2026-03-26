@@ -40,7 +40,9 @@ worker (scheduler + evaluator + webhook dispatch)
    |
    +--> source planner
          |
-         +--> Envio GraphQL for event history
+         +--> indexing boundary
+         |     +--> Envio GraphQL for indexed entities + indexed event history
+         |     +--> HyperSync for raw event scans
          +--> RPC for current and historical state
          +--> RPC block resolution for timestamp -> block
    |
@@ -112,26 +114,32 @@ This is why dual auth works cleanly: both session auth and API-key auth resolve 
 4. the compiled definition is stored in PostgreSQL
 5. the worker scheduler picks up active signals
 6. the worker resolves the needed data through the source planner
-7. the planner routes state reads to RPC and event reads to Envio
+7. the planner routes state reads to RPC and historical/indexed reads through the indexing boundary
 8. the evaluator produces a triggered or non-triggered result
 9. history is written to PostgreSQL
 10. if triggered, Sentinel sends a webhook
 11. optional delivery service verifies the webhook and sends a Telegram message
 
-## Data Sources
+## Data Families And Providers
 
-Sentinel uses a hybrid model:
+Sentinel uses three canonical data families:
 
-| Query type | Source | Why |
+| Family | DSL shape | Engine boundary | Provider today | Why |
+| --- | --- | --- | --- | --- |
+| state | `metric` on state-oriented conditions | RPC path | RPC | one consistent path for current and historical state |
+| indexed | `metric` on semantic event/entity conditions | indexing boundary | Envio | semantic protocol-aware history |
+| raw | `raw-events` | indexing boundary | HyperSync | high-throughput raw logs, transactions, traces, and blocks |
+
+Supporting reads:
+
+| Supporting query | Provider today | Why |
 | --- | --- | --- |
-| current state | RPC | one consistent path for current and historical state |
-| events over time | Envio | timestamped event history |
 | historical state snapshot | RPC | precise point-in-time block reads |
-| timestamp to block resolution | RPC | Envio does not support time-travel state reads |
+| timestamp to block resolution | RPC | indexed providers do not provide point-in-time state reads |
 
 The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md).
 
-Provider choice is intentionally kept behind the engine fetcher layer so the DSL and evaluator do not care whether a read comes from Envio, RPC, or a future source.
+Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
 
 ## Operational Boundaries
 
@@ -150,7 +158,8 @@ To extend Sentinel:
 - add metrics in `src/engine/metrics.ts`
 - extend compiler logic in `src/engine/compile-signal.ts`
 - extend source planning in `src/engine/source-plan.ts`
-- add provider-specific fetch paths in Envio or RPC clients
+- extend `src/indexing` when adding or replacing indexed/raw history providers
+- add provider-specific fetch paths in `src/envio`, `src/hypersync`, or `src/rpc`
 - add login providers through `auth_identities`
 - add delivery channels as separate services behind the webhook boundary
 

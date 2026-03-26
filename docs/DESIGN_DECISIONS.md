@@ -108,6 +108,12 @@ This document tracks the major design decisions behind the current implementatio
 - fix: centralize source planning behind the engine boundary
 - rationale: keep the DSL and evaluator independent from Envio vs RPC decisions
 
+### Decision 18: Unified Indexing Boundary
+
+- problem: indexed semantic reads and raw event scans shared the same product surface but were wired as separate provider details
+- fix: compose Envio and HyperSync behind one indexing boundary used by the protocol fetchers
+- rationale: the DSL should teach reference families, not vendor topology
+
 ### Decision 16: Versioned SQL Migrations
 
 - problem: database setup was split across Docker shell snippets and whole-schema reapply scripts

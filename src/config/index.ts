@@ -46,6 +46,13 @@ export const config = {
         : process.env.NODE_ENV !== "test",
   },
 
+  hypersync: {
+    apiToken: process.env.ENVIO_API_TOKEN ?? "",
+    maxLogsPerRequest: Number.parseInt(process.env.HYPERSYNC_MAX_LOGS_PER_REQUEST ?? "10000", 10),
+    maxLogsPerQuery: Number.parseInt(process.env.HYPERSYNC_MAX_LOGS_PER_QUERY ?? "100000", 10),
+    maxPagesPerQuery: Number.parseInt(process.env.HYPERSYNC_MAX_PAGES_PER_QUERY ?? "25", 10),
+  },
+
   // Webhook
   webhook: {
     timeoutMs: Number.parseInt(process.env.WEBHOOK_TIMEOUT_MS ?? "10000", 10),

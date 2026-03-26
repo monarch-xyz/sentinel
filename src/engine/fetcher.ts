@@ -3,10 +3,13 @@
  *
  * This interface decouples the evaluation engine from specific data sources.
  * Protocol-specific implementations (e.g., MorphoDataFetcher) handle the
- * actual data fetching logic.
+ * actual data fetching logic across the three canonical data families:
+ * - state / historical state
+ * - indexed entities + indexed event metrics
+ * - raw decoded event scans
  */
 
-import type { EventRef, StateRef } from "../types/index.js";
+import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
 
 /**
  * Interface for fetching state and event data
@@ -30,14 +33,39 @@ export type DataFetcher = {
    * @returns The aggregated numeric value
    */
   fetchEvents: (ref: EventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
+
+  /**
+   * Fetch and aggregate raw decoded logs over a time window.
+   */
+  fetchRawEvents?: (ref: RawEventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
 };
 
 /**
- * Minimal interface for event-only fetchers (e.g., Envio client)
+ * Minimal interface for indexed event/entity history fetchers.
+ *
+ * The current implementation is Envio-backed, but the engine should think in
+ * terms of indexed history rather than a specific provider.
  */
-export type EventFetcher = {
+export type IndexedEventFetcher = {
   fetchEvents: (ref: EventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
 };
+
+/**
+ * Backward-compatible alias used by older tests and call sites.
+ */
+export type EventFetcher = IndexedEventFetcher;
+
+export type RawEventFetcher = {
+  fetchRawEvents: (ref: RawEventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
+};
+
+/**
+ * Unified historical/indexing boundary used by protocol fetchers.
+ *
+ * This composes indexed semantic reads (currently Envio) and raw decoded log
+ * reads (currently HyperSync) behind one engine-facing interface.
+ */
+export type IndexingDataClient = IndexedEventFetcher & Partial<RawEventFetcher>;
 
 /**
  * Options for creating a DataFetcher

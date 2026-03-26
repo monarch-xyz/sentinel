@@ -13,6 +13,9 @@ import {
   resolveBlockByTimestamp,
 } from "../../src/envio/blocks.js";
 
+const RUN = process.env.RUN_LIVE_RPC_INTEGRATION_TESTS === "true";
+const suite = RUN ? describe : describe.skip;
+
 // Test date: 2025-12-03 00:00:00 UTC
 const TEST_TIMESTAMP_MS = new Date("2025-12-03T00:00:00Z").getTime();
 
@@ -35,9 +38,9 @@ beforeAll(() => {
 describe("Block Resolver Integration", () => {
   const TIMEOUT = 30000;
 
-  // Skipped: RPC integration tests are too slow for CI
-  // Run manually with: pnpm test:integration
-  describe.skip("Live chains - 2025-12-03", () => {
+  // Gated: RPC integration tests are too slow and network-dependent for CI
+  // Run manually with: RUN_LIVE_RPC_INTEGRATION_TESTS=true pnpm test:integration:rpc
+  suite("Live chains - 2025-12-03", () => {
     it(
       "Ethereum (chainId: 1)",
       async () => {
@@ -117,7 +120,7 @@ describe("Block Resolver Integration", () => {
     );
   });
 
-  describe.skip("Performance", () => {
+  suite("Performance", () => {
     it(
       "should use cache on second call (instant)",
       async () => {

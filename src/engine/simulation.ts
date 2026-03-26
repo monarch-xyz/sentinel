@@ -1,5 +1,5 @@
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { EnvioClient } from "../envio/client.js";
+import { createIndexingClient } from "../indexing/client.js";
 import type { ComparisonOp } from "../types/index.js";
 import { isSimpleCondition } from "./compiler.js";
 import { evaluateConditionSet } from "./condition.js";
@@ -50,8 +50,8 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     resolveBlockByTimestamp(chainId, windowStart),
   ]);
 
-  // Create Envio client (for events) and morpho fetcher (for state)
-  const dataFetcher = fetcher ?? createMorphoFetcher(new EnvioClient(), { chainId });
+  // Create the Morpho fetcher with the unified indexing boundary.
+  const dataFetcher = fetcher ?? createMorphoFetcher(createIndexingClient(), { chainId });
 
   // Create the evaluation context with simulated timestamps
   const context: EvalContext = {
@@ -59,6 +59,7 @@ export async function simulateSignal(req: SimulationRequest): Promise<Simulation
     windowDuration: signal.window.duration,
     now: atTimestamp,
     windowStart,
+    fetchRawEvents: dataFetcher.fetchRawEvents,
 
     // Fetch state via RPC (uses timestamp resolution internally)
     fetchState: async (ref, timestamp?) => {
@@ -121,7 +122,7 @@ export async function simulateSignalOverTime(
   fetcher?: DataFetcher,
 ): Promise<SimulationResult[]> {
   const results: SimulationResult[] = [];
-  const dataFetcher = fetcher ?? createMorphoFetcher(new EnvioClient(), { chainId });
+  const dataFetcher = fetcher ?? createMorphoFetcher(createIndexingClient(), { chainId });
 
   for (let ts = startTimestamp; ts <= endTimestamp; ts += stepMs) {
     const result = await simulateSignal({ signal, atTimestamp: ts, chainId, fetcher: dataFetcher });
@@ -143,7 +144,7 @@ export async function findFirstTrigger(
   precisionMs = 60000, // default 1 minute
   fetcher?: DataFetcher,
 ): Promise<SimulationResult | null> {
-  const dataFetcher = fetcher ?? createMorphoFetcher(new EnvioClient(), { chainId });
+  const dataFetcher = fetcher ?? createMorphoFetcher(createIndexingClient(), { chainId });
   // First check if end triggers - if not, no trigger in range
   const endResult = await simulateSignal({
     signal,

@@ -255,6 +255,12 @@ Request body:
 }
 ```
 
+Use [DSL.md](./DSL.md) for:
+
+- reference families: state, indexed, raw
+- condition input rules
+- canonical signal examples
+
 ## Signal CRUD
 
 List:
