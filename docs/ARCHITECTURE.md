@@ -141,6 +141,15 @@ The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAV
 
 Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
 
+Optional providers are capability-gated instead of process-fatal:
+
+- missing `ENVIO_ENDPOINT` disables indexed semantic families
+- missing `ENVIO_API_TOKEN` disables raw-event families
+- the API rejects unsupported create, update, activate, and simulate requests with explicit messages
+- the worker keeps running and reports per-signal failures rather than crashing the process
+
+See [SOURCES.md](./SOURCES.md) for the source-family model and extension path.
+
 ## Operational Boundaries
 
 - API and worker should run as separate processes in production
@@ -166,6 +175,7 @@ To extend Sentinel:
 ## Related Docs
 
 - [DSL.md](./DSL.md) for user-facing signal structure
+- [SOURCES.md](./SOURCES.md) for source-family composition and future extension
 - [API.md](./API.md) for HTTP routes
 - [AUTH.md](./AUTH.md) for the control-plane auth model
 - [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md) for delivery-specific contracts

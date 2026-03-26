@@ -72,7 +72,7 @@ Sentinel supports three canonical reference families in the DSL:
 | --- | --- | --- | --- |
 | state | `metric` on `threshold`, `change`, or `aggregate` | `Morpho.Position.supplyShares`, `Morpho.Market.totalBorrowAssets` | RPC |
 | indexed | `metric` on `threshold` or `aggregate` | `Morpho.Event.Supply.assets`, `Morpho.Flow.netSupply` | indexing boundary, currently Envio |
-| raw | `type: "raw-events"` with `event`, `field`, and `filters` | ERC-20 transfers, raw swap logs, custom ABI events | indexing boundary, currently HyperSync |
+| raw | `type: "raw-events"` with `event`, optional `filters`, and `field` for non-`count` aggregations | ERC-20 transfers, raw swap logs, custom ABI events | indexing boundary, currently HyperSync |
 
 These are the only three top-level families users need to think about.
 
@@ -81,6 +81,28 @@ Provider choice is an implementation detail:
 - RPC powers current and historical state reads
 - the indexing boundary powers indexed semantic history plus raw decoded event scans
 - today the indexing boundary uses Envio for indexed reads and HyperSync for raw reads
+
+Runtime gating:
+
+- state stays enabled by default
+- indexed requires `ENVIO_ENDPOINT`
+- raw requires `ENVIO_API_TOKEN`
+- if a required source family is disabled, Sentinel rejects that signal definition through the API instead of storing it and failing later
+
+See [SOURCES.md](./SOURCES.md) for the full capability model and future extension path.
+
+## How Families Compose
+
+The public DSL is family-first, not provider-first.
+
+- `metric` references compile into state or indexed AST refs
+- `raw-events` compiles into raw-event AST refs
+- the evaluator can combine those refs through normal expression and condition nodes
+
+That is the path for future extension too:
+
+- if a new provider serves an existing family, keep the DSL unchanged and update the planner
+- if a genuinely new family is needed, add a new leaf ref type and keep provider details out of the DSL
 
 ## Condition Inputs
 
@@ -91,7 +113,7 @@ Each condition shape accepts one of two input styles:
 | `threshold` | `metric` | compare one state or indexed metric to a fixed value |
 | `change` | `metric` | compare current state to historical state |
 | `aggregate` | `metric` | aggregate one state or indexed metric across the current scope |
-| `raw-events` | `event` + `field` | scan raw decoded logs and aggregate matching rows |
+| `raw-events` | `event` + optional `field` | scan raw decoded logs and aggregate matching rows; `field` is only required when `aggregation` is not `count` |
 
 ## Metric Families
 
@@ -245,6 +267,23 @@ Scan raw logs with HyperSync, decode them with an ABI event signature or preset,
 }
 ```
 
+Count-only example:
+
+```json
+{
+  "type": "raw-events",
+  "aggregation": "count",
+  "operator": ">",
+  "value": 25,
+  "chain_id": 1,
+  "event": {
+    "kind": "erc20_transfer",
+    "contract_addresses": ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]
+  },
+  "filters": [{ "field": "to", "op": "eq", "value": "0xReceiver" }]
+}
+```
+
 Generic contract event example:
 
 ```json
@@ -287,7 +326,8 @@ Normalized swap preset example:
 Rules:
 
 - `aggregation` supports `sum`, `avg`, `min`, `max`, `count`
-- `field` is required unless `aggregation` is `count`
+- `field` is required for `sum`, `avg`, `min`, and `max`
+- `field` may be omitted when `aggregation` is `count`
 - `event.kind = "erc20_transfer"` uses the canonical ERC-20 `Transfer` signature
 - `event.kind = "swap"` expands into all requested supported swap presets; if `protocols` is omitted, Sentinel currently queries both `uniswap_v2` and `uniswap_v3`
 - `event.kind = "contract_event"` requires a full ABI event signature, including `indexed` markers
@@ -437,6 +477,28 @@ Everything in this section is intended to work now and is covered by compile-lev
       "field": "value",
       "operator": ">",
       "value": 1000000,
+      "event": {
+        "kind": "erc20_transfer",
+        "contract_addresses": ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]
+      },
+      "filters": [{ "field": "to", "op": "eq", "value": "0xReceiver" }]
+    }
+  ]
+}
+```
+
+### Raw: ERC-20 Transfer Count
+
+```json
+{
+  "scope": { "chains": [1], "protocol": "all" },
+  "window": { "duration": "1h" },
+  "conditions": [
+    {
+      "type": "raw-events",
+      "aggregation": "count",
+      "operator": ">",
+      "value": 25,
       "event": {
         "kind": "erc20_transfer",
         "contract_addresses": ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]

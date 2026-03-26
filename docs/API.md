@@ -44,6 +44,43 @@ See [AUTH.md](./AUTH.md) for the full auth model.
 | POST | `/api/v1/simulate/:id/simulate` | Simulate across a time range |
 | POST | `/api/v1/simulate/:id/first-trigger` | Find first trigger in a range |
 
+## Health
+
+```http
+GET /health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-26T00:00:00.000Z",
+  "capabilities": {
+    "state": {
+      "provider": "rpc",
+      "enabled": true,
+      "requiredEnv": [],
+      "message": "state source family is enabled"
+    },
+    "indexed": {
+      "provider": "envio",
+      "enabled": false,
+      "requiredEnv": ["ENVIO_ENDPOINT"],
+      "reason": "ENVIO_ENDPOINT is not configured",
+      "message": "indexed source family is disabled because ENVIO_ENDPOINT is not configured. Configure ENVIO_ENDPOINT to enable it."
+    },
+    "raw": {
+      "provider": "hypersync",
+      "enabled": false,
+      "requiredEnv": ["ENVIO_API_TOKEN"],
+      "reason": "ENVIO_API_TOKEN is not configured",
+      "message": "raw source family is disabled because ENVIO_API_TOKEN is not configured. Configure ENVIO_API_TOKEN to enable it."
+    }
+  }
+}
+```
+
 ### Delivery Service
 
 | Method | Path | Purpose |
@@ -261,6 +298,9 @@ Use [DSL.md](./DSL.md) for:
 - condition input rules
 - canonical signal examples
 
+If a request uses a disabled source family, Sentinel returns `409 Conflict` instead of accepting the signal and failing later.
+That applies to create, update, toggle-on, and simulation routes.
+
 ## Signal CRUD
 
 List:
@@ -289,6 +329,8 @@ X-API-Key: sentinel_...
   "is_active": false
 }
 ```
+
+If you set `is_active: true` on a signal whose required source family is disabled, the API returns `409`.
 
 Toggle:
 
@@ -341,6 +383,8 @@ X-API-Key: sentinel_...
   "compact": true
 }
 ```
+
+Simulation also returns `409` if the stored signal depends on a disabled source family.
 
 Find first trigger:
 

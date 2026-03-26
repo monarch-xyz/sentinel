@@ -3,9 +3,14 @@ import { z } from "zod";
 import { SignalRepository } from "../../db/index.js";
 import { normalizeStoredDefinition } from "../../engine/compile-signal.js";
 import { findFirstTrigger, simulateSignalOverTime } from "../../engine/simulation.js";
+import { SourceCapabilityError } from "../../engine/source-capabilities.js";
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import {
+  assertStoredDefinitionSourcesEnabled,
+  formatSourceCapabilityError,
+} from "../source-guard.js";
 
 const logger = createLogger("api:simulate");
 const router: express.Router = express.Router();
@@ -40,6 +45,8 @@ router.post("/:id/simulate", async (req, res) => {
     const signal = await repo.getById(req.auth.userId, req.params.id);
 
     if (!signal) return res.status(404).json({ error: "Signal not found" });
+
+    assertStoredDefinitionSourcesEnabled(signal.definition);
 
     const storedDefinition = normalizeStoredDefinition(signal.definition);
     const compiled = storedDefinition.ast;
@@ -115,6 +122,9 @@ router.post("/:id/simulate", async (req, res) => {
   } catch (error: unknown) {
     if (isZodError(error))
       return res.status(400).json({ error: "Invalid range", details: error.errors });
+    if (error instanceof SourceCapabilityError) {
+      return res.status(409).json(formatSourceCapabilityError(error));
+    }
     logger.error({ error: getErrorMessage(error) }, "Simulation failed");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -127,6 +137,8 @@ router.post("/:id/first-trigger", async (req, res) => {
     const signal = await repo.getById(req.auth.userId, req.params.id);
 
     if (!signal) return res.status(404).json({ error: "Signal not found" });
+
+    assertStoredDefinitionSourcesEnabled(signal.definition);
 
     const storedDefinition = normalizeStoredDefinition(signal.definition);
     const compiled = storedDefinition.ast;
@@ -185,6 +197,9 @@ router.post("/:id/first-trigger", async (req, res) => {
   } catch (error: unknown) {
     if (isZodError(error))
       return res.status(400).json({ error: "Invalid range", details: error.errors });
+    if (error instanceof SourceCapabilityError) {
+      return res.status(409).json(formatSourceCapabilityError(error));
+    }
     logger.error({ error: getErrorMessage(error) }, "First trigger search failed");
     res.status(500).json({ error: "Internal server error" });
   }

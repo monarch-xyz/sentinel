@@ -203,6 +203,19 @@ const UNISWAP_V2_SWAP_SIGNATURE =
 const UNISWAP_V3_SWAP_SIGNATURE =
   "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)";
 
+const SWAP_PROTOCOL_QUERY_MAP = {
+  uniswap_v2: {
+    eventSignature: UNISWAP_V2_SWAP_SIGNATURE,
+    topic0: toEventSelector(UNISWAP_V2_SWAP_SIGNATURE),
+    normalizer: "uniswap_v2_swap" as const,
+  },
+  uniswap_v3: {
+    eventSignature: UNISWAP_V3_SWAP_SIGNATURE,
+    topic0: toEventSelector(UNISWAP_V3_SWAP_SIGNATURE),
+    normalizer: "uniswap_v3_swap" as const,
+  },
+} satisfies Record<NonNullable<RawEventsCondition["event"]["protocols"]>[number], RawEventQuery>;
+
 function buildRawEventQueries(cond: RawEventsCondition): RawEventQuery[] {
   switch (cond.event.kind) {
     case "erc20_transfer":
@@ -229,18 +242,11 @@ function buildRawEventQueries(cond: RawEventsCondition): RawEventQuery[] {
         throw new Error("swap raw-events must include at least one protocol");
       }
       return protocols.map((protocol) => {
-        if (protocol === "uniswap_v2") {
-          return {
-            eventSignature: UNISWAP_V2_SWAP_SIGNATURE,
-            topic0: toEventSelector(UNISWAP_V2_SWAP_SIGNATURE),
-            normalizer: "uniswap_v2_swap" as const,
-          };
+        const query = SWAP_PROTOCOL_QUERY_MAP[protocol];
+        if (!query) {
+          throw new Error(`unsupported swap raw-events protocol "${protocol}"`);
         }
-        return {
-          eventSignature: UNISWAP_V3_SWAP_SIGNATURE,
-          topic0: toEventSelector(UNISWAP_V3_SWAP_SIGNATURE),
-          normalizer: "uniswap_v3_swap" as const,
-        };
+        return { ...query };
       });
     }
     default: {

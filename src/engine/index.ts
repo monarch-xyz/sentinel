@@ -23,6 +23,23 @@ export type {
   PlannedRawEventRead,
   PlannedRpcStateRead,
 } from "./source-plan.js";
+export {
+  createSourceCapabilityError,
+  SourceCapabilityError,
+  assertSignalDefinitionSourcesEnabled,
+  collectSignalSourceUsage,
+  createSourceCapabilities,
+  getDisabledSourceCapabilities,
+  getSourceCapabilities,
+  getSourceCapabilityHealth,
+} from "./source-capabilities.js";
+export type {
+  SignalSourceUsage,
+  SourceCapabilities,
+  SourceCapability,
+  SourceFamily,
+  SourceProvider,
+} from "./source-capabilities.js";
 
 export {
   compileCondition,

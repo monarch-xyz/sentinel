@@ -11,12 +11,17 @@ const logger = createLogger("hypersync-client");
 const clientCache = new Map<number, HypersyncClient>();
 const abiCache = new Map<string, ReturnType<typeof parseAbiItem>>();
 
+type NumericValue = number | bigint;
+
 type AggregationState = {
   count: number;
-  sum: number;
-  min: number | null;
-  max: number | null;
+  sum: NumericValue | null;
+  min: NumericValue | null;
+  max: NumericValue | null;
 };
+
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 
 export class HyperSyncQueryError extends Error {
   constructor(
@@ -72,14 +77,98 @@ function normalizeComparableValue(value: unknown): unknown {
   return value;
 }
 
-function toNumericValue(value: unknown): number | undefined {
-  if (typeof value === "number") return value;
-  if (typeof value === "bigint") return Number(value);
+function toNumericValue(value: unknown): NumericValue | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === "bigint") return value;
   if (typeof value === "string" && value.length > 0) {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? undefined : parsed;
+    if (/^-?\d+$/.test(value)) {
+      return BigInt(value);
+    }
+    if (/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
   }
   return undefined;
+}
+
+function bigintToSafeNumber(value: bigint): number | undefined {
+  if (value > MAX_SAFE_BIGINT || value < MIN_SAFE_BIGINT) {
+    return undefined;
+  }
+  return Number(value);
+}
+
+function toComparableBigInt(value: NumericValue): bigint | undefined {
+  if (typeof value === "bigint") return value;
+  if (Number.isSafeInteger(value)) return BigInt(value);
+  return undefined;
+}
+
+function toComparableNumber(value: NumericValue): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  return bigintToSafeNumber(value);
+}
+
+function alignNumericValues(
+  left: NumericValue,
+  right: NumericValue,
+): [number, number] | [bigint, bigint] | undefined {
+  const leftBigInt = toComparableBigInt(left);
+  const rightBigInt = toComparableBigInt(right);
+  if (leftBigInt !== undefined && rightBigInt !== undefined) {
+    return [leftBigInt, rightBigInt];
+  }
+
+  const leftNumber = toComparableNumber(left);
+  const rightNumber = toComparableNumber(right);
+  if (leftNumber !== undefined && rightNumber !== undefined) {
+    return [leftNumber, rightNumber];
+  }
+
+  return undefined;
+}
+
+function compareNumericValues(
+  left: NumericValue,
+  right: NumericValue,
+  op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte",
+): boolean | undefined {
+  const aligned = alignNumericValues(left, right);
+  if (!aligned) return undefined;
+
+  const [leftValue, rightValue] = aligned;
+  switch (op) {
+    case "eq":
+      return leftValue === rightValue;
+    case "neq":
+      return leftValue !== rightValue;
+    case "gt":
+      return leftValue > rightValue;
+    case "gte":
+      return leftValue >= rightValue;
+    case "lt":
+      return leftValue < rightValue;
+    case "lte":
+      return leftValue <= rightValue;
+    default:
+      return undefined;
+  }
+}
+
+function compareComparableValues(left: unknown, right: unknown): boolean {
+  const leftNumeric = toNumericValue(left);
+  const rightNumeric = toNumericValue(right);
+  if (leftNumeric !== undefined && rightNumeric !== undefined) {
+    const numericResult = compareNumericValues(leftNumeric, rightNumeric, "eq");
+    if (numericResult !== undefined) {
+      return numericResult;
+    }
+  }
+
+  return left === right;
 }
 
 function compareFilter(actual: unknown, filter: Filter): boolean {
@@ -90,20 +179,24 @@ function compareFilter(actual: unknown, filter: Filter): boolean {
 
   switch (filter.op) {
     case "eq":
-      return normalizedActual === normalizedFilterValue;
+      return compareComparableValues(normalizedActual, normalizedFilterValue);
     case "neq":
-      return normalizedActual !== normalizedFilterValue;
+      return !compareComparableValues(normalizedActual, normalizedFilterValue);
     case "in":
       return (
         Array.isArray(normalizedFilterValue) &&
-        normalizedFilterValue.includes(normalizedActual as string | number)
+        normalizedFilterValue.some((candidate) =>
+          compareComparableValues(normalizedActual, candidate),
+        )
       );
     case "contains":
       if (typeof normalizedActual === "string") {
         return normalizedActual.includes(String(normalizedFilterValue));
       }
       if (Array.isArray(normalizedActual)) {
-        return normalizedActual.includes(normalizedFilterValue);
+        return normalizedActual.some((candidate) =>
+          compareComparableValues(candidate, normalizedFilterValue),
+        );
       }
       return false;
     case "gt":
@@ -114,18 +207,7 @@ function compareFilter(actual: unknown, filter: Filter): boolean {
       const filterNumber = toNumericValue(normalizedFilterValue);
       if (actualNumber === undefined || filterNumber === undefined) return false;
 
-      switch (filter.op) {
-        case "gt":
-          return actualNumber > filterNumber;
-        case "gte":
-          return actualNumber >= filterNumber;
-        case "lt":
-          return actualNumber < filterNumber;
-        case "lte":
-          return actualNumber <= filterNumber;
-        default:
-          return false;
-      }
+      return compareNumericValues(actualNumber, filterNumber, filter.op) ?? false;
     }
     default:
       return false;
@@ -215,7 +297,7 @@ function normalizeTopics(
 function updateAggregation(
   state: AggregationState,
   aggregation: RawEventRef["aggregation"],
-  value: number | undefined,
+  value: NumericValue | undefined,
 ): void {
   state.count += 1;
 
@@ -224,12 +306,54 @@ function updateAggregation(
   }
 
   if (value === undefined) {
-    throw new Error("raw-events aggregation field could not be converted to a number");
+    throw new Error("raw-events aggregation field could not be converted to a numeric value");
   }
 
-  state.sum += value;
-  state.min = state.min === null ? value : Math.min(state.min, value);
-  state.max = state.max === null ? value : Math.max(state.max, value);
+  if (state.sum === null) {
+    state.sum = value;
+  } else {
+    const aligned = alignNumericValues(state.sum, value);
+    if (!aligned) {
+      throw new Error("raw-events aggregation encountered incompatible numeric types");
+    }
+    if (typeof aligned[0] === "bigint") {
+      const [left, right] = aligned as [bigint, bigint];
+      state.sum = left + right;
+    } else {
+      const [left, right] = aligned as [number, number];
+      state.sum = left + right;
+    }
+  }
+
+  if (state.min === null) {
+    state.min = value;
+  } else {
+    const aligned = alignNumericValues(state.min, value);
+    if (!aligned) {
+      throw new Error("raw-events aggregation encountered incompatible numeric types");
+    }
+    state.min = aligned[0] <= aligned[1] ? aligned[0] : aligned[1];
+  }
+
+  if (state.max === null) {
+    state.max = value;
+  } else {
+    const aligned = alignNumericValues(state.max, value);
+    if (!aligned) {
+      throw new Error("raw-events aggregation encountered incompatible numeric types");
+    }
+    state.max = aligned[0] >= aligned[1] ? aligned[0] : aligned[1];
+  }
+}
+
+function numericValueToNumber(value: NumericValue): number {
+  if (typeof value === "number") return value;
+
+  const safeNumber = bigintToSafeNumber(value);
+  if (safeNumber === undefined) {
+    throw new Error("raw-events aggregation result exceeds safe numeric range");
+  }
+  return safeNumber;
 }
 
 function finalizeAggregation(
@@ -240,13 +364,15 @@ function finalizeAggregation(
     case "count":
       return state.count;
     case "sum":
-      return state.sum;
+      return state.sum === null ? 0 : numericValueToNumber(state.sum);
     case "avg":
-      return state.count === 0 ? 0 : state.sum / state.count;
+      return state.count === 0 || state.sum === null
+        ? 0
+        : numericValueToNumber(state.sum) / state.count;
     case "min":
-      return state.min ?? 0;
+      return state.min === null ? 0 : numericValueToNumber(state.min);
     case "max":
-      return state.max ?? 0;
+      return state.max === null ? 0 : numericValueToNumber(state.max);
     default:
       return 0;
   }
@@ -270,8 +396,7 @@ export class HyperSyncClient {
       ]);
 
       const toBlock = Math.max(startBlock + 1, endBlock + 1);
-      const state: AggregationState = { count: 0, sum: 0, min: null, max: null };
-      let totalLogsSeen = 0;
+      const state: AggregationState = { count: 0, sum: null, min: null, max: null };
       const queries = getQueryList(ref);
 
       for (const query of queries) {
@@ -304,6 +429,7 @@ export class HyperSyncClient {
 
         let nextBlock = startBlock;
         let pageCount = 0;
+        let logsSeenForQuery = 0;
 
         while (nextBlock < toBlock) {
           pageCount += 1;
@@ -331,8 +457,8 @@ export class HyperSyncClient {
           }
 
           for (const log of response.data.logs) {
-            totalLogsSeen += 1;
-            if (totalLogsSeen > config.hypersync.maxLogsPerQuery) {
+            logsSeenForQuery += 1;
+            if (logsSeenForQuery > config.hypersync.maxLogsPerQuery) {
               throw new HyperSyncQueryError(
                 `raw-events query exceeded max logs (${config.hypersync.maxLogsPerQuery})`,
                 ref.chainId,

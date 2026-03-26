@@ -77,17 +77,27 @@ const RawEventSpecSchema = z
     }
   });
 
-const RawEventsConditionSchema = z.object({
-  type: z.literal("raw-events"),
-  aggregation: z.enum(["sum", "avg", "min", "max", "count"]),
-  operator: ComparisonOperatorSchema,
-  value: z.number(),
-  field: z.string().optional(),
-  window: TimeWindowSchema.optional(),
-  filters: z.array(FilterSchema).optional(),
-  chain_id: z.number().int().positive().optional(),
-  event: RawEventSpecSchema,
-});
+const RawEventsConditionSchema = z
+  .object({
+    type: z.literal("raw-events"),
+    aggregation: z.enum(["sum", "avg", "min", "max", "count"]),
+    operator: ComparisonOperatorSchema,
+    value: z.number(),
+    field: z.string().optional(),
+    window: TimeWindowSchema.optional(),
+    filters: z.array(FilterSchema).optional(),
+    chain_id: z.number().int().positive().optional(),
+    event: RawEventSpecSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (value.aggregation !== "count" && !value.field) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "field is required for raw-events aggregation unless aggregation is count",
+        path: ["field"],
+      });
+    }
+  });
 
 // biome-ignore lint/style/useConst: Circular reference requires let for forward declaration
 let ConditionSchema: z.ZodTypeAny;

@@ -7,6 +7,7 @@
  */
 
 import { closeDb, verifyDbConnection } from "../db/index.js";
+import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { closeConnection } from "./connection.js";
@@ -20,6 +21,25 @@ const start = async () => {
     logger.info("Starting Sentinel Worker process");
 
     await verifyDbConnection();
+    const capabilities = getSourceCapabilities();
+    const capabilityHealth = getSourceCapabilityHealth(capabilities);
+
+    for (const family of ["state", "indexed", "raw"] as const) {
+      const capability = capabilities[family];
+      const health = capabilityHealth[capability.family];
+      if (capability.enabled) {
+        logger.info({ family: capability.family, provider: capability.provider }, health.message);
+      } else {
+        logger.warn(
+          {
+            family: capability.family,
+            provider: capability.provider,
+            requiredEnv: capability.requiredEnv,
+          },
+          health.message,
+        );
+      }
+    }
 
     // Setup workers
     const processorWorker = setupWorker();

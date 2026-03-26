@@ -5,9 +5,17 @@ import {
   SignalRunLogRepository,
 } from "../../db/index.js";
 import { compileSignalDefinition } from "../../engine/compile-signal.js";
+import {
+  SourceCapabilityError,
+  assertSignalDefinitionSourcesEnabled,
+} from "../../engine/source-capabilities.js";
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
 import { ValidationError } from "../../utils/validation.js";
+import {
+  assertStoredDefinitionSourcesEnabled,
+  formatSourceCapabilityError,
+} from "../source-guard.js";
 import { CreateSignalSchema, UpdateSignalSchema } from "../validators.js";
 
 const logger = createLogger("api:signals");
@@ -53,6 +61,7 @@ router.post("/", async (req, res) => {
     if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const validated = CreateSignalSchema.parse(req.body);
     const compiled = compileSignalDefinition(validated.definition);
+    assertSignalDefinitionSourcesEnabled(compiled.dsl);
     const signal = await repo.create({
       ...validated,
       user_id: req.auth.userId,
@@ -65,6 +74,9 @@ router.post("/", async (req, res) => {
     }
     if (error instanceof ValidationError) {
       return res.status(400).json({ error: error.message, field: error.field });
+    }
+    if (error instanceof SourceCapabilityError) {
+      return res.status(409).json(formatSourceCapabilityError(error));
     }
     logger.error({ error: getErrorMessage(error) }, "Failed to create signal");
     res.status(500).json({ error: "Internal server error" });
@@ -145,9 +157,24 @@ router.patch("/:id", async (req, res) => {
   try {
     if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const validated = UpdateSignalSchema.parse(req.body);
+    const existing = await repo.getById(req.auth.userId, req.params.id);
+    if (!existing) return res.status(404).json({ error: "Signal not found" });
+
     const payload = validated.definition
-      ? { ...validated, definition: compileSignalDefinition(validated.definition) }
+      ? {
+          ...validated,
+          definition: (() => {
+            const compiled = compileSignalDefinition(validated.definition);
+            assertSignalDefinitionSourcesEnabled(compiled.dsl);
+            return compiled;
+          })(),
+        }
       : validated;
+
+    if (validated.is_active === true) {
+      assertStoredDefinitionSourcesEnabled(payload.definition ?? existing.definition);
+    }
+
     const signal = await repo.update(req.auth.userId, req.params.id, payload);
     if (!signal) return res.status(404).json({ error: "Signal not found" });
     res.json(formatSignalForResponse(signal));
@@ -157,6 +184,9 @@ router.patch("/:id", async (req, res) => {
     }
     if (error instanceof ValidationError) {
       return res.status(400).json({ error: error.message, field: error.field });
+    }
+    if (error instanceof SourceCapabilityError) {
+      return res.status(409).json(formatSourceCapabilityError(error));
     }
     logger.error({ error: getErrorMessage(error) }, "Failed to update signal");
     res.status(500).json({ error: "Internal server error" });
@@ -170,11 +200,18 @@ router.patch("/:id/toggle", async (req, res) => {
     const existing = await repo.getById(req.auth.userId, req.params.id);
     if (!existing) return res.status(404).json({ error: "Signal not found" });
 
+    if (!existing.is_active) {
+      assertStoredDefinitionSourcesEnabled(existing.definition);
+    }
+
     const signal = await repo.update(req.auth.userId, req.params.id, {
       is_active: !existing.is_active,
     });
     res.json(formatSignalForResponse(signal));
   } catch (error: unknown) {
+    if (error instanceof SourceCapabilityError) {
+      return res.status(409).json(formatSourceCapabilityError(error));
+    }
     logger.error({ error: getErrorMessage(error) }, "Failed to toggle signal");
     res.status(500).json({ error: "Internal server error" });
   }

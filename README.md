@@ -8,11 +8,14 @@ Sentinel currently supports three DSL reference families:
 - indexed entities and indexed event metrics
 - raw event scans via the `raw-events` DSL condition, including swap presets
 
+Indexed and raw families are infra-gated. If `ENVIO_ENDPOINT` or `ENVIO_API_TOKEN` is missing, Sentinel stays up, advertises the disabled family through `/health`, and rejects unsupported signal definitions through the API instead of crashing.
+
 ## Start Here
 
 - [Docs Index](./docs/README.md) for the full documentation map
 - [Getting Started](./docs/GETTING_STARTED.md) for local setup
 - [DSL Reference](./docs/DSL.md) for signal definitions and examples
+- [Source Model](./docs/SOURCES.md) for source families, capability gating, and future source extension
 - [Architecture](./docs/ARCHITECTURE.md) for internal system design
 - [API Reference](./docs/API.md) for endpoint contracts
 - [Deployment](./docs/DEPLOYMENT.md) for production deployment

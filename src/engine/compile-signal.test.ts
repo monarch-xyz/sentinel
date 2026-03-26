@@ -206,6 +206,26 @@ describe("compileSignalDefinition", () => {
     });
   });
 
+  it("rejects raw-events chain_id inference when scope.chains is ambiguous", () => {
+    expect(() =>
+      compileSignalDefinition({
+        scope: { chains: [1, 8453] },
+        window: { duration: "1h" },
+        conditions: [
+          {
+            type: "raw-events",
+            aggregation: "count",
+            operator: ">",
+            value: 10,
+            event: {
+              kind: "erc20_transfer",
+            },
+          },
+        ],
+      }),
+    ).toThrow("chain_id is ambiguous");
+  });
+
   describe("public DSL contract examples", () => {
     it("compiles the state metric threshold example", () => {
       const compiled = compileSignalDefinition({

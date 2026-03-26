@@ -30,8 +30,10 @@ interface WorkerSignalRow {
 }
 
 export const setupWorker = () => {
-  // Note: chainId is resolved per-signal in the evaluate() method
-  // We create a default fetcher here; the SignalEvaluator will use the signal's chain
+  // createMorphoFetcher takes a default chainId, but per-signal chain selection is
+  // resolved from compiled filters inside source planning. The compiler injects
+  // chain_id into refs, then planMorphoStateRead / planMorphoEventRead call
+  // resolveChainId and override this default when signal filters specify a chain.
   const fetcher = createMorphoFetcher(createIndexingClient(), { chainId: 1 });
   const evaluator = new SignalEvaluator(fetcher);
 

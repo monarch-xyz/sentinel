@@ -24,6 +24,7 @@ This folder is intentionally organized around canonical owners. If a topic appea
 | Doc | Owns | Use it for |
 | --- | --- | --- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design | Compiler/evaluator flow, indexing boundary vs RPC, and service responsibilities |
+| [SOURCES.md](./SOURCES.md) | Source-family model | Current providers, capability gating, and the future extension path for new sources |
 | [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) | ADR-style reasoning | Why the current design looks the way it does |
 | [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md) | Specific data-source constraint | Why state reads use RPC while events use Envio |
 
@@ -45,5 +46,6 @@ This folder is intentionally organized around canonical owners. If a topic appea
 - Local setup belongs in [GETTING_STARTED.md](./GETTING_STARTED.md).
 - Production setup belongs in [DEPLOYMENT.md](./DEPLOYMENT.md).
 - DSL shape, reference families, and examples belong in [DSL.md](./DSL.md).
+- Source-family capability rules and extension design belong in [SOURCES.md](./SOURCES.md).
 - Endpoint details belong in [API.md](./API.md).
 - Auth and delivery docs describe contracts and routing, not setup steps.

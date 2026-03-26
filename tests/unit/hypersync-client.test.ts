@@ -110,8 +110,63 @@ describe("HyperSyncClient", () => {
     );
   });
 
+  it("matches bigint decoded fields against string and array filters", async () => {
+    mockedResolveBlockByTimestamp.mockResolvedValueOnce(100).mockResolvedValueOnce(100);
+
+    getMock.mockResolvedValue({
+      nextBlock: 101,
+      totalExecutionTime: 1,
+      data: {
+        blocks: [{ number: 100, timestamp: 1_700_000_000 }],
+        transactions: [],
+        traces: [],
+        logs: [
+          {
+            blockNumber: 100,
+            logIndex: 0,
+            transactionHash: "0xcccc",
+            address: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            data: "0x0000000000000000000000000000000000000000000000000000000000000032",
+            topics: [
+              "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+              "0x0000000000000000000000001111111111111111111111111111111111111111",
+              "0x0000000000000000000000002222222222222222222222222222222222222222",
+            ],
+          },
+        ],
+      },
+    });
+
+    const client = new HyperSyncClient();
+    const ref: RawEventRef = {
+      type: "raw_event",
+      source: "hypersync",
+      chainId: 1,
+      queries: [
+        {
+          eventSignature: "event Transfer(address indexed from, address indexed to, uint256 value)",
+          topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          normalizer: "none",
+        },
+      ],
+      contractAddresses: ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+      field: "value",
+      aggregation: "sum",
+      filters: [
+        { field: "value", op: "eq", value: "50" },
+        { field: "value", op: "in", value: [40, 50] },
+        { field: "value", op: "gte", value: 50 },
+      ],
+    };
+
+    const result = await client.fetchRawEvents(ref, 1_700_000_000_000, 1_700_000_000_999);
+
+    expect(result).toBe(50);
+  });
+
   it("aggregates normalized swap fields across uniswap v2 and v3 presets", async () => {
     mockedResolveBlockByTimestamp.mockResolvedValueOnce(100).mockResolvedValueOnce(101);
+    mutableHypersyncConfig.maxLogsPerQuery = 1;
 
     getMock
       .mockResolvedValueOnce({
