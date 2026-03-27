@@ -1,37 +1,45 @@
 import type { NextFunction, Request, Response } from "express";
+import { redis } from "../../redis/client.js";
+import { getErrorMessage } from "../../utils/errors.js";
+import { createLogger } from "../../utils/logger.js";
 
 export interface RateLimitOptions {
   windowMs: number;
   max: number;
+  prefix?: string;
 }
 
-interface RateLimitEntry {
-  count: number;
-  windowStart: number;
-}
-
-const store = new Map<string, RateLimitEntry>();
+const logger = createLogger("api:rate-limit");
 
 export function rateLimit(options: RateLimitOptions) {
-  const { windowMs, max } = options;
+  const { windowMs, max, prefix = "global" } = options;
 
-  return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
-    const key = req.ip || "unknown";
-    const now = Date.now();
+  return async function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
+    const principal = req.auth?.userId ?? req.ip ?? "unknown";
+    const key = `rate_limit:${prefix}:${principal}`;
 
-    const existing = store.get(key);
-    if (!existing || now - existing.windowStart >= windowMs) {
-      store.set(key, { count: 1, windowStart: now });
-      return next();
+    try {
+      const count = await redis.incr(key);
+      let ttlMs = await redis.pttl(key);
+
+      if (count === 1 || ttlMs < 0) {
+        await redis.pexpire(key, windowMs);
+        ttlMs = windowMs;
+      }
+
+      res.setHeader("X-RateLimit-Limit", String(max));
+      res.setHeader("X-RateLimit-Remaining", String(Math.max(max - count, 0)));
+
+      if (count > max) {
+        res.setHeader("Retry-After", String(Math.max(1, Math.ceil(ttlMs / 1000))));
+        res.status(429).json({ error: "Rate limit exceeded" });
+        return;
+      }
+
+      next();
+    } catch (error: unknown) {
+      logger.warn({ error: getErrorMessage(error), key }, "Rate limiter failed open");
+      next();
     }
-
-    if (existing.count >= max) {
-      res.status(429).json({ error: "Rate limit exceeded" });
-      return;
-    }
-
-    existing.count += 1;
-    store.set(key, existing);
-    next();
   };
 }

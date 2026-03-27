@@ -6,6 +6,8 @@ import express from "express";
 import { config } from "../config/index.js";
 import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
+import { getReadinessReport } from "../health/readiness.js";
+import { closeRedis } from "../redis/client.js";
 import { getErrorMessage, toErrorWithMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -29,6 +31,21 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     capabilities: getSourceCapabilityHealth(),
   });
+});
+
+app.get("/ready", async (req, res) => {
+  try {
+    const report = await getReadinessReport();
+    res.status(report.ready ? 200 : 503).json(report);
+  } catch (error: unknown) {
+    logger.error({ error: getErrorMessage(error) }, "Readiness check failed");
+    res.status(503).json({
+      status: "degraded",
+      ready: false,
+      checked_at: new Date().toISOString(),
+      error: getErrorMessage(error),
+    });
+  }
 });
 
 // API Routes
@@ -78,6 +95,7 @@ const start = async () => {
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       logger.info({ signal }, "Shutting down API server...");
+      await closeRedis();
       await closeDb();
       process.exit(0);
     };

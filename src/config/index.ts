@@ -57,6 +57,10 @@ export const config = {
   // Worker
   worker: {
     intervalSeconds: Number.parseInt(process.env.WORKER_INTERVAL_SECONDS ?? "30", 10),
+    runScheduler:
+      process.env.WORKER_RUN_SCHEDULER !== undefined
+        ? process.env.WORKER_RUN_SCHEDULER === "true"
+        : true,
   },
 
   // Envio

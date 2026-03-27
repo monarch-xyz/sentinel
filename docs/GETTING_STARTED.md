@@ -87,13 +87,15 @@ The wrappers also recreate the one-shot migration containers so pending migratio
 
 ```bash
 curl http://localhost:3000/health
+curl http://localhost:3000/ready
 curl http://localhost:3100/health
 docker compose ps
 ```
 
 If you only started the core stack, `3100` will not be up.
 
-`GET /health` now includes source-family capability status so you can verify whether `state`, `indexed`, and `raw` are enabled before wiring the product UI.
+`GET /health` includes source-family capability status so you can verify whether `state`, `indexed`, and `raw` are enabled before wiring the product UI.
+`GET /ready` performs a cached dependency probe against PostgreSQL, Redis, RPC, and any configured indexed/raw providers.
 
 ## Live Integration Tests
 

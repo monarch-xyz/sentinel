@@ -22,6 +22,7 @@ router.use(
   rateLimit({
     windowMs: 60_000,
     max: SIMULATE_RATE_LIMIT,
+    prefix: "simulate",
   }),
 );
 

@@ -11,6 +11,7 @@ This document owns the HTTP surface. Signal syntax belongs in [DSL.md](./DSL.md)
 ## Auth Summary
 
 - `GET /health` is public
+- `GET /ready` is public
 - `POST /api/v1/auth/register` is public unless `REGISTER_ADMIN_KEY` is configured
 - `POST /api/v1/auth/siwe/nonce` is public
 - `POST /api/v1/auth/siwe/verify` is public
@@ -27,6 +28,7 @@ See [AUTH.md](./AUTH.md) for the full auth model.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Health check |
+| GET | `/ready` | Readiness check against DB, Redis, and configured providers |
 | POST | `/api/v1/auth/register` | Create Sentinel owner + API key |
 | POST | `/api/v1/auth/siwe/nonce` | Issue SIWE nonce |
 | POST | `/api/v1/auth/siwe/verify` | Verify SIWE message and create session |
@@ -80,6 +82,14 @@ Response:
   }
 }
 ```
+
+`GET /health` is a fast liveness endpoint. It reports configured source capabilities, not live upstream reachability.
+
+```http
+GET /ready
+```
+
+`GET /ready` performs a cached readiness probe against PostgreSQL, Redis, RPC, and any configured indexed/raw providers. It returns `200` when all enabled dependencies are reachable and `503` when the process is up but one of those dependencies is not ready.
 
 ### Delivery Service
 

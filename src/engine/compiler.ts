@@ -31,6 +31,7 @@ import type {
 } from "../types/signal.js";
 
 import { assertNever } from "../utils/errors.js";
+import { normalizeMarketId } from "../utils/market.js";
 
 import { type MetricDef, getMetric } from "./metrics.js";
 
@@ -276,7 +277,7 @@ function buildFilters(
   filters.push({ field: "chainId", op: "eq", value: chainId });
 
   if (marketId) {
-    filters.push({ field: "marketId", op: "eq", value: marketId });
+    filters.push({ field: "marketId", op: "eq", value: normalizeMarketId(marketId) });
   }
 
   if (address) {

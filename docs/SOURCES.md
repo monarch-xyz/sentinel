@@ -31,6 +31,7 @@ Instead:
 
 - startup logs which families are enabled or disabled
 - `GET /health` returns source capability status
+- `GET /ready` verifies configured providers are reachable
 - create, update, toggle-on, and simulate routes fail with a clear `409` if a disabled family is requested
 - worker evaluation errors stay per-signal and explicit instead of taking down the process
 

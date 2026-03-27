@@ -14,6 +14,7 @@ import { QUEUE_NAME as SIGNAL_QUEUE_NAME, signalQueue } from "./processor.js";
 const logger = createLogger("worker:scheduler");
 
 export const SCHEDULER_QUEUE_NAME = "signal-scheduler";
+const SCHEDULER_JOB_ID = "signal-scheduler";
 
 // Queue for the scheduler itself
 export const schedulerQueue = new Queue(SCHEDULER_QUEUE_NAME, { connection });
@@ -29,6 +30,7 @@ export const queueActiveSignals = async (): Promise<number> => {
       "evaluate",
       { signalId: row.id },
       {
+        jobId: row.id,
         removeOnComplete: true,
         removeOnFail: { count: 1000 },
       },
@@ -78,22 +80,18 @@ export const startScheduler = async () => {
 
   logger.info({ intervalSeconds: config.worker.intervalSeconds }, "Starting signal scheduler");
 
-  // Remove any existing repeatable jobs to avoid duplicates
-  const existingJobs = await schedulerQueue.getRepeatableJobs();
-  for (const job of existingJobs) {
-    await schedulerQueue.removeRepeatableByKey(job.key);
-  }
-
-  // Add repeatable job that runs every intervalSeconds
-  await schedulerQueue.add(
-    "check-signals",
-    {},
+  await schedulerQueue.upsertJobScheduler(
+    SCHEDULER_JOB_ID,
     {
-      repeat: {
-        every: intervalMs,
+      every: intervalMs,
+    },
+    {
+      name: "check-signals",
+      data: {},
+      opts: {
+        removeOnComplete: true,
+        removeOnFail: { count: 100 },
       },
-      removeOnComplete: true,
-      removeOnFail: { count: 100 },
     },
   );
 

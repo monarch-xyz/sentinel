@@ -54,6 +54,7 @@ const monad = defineChain({
   },
 });
 import { createLogger } from "../utils/logger.js";
+import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
 import { MORPHO_ADDRESSES, type MarketResult, type PositionResult, morphoAbi } from "./abi.js";
 
 const logger = createLogger("rpc-client");
@@ -140,6 +141,27 @@ export function getPublicClient(chainId: number): PublicClient {
   return client;
 }
 
+function requireValidMarketId(
+  chainId: number,
+  marketId: string,
+  blockNumber?: bigint,
+): `0x${string}` {
+  const normalizedMarketId = normalizeMarketId(marketId);
+  if (!isBytes32MarketId(normalizedMarketId)) {
+    throw new RpcQueryError(
+      `Invalid market_id "${marketId}". Expected a bytes32 hex value.`,
+      chainId,
+      blockNumber,
+    );
+  }
+
+  return normalizedMarketId as `0x${string}`;
+}
+
+export async function probeRpcChain(chainId: number): Promise<void> {
+  await getPublicClient(chainId).getBlockNumber();
+}
+
 /**
  * Read position state at a specific block
  *
@@ -161,6 +183,7 @@ export async function readPositionAtBlock(
   }
 
   const client = getPublicClient(chainId);
+  const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
     logger.debug(
@@ -172,7 +195,7 @@ export async function readPositionAtBlock(
       address: morphoAddress,
       abi: morphoAbi,
       functionName: "position",
-      args: [marketId as `0x${string}`, user as `0x${string}`],
+      args: [normalizedMarketId, user as `0x${string}`],
       blockNumber,
     });
 
@@ -213,6 +236,7 @@ export async function readMarketAtBlock(
   }
 
   const client = getPublicClient(chainId);
+  const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
     logger.debug(
@@ -224,7 +248,7 @@ export async function readMarketAtBlock(
       address: morphoAddress,
       abi: morphoAbi,
       functionName: "market",
-      args: [marketId as `0x${string}`],
+      args: [normalizedMarketId],
       blockNumber,
     });
 
@@ -270,13 +294,14 @@ export async function readPosition(
   }
 
   const client = getPublicClient(chainId);
+  const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
     const result = await client.readContract({
       address: morphoAddress,
       abi: morphoAbi,
       functionName: "position",
-      args: [marketId as `0x${string}`, user as `0x${string}`],
+      args: [normalizedMarketId, user as `0x${string}`],
     });
 
     const [supplyShares, borrowShares, collateral] = result as [bigint, bigint, bigint];
@@ -297,13 +322,14 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
   }
 
   const client = getPublicClient(chainId);
+  const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
     const result = await client.readContract({
       address: morphoAddress,
       abi: morphoAbi,
       functionName: "market",
-      args: [marketId as `0x${string}`],
+      args: [normalizedMarketId],
     });
 
     const [

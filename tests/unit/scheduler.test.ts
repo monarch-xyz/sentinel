@@ -12,14 +12,12 @@ vi.mock("ioredis", () => ({
 
 // Mock BullMQ
 const mockQueueAdd = vi.fn().mockResolvedValue({ id: "job-id" });
-const mockGetRepeatableJobs = vi.fn().mockResolvedValue([]);
-const mockRemoveRepeatableByKey = vi.fn().mockResolvedValue(true);
+const mockUpsertJobScheduler = vi.fn().mockResolvedValue({ id: "scheduler-job" });
 
 vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
     add: mockQueueAdd,
-    getRepeatableJobs: mockGetRepeatableJobs,
-    removeRepeatableByKey: mockRemoveRepeatableByKey,
+    upsertJobScheduler: mockUpsertJobScheduler,
   })),
   Worker: vi.fn().mockImplementation(() => ({
     on: vi.fn(),
@@ -55,12 +53,12 @@ describe("Scheduler Logic", () => {
     expect(mockQueueAdd).toHaveBeenCalledWith(
       "evaluate",
       { signalId: "signal-1" },
-      expect.anything(),
+      expect.objectContaining({ jobId: "signal-1" }),
     );
     expect(mockQueueAdd).toHaveBeenCalledWith(
       "evaluate",
       { signalId: "signal-2" },
-      expect.anything(),
+      expect.objectContaining({ jobId: "signal-2" }),
     );
   });
 
@@ -68,17 +66,14 @@ describe("Scheduler Logic", () => {
     const { startScheduler } = await import("../../src/worker/scheduler.js");
     await startScheduler();
 
-    // Should check for existing jobs
-    expect(mockGetRepeatableJobs).toHaveBeenCalled();
-
-    // Should add repeatable job
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      "check-signals",
-      {},
+    expect(mockUpsertJobScheduler).toHaveBeenCalledWith(
+      "signal-scheduler",
       expect.objectContaining({
-        repeat: expect.objectContaining({
-          every: 30000, // 30 seconds default
-        }),
+        every: 30000,
+      }),
+      expect.objectContaining({
+        name: "check-signals",
+        data: {},
       }),
     );
   });

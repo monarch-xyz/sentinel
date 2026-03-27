@@ -21,6 +21,7 @@ import {
   validateCondition,
   validateDuration,
 } from "../utils/validation.js";
+import { normalizeMarketId } from "../utils/market.js";
 import {
   type CompiledAggregateCondition,
   type CompiledCondition,
@@ -104,7 +105,7 @@ function applyScopeToCondition(
   const chainId = cond.chain_id ?? selectFromScope(scope.chains, "chain_id");
   enforceScopeContains(scope.chains, chainId, "chain_id");
 
-  let marketId = cond.market_id;
+  let marketId = cond.market_id ? normalizeMarketId(cond.market_id) : undefined;
   if (!marketId) {
     if (metricEntity === "Position" || metricEntity === "Market" || metricEntity === "Event") {
       if (scope.markets) {
@@ -253,8 +254,10 @@ function compileAggregateWithScope(
   const chainId = cond.chain_id ?? selectFromScope(scope.chains, "chain_id");
   enforceScopeContains(scope.chains, chainId, "chain_id");
 
-  if (cond.market_id) {
-    enforceScopeContains(scope.markets, cond.market_id, "market_id");
+  const normalizedMarketId = cond.market_id ? normalizeMarketId(cond.market_id) : undefined;
+
+  if (normalizedMarketId) {
+    enforceScopeContains(scope.markets, normalizedMarketId, "market_id");
   }
 
   const metricEntity = getMetricEntity(cond.metric);
@@ -262,7 +265,7 @@ function compileAggregateWithScope(
     throw new ValidationError("filters are only supported for event metrics", "filters");
   }
   validateEventFilters(cond.filters);
-  const marketIds = cond.market_id ? [cond.market_id] : scope.markets;
+  const marketIds = normalizedMarketId ? [normalizedMarketId] : scope.markets;
   const addresses = scope.addresses;
 
   if (metricEntity === "Market" && (!marketIds || marketIds.length === 0)) {
@@ -321,8 +324,45 @@ function normalizeCompiledDefinition(
   return {
     chains: definition.chains,
     window: definition.window,
-    conditions: definition.conditions,
+    conditions: definition.conditions.map((condition) => {
+      if (condition.type === "aggregate") {
+        return {
+          ...condition,
+          marketIds: condition.marketIds?.map((marketId) => normalizeMarketId(marketId)),
+        };
+      }
+      return condition;
+    }),
     logic: definition.logic ?? "AND",
+  };
+}
+
+function normalizeDslConditionMarketIds(cond: DslCondition): DslCondition {
+  if (cond.type === "group") {
+    return {
+      ...cond,
+      conditions: cond.conditions.map((inner) => normalizeDslConditionMarketIds(inner)),
+    };
+  }
+
+  if (cond.type === "raw-events") {
+    return cond;
+  }
+
+  return {
+    ...cond,
+    market_id: cond.market_id ? normalizeMarketId(cond.market_id) : undefined,
+  };
+}
+
+function normalizeSignalDefinition(definition: SignalDefinition): SignalDefinition {
+  return {
+    ...definition,
+    scope: {
+      ...definition.scope,
+      markets: definition.scope.markets?.map((marketId) => normalizeMarketId(marketId)),
+    },
+    conditions: definition.conditions.map((condition) => normalizeDslConditionMarketIds(condition)),
   };
 }
 
@@ -331,20 +371,22 @@ export function compileSignalDefinition(definition: SignalDefinition): StoredSig
     throw new ValidationError("Signal definition must include scope", "definition.scope");
   }
 
-  validateChains(definition.scope.chains);
-  validateDuration(definition.window.duration, "window.duration");
+  const normalizedDefinition = normalizeSignalDefinition(definition);
 
-  if (!definition.conditions || definition.conditions.length === 0) {
+  validateChains(normalizedDefinition.scope.chains);
+  validateDuration(normalizedDefinition.window.duration, "window.duration");
+
+  if (!normalizedDefinition.conditions || normalizedDefinition.conditions.length === 0) {
     throw new ValidationError("At least one condition is required", "conditions");
   }
 
   const compiledConditions: CompiledCondition[] = [];
 
-  for (const rawCondition of definition.conditions) {
+  for (const rawCondition of normalizedDefinition.conditions) {
     validateConditionWindow(rawCondition);
     let compiled: CompiledCondition;
     try {
-      compiled = compileDslCondition(rawCondition, definition.scope);
+      compiled = compileDslCondition(rawCondition, normalizedDefinition.scope);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to compile condition";
       throw new ValidationError(message, "conditions");
@@ -361,17 +403,17 @@ export function compileSignalDefinition(definition: SignalDefinition): StoredSig
     compiledConditions.push(compiled);
   }
 
-  const logic = definition.logic ?? "AND";
+  const logic = normalizedDefinition.logic ?? "AND";
   const ast = normalizeCompiledDefinition({
-    chains: definition.scope.chains,
-    window: { duration: definition.window.duration },
+    chains: normalizedDefinition.scope.chains,
+    window: { duration: normalizedDefinition.window.duration },
     conditions: compiledConditions,
     logic,
   });
 
   return {
     version: 1,
-    dsl: definition,
+    dsl: normalizedDefinition,
     ast,
   };
 }
@@ -399,8 +441,10 @@ function isDslDefinition(definition: unknown): definition is SignalDefinition {
 
 export function normalizeStoredDefinition(definition: unknown): StoredSignalDefinition {
   if (isStoredDefinition(definition)) {
+    const normalizedDsl = normalizeSignalDefinition(definition.dsl);
     return {
       ...definition,
+      dsl: normalizedDsl,
       ast: normalizeCompiledDefinition(definition.ast),
     };
   }

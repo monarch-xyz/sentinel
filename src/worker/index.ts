@@ -6,6 +6,7 @@
  * 2. Processor - evaluates signals and dispatches notifications
  */
 
+import { config } from "../config/index.js";
 import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
 import { getErrorMessage } from "../utils/errors.js";
@@ -43,19 +44,23 @@ const start = async () => {
 
     // Setup workers
     const processorWorker = setupWorker();
-    const schedulerWorker = setupSchedulerWorker();
+    const schedulerWorker = config.worker.runScheduler ? setupSchedulerWorker() : undefined;
 
-    // Start the scheduler (registers repeatable job)
-    await startScheduler();
+    if (config.worker.runScheduler) {
+      await startScheduler();
+      logger.info("Signal scheduler is enabled for this worker");
+    } else {
+      logger.info("Signal scheduler is disabled for this worker");
+    }
 
-    logger.info("Sentinel Worker & Scheduler are running");
+    logger.info("Sentinel worker process is running");
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       logger.info({ signal }, "Shutting down workers...");
 
       await processorWorker.close();
-      await schedulerWorker.close();
+      await schedulerWorker?.close();
       await closeConnection();
       await closeDb();
 

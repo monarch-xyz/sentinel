@@ -1,17 +1,8 @@
-/**
- * Shared Redis connection for BullMQ
- */
+import { closeRedis, redis } from "../redis/client.js";
 
-import { Redis } from "ioredis";
-import { config } from "../config/index.js";
+// BullMQ requires an IORedis instance, so the worker reuses the shared Redis client.
+export const connection = redis;
 
-// Create shared Redis connection for BullMQ
-// BullMQ requires IORedis instance, not a URL string
-export const connection = new Redis(config.redis.url, {
-  maxRetriesPerRequest: null, // Required for BullMQ
-});
-
-// Export for graceful shutdown
 export const closeConnection = async () => {
-  await connection.quit();
+  await closeRedis();
 };

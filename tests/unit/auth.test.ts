@@ -194,4 +194,16 @@ describe("auth middleware", () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
   });
+
+  it("always allows /ready regardless of auth", async () => {
+    const { authMiddleware } = await loadAuthMiddleware();
+    const req: MockRequest = { path: "/ready", header: vi.fn(() => undefined) };
+    const res = makeRes();
+    const next: NextFunction = vi.fn();
+
+    await authMiddleware(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });

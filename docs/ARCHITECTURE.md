@@ -156,7 +156,8 @@ See [SOURCES.md](./SOURCES.md) for the source-family model and extension path.
 - Redis backs BullMQ job distribution
 - PostgreSQL stores signals, auth identities, sessions, API keys, and run history
 - delivery keeps its own Telegram-specific database
-- rate limiting for simulation is currently process-local
+- simulation rate limiting is backed by Redis
+- scheduler ownership should be explicit when multiple worker replicas exist
 
 The core protection against auth churn affecting evaluations is process separation: login/session traffic hits the API control plane, while evaluation work happens in the worker.
 

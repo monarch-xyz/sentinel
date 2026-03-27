@@ -59,6 +59,11 @@ function getClient(chainId: number): HypersyncClient {
   return client;
 }
 
+export async function probeHyperSync(chainId: number): Promise<void> {
+  const client = getClient(chainId);
+  await client.getHeight();
+}
+
 function getParsedAbiItem(signature: string) {
   const cached = abiCache.get(signature);
   if (cached) return cached;

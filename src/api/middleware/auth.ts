@@ -66,7 +66,12 @@ export function requireApiKey() {
 const apiKeyRepo = new ApiKeyRepository();
 const sessionRepo = new UserSessionRepository();
 
-const PUBLIC_AUTH_PATHS = new Set(["/auth/register", "/auth/siwe/nonce", "/auth/siwe/verify"]);
+const PUBLIC_AUTH_PATHS = new Set([
+  "/auth/register",
+  "/auth/siwe/nonce",
+  "/auth/siwe/verify",
+  "/ready",
+]);
 
 function readCookie(cookieHeader: string | undefined, name: string): string | undefined {
   if (!cookieHeader) return undefined;

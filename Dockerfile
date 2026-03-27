@@ -1,5 +1,5 @@
 # Multi-stage build for Sentinel
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -15,11 +15,13 @@ RUN pnpm exec tsc
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
-FROM node:22-alpine AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
-# Use dumb-init to handle kernel signals (PID 1 issue)
-RUN apk add --no-cache dumb-init
+RUN groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs nodejs \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends dumb-init \
+  && rm -rf /var/lib/apt/lists/*
 USER nodejs
 
 COPY --from=prod-deps /app/node_modules ./node_modules

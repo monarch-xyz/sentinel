@@ -3,6 +3,7 @@ import { config } from "../config/index.js";
 import type { EventRef, Filter } from "../types/index.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
+import { normalizeMarketId } from "../utils/market.js";
 
 // ============================================
 // GraphQL Types
@@ -154,7 +155,17 @@ export class EnvioClient {
   private remapEventFilters(filters: Filter[]): Filter[] {
     return filters.map((filter) => {
       if (filter.field === "marketId") {
-        return { ...filter, field: "market_id" };
+        return {
+          ...filter,
+          field: "market_id",
+          value: typeof filter.value === "string" ? normalizeMarketId(filter.value) : filter.value,
+        };
+      }
+      if (filter.field === "market_id") {
+        return {
+          ...filter,
+          value: typeof filter.value === "string" ? normalizeMarketId(filter.value) : filter.value,
+        };
       }
       if (filter.field === "user") {
         return { ...filter, field: "onBehalf" };
@@ -266,4 +277,21 @@ export class EnvioClient {
     ]);
     return result.result;
   }
+}
+
+export async function probeEnvioEndpoint(endpoint: string = config.envio.endpoint): Promise<void> {
+  if (!endpoint) {
+    throw new Error("Envio endpoint not configured");
+  }
+
+  const client = new GraphQLClient(endpoint);
+  await client.request<{ __schema: { queryType: { name: string } } }>(`
+    query EnvioHealthcheck {
+      __schema {
+        queryType {
+          name
+        }
+      }
+    }
+  `);
 }

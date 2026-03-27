@@ -1,4 +1,5 @@
 import type { EventRef, Filter, RawEventRef, StateRef } from "../types/index.js";
+import { normalizeMarketId } from "../utils/market.js";
 
 type FilterValue = string | number | boolean;
 
@@ -50,7 +51,7 @@ function requireMarketId(filters: Filter[]): string {
   if (!marketId) {
     throw new Error("marketId filter required for state queries");
   }
-  return marketId;
+  return normalizeMarketId(marketId);
 }
 
 function requireUser(filters: Filter[]): string {
