@@ -10,9 +10,22 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  await pool.end();
-});
+let closePromise: Promise<void> | null = null;
+
+export async function closePool(): Promise<void> {
+  if (!closePromise) {
+    closePromise = pool.end().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Called end on pool more than once")) {
+        return;
+      }
+
+      closePromise = null;
+      throw error;
+    });
+  }
+
+  await closePromise;
+}
 
 export type DbClient = pg.Pool | pg.PoolClient;

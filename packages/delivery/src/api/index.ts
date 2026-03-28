@@ -366,6 +366,7 @@ api.post("/internal/integrations/telegram/:appUserId/link", async (c) => {
 const WebhookPayloadSchema = z.object({
   signal_id: z.string(),
   signal_name: z.string().optional(),
+  signal_description: z.string().optional(),
   triggered_at: z.string(),
   conditions_met: z.union([z.number(), z.array(z.unknown())]).optional(),
   summary: z.string().optional(),
@@ -429,13 +430,14 @@ api.post("/webhook/deliver", async (c) => {
     ? payload.conditions_met.length
     : payload.conditions_met;
   const fallbackSummary =
-    typeof conditionsMetCount === "number"
+    typeof conditionsMetCount === "number" && conditionsMetCount > 0
       ? `${conditionsMetCount} condition${conditionsMetCount === 1 ? "" : "s"} met at ${payload.triggered_at}`
       : `Triggered at ${payload.triggered_at}`;
 
   // Send alert
   const success = await sendAlert(user.telegram_chat_id, {
     signalName: payload.signal_name ?? "Signal Alert",
+    signalDescription: payload.signal_description,
     summary: payload.summary ?? fallbackSummary,
     address: monitoredAddress ?? undefined,
     marketId: payload.context.market_id,

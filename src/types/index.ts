@@ -111,7 +111,9 @@ export interface ConditionResult {
 export interface WebhookPayload {
   signal_id: string;
   signal_name: string;
+  signal_description?: string;
   triggered_at: string;
+  summary?: string;
   scope: {
     chains: number[];
     markets?: string[];

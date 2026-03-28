@@ -150,6 +150,7 @@ export async function sendAlert(
   chatId: number,
   alert: {
     signalName: string;
+    signalDescription?: string;
     summary: string;
     address?: string;
     marketId?: string;
@@ -169,10 +170,17 @@ export async function sendAlert(
     const addressShort = alert.address
       ? `${alert.address.slice(0, 6)}...${alert.address.slice(-4)}`
       : "N/A";
+    const description = alert.signalDescription?.trim();
 
     let message = `🛡️ *Sentinel Alert*
 
-📊 *${escapeMarkdown(alert.signalName)}*
+📊 *${escapeMarkdown(alert.signalName)}*`;
+
+    if (description) {
+      message += `\n${escapeMarkdown(description)}`;
+    }
+
+    message += `
 
 ${escapeMarkdown(alert.summary)}
 

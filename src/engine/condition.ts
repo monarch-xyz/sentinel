@@ -7,6 +7,7 @@
 
 import {
   type ComparisonOp,
+  type ConditionResult,
   EventRef,
   type ExpressionNode,
   type Filter,
@@ -261,6 +262,7 @@ export interface SignalEvaluationResult {
   signalId: string;
   triggered: boolean;
   timestamp: number;
+  conditionResults: ConditionResult[];
   /** If evaluation failed, this contains the error */
   error?: string;
   /** Whether the result is conclusive (false if data fetch failed) */
@@ -315,12 +317,26 @@ export class SignalEvaluator {
 
       const conditions = signal.conditions;
       const logic = signal.logic ?? "AND";
-      const triggered = await evaluateConditionSet(conditions, logic, context);
+      const conditionResults: ConditionResult[] = [];
+
+      for (const [conditionIndex, condition] of conditions.entries()) {
+        const conditionTriggered = await evaluateCompiledCondition(condition, context);
+        conditionResults.push({
+          conditionIndex,
+          triggered: conditionTriggered,
+        });
+      }
+
+      const triggered =
+        logic === "AND"
+          ? conditionResults.every((condition) => condition.triggered)
+          : conditionResults.some((condition) => condition.triggered);
 
       return {
         signalId: signal.id,
         triggered,
         timestamp: now,
+        conditionResults,
         conclusive: true,
       };
     } catch (err) {
@@ -330,6 +346,7 @@ export class SignalEvaluator {
         signalId: signal.id,
         triggered: false,
         timestamp: now,
+        conditionResults: [],
         error,
         conclusive: false,
       };

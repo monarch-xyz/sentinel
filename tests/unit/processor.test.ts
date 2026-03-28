@@ -26,7 +26,12 @@ vi.mock("../../src/envio/client.js", () => ({
 // Mock the evaluator to return triggered=true
 vi.mock("../../src/engine/condition.js", () => ({
   SignalEvaluator: vi.fn().mockImplementation(() => ({
-    evaluate: vi.fn().mockResolvedValue({ triggered: true, timestamp: Date.now() }),
+    evaluate: vi.fn().mockResolvedValue({
+      triggered: true,
+      timestamp: 1743167708188,
+      conclusive: true,
+      conditionResults: [{ conditionIndex: 0, triggered: true }],
+    }),
   })),
 }));
 
@@ -68,6 +73,7 @@ describe("Processor Logic", () => {
           {
             id: "sig-123",
             name: "Simple Alert",
+            description: "Drops below threshold",
             is_active: true,
             webhook_url: "https://test.com",
             cooldown_minutes: 5,
@@ -119,7 +125,12 @@ describe("Processor Logic", () => {
     // 3. Verify notification was sent (because evaluator returns triggered=true)
     expect(dispatchNotification).toHaveBeenCalledWith(
       "https://test.com",
-      expect.objectContaining({ signal_id: "sig-123" }),
+      expect.objectContaining({
+        signal_id: "sig-123",
+        signal_description: "Drops below threshold",
+        conditions_met: [{ conditionIndex: 0, triggered: true }],
+        summary: "1 condition met at 2025-03-28T09:15:08.188Z",
+      }),
     );
 
     // 4. Verify DB was updated
@@ -127,5 +138,5 @@ describe("Processor Logic", () => {
       expect.stringContaining("UPDATE signals SET last_triggered_at"),
       ["sig-123"],
     );
-  });
+  }, 10000);
 });

@@ -460,6 +460,43 @@ describe("SignalEvaluator", () => {
         vi.useRealTimers();
       }
     });
+
+    it("returns top-level condition results for OR logic", async () => {
+      const signal = createSignal(
+        {
+          type: "condition",
+          left: { type: "constant", value: 1 },
+          operator: "eq",
+          right: { type: "constant", value: 0 },
+        },
+        {
+          logic: "OR",
+          conditions: [
+            {
+              type: "condition",
+              left: { type: "constant", value: 1 },
+              operator: "eq",
+              right: { type: "constant", value: 0 },
+            },
+            {
+              type: "condition",
+              left: { type: "constant", value: 2 },
+              operator: "gt",
+              right: { type: "constant", value: 1 },
+            },
+          ],
+        },
+      );
+
+      const evaluator = new SignalEvaluator(mockEnvioClient);
+      const result = await evaluator.evaluate(signal);
+
+      expect(result.triggered).toBe(true);
+      expect(result.conditionResults).toEqual([
+        { conditionIndex: 0, triggered: false },
+        { conditionIndex: 1, triggered: true },
+      ]);
+    });
   });
 
   describe("window duration parsing", () => {

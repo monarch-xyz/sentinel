@@ -108,12 +108,20 @@ export const setupWorker = () => {
             if (typeof primaryChain === "number") {
               context.chain_id = primaryChain;
             }
+            const conditionsMet = result.conditionResults.filter((condition) => condition.triggered);
+            const triggeredAt = new Date(result.timestamp).toISOString();
+            const summary =
+              conditionsMet.length > 0
+                ? `${conditionsMet.length} condition${conditionsMet.length === 1 ? "" : "s"} met at ${triggeredAt}`
+                : `Triggered at ${triggeredAt}`;
             const payload: WebhookPayload = {
               signal_id: signal.id,
               signal_name: signal.name,
-              triggered_at: new Date(result.timestamp).toISOString(),
+              signal_description: signal.description ?? undefined,
+              triggered_at: triggeredAt,
+              summary,
               scope,
-              conditions_met: [],
+              conditions_met: conditionsMet,
               context,
             };
 
