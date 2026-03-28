@@ -75,6 +75,14 @@ For direct delivery integration:
 
 The web app no longer needs to know or submit the raw Sentinel owner ID to delivery directly.
 
+For signal creation, the same principle applies:
+
+- custom third-party webhooks still use `webhook_url`
+- first-party Telegram delivery should use `delivery: { "provider": "telegram" }`
+- Sentinel resolves the actual delivery webhook target from server config
+
+The browser should not know whether the backend uses `delivery`, `localhost`, a Railway private hostname, or another internal address.
+
 ## When To Still Use A Thin BFF
 
 A thin BFF is still useful for:

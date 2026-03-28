@@ -48,15 +48,21 @@ That keeps the web app from having to know the raw cross-service delivery detail
 
 ## Required Webhook Target
 
-For local Docker development:
+For server-managed Telegram delivery, the preferred API contract is to create the signal with:
 
-```text
-http://delivery:3100/webhook/deliver
+```json
+{
+  "delivery": { "provider": "telegram" }
+}
 ```
 
-For production:
+Sentinel then resolves the actual webhook target from `DELIVERY_BASE_URL`.
 
-- use the public URL of your deployed delivery service
+If you are creating signals manually and need the raw target:
+
+- local Docker: `http://delivery:3100/webhook/deliver`
+- production on a shared private network: use the private delivery hostname
+- production across a network boundary: use the reachable delivery URL for that topology
 
 If a signal points to another webhook URL, Telegram delivery is bypassed.
 

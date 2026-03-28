@@ -51,4 +51,55 @@ describe("CreateSignalSchema", () => {
       }),
     ).toThrow("field is required for raw-events aggregation unless aggregation is count");
   });
+
+  it("accepts telegram-managed delivery without a webhook url", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "Telegram managed",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 5,
+              event: {
+                kind: "erc20_transfer",
+              },
+            },
+          ],
+        },
+        delivery: { provider: "telegram" },
+        cooldown_minutes: 5,
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts create requests that include delivery plus the resolved managed webhook url", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "Ambiguous destination",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 5,
+              event: {
+                kind: "erc20_transfer",
+              },
+            },
+          ],
+        },
+        webhook_url: "http://delivery:3100/webhook/deliver",
+        delivery: { provider: "telegram" },
+        cooldown_minutes: 5,
+      }),
+    ).not.toThrow();
+  });
 });

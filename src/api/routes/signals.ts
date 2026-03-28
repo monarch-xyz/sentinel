@@ -5,6 +5,7 @@ import {
   SignalRunLogRepository,
 } from "../../db/index.js";
 import { compileSignalDefinition } from "../../engine/compile-signal.js";
+import { DeliveryIntegrationError } from "../../integrations/delivery.js";
 import {
   SourceCapabilityError,
   assertSignalDefinitionSourcesEnabled,
@@ -12,6 +13,7 @@ import {
 import { getErrorMessage, isZodError } from "../../utils/errors.js";
 import { createLogger } from "../../utils/logger.js";
 import { ValidationError } from "../../utils/validation.js";
+import { inferManagedSignalDelivery, resolveSignalWebhookUrl } from "../signal-delivery.js";
 import {
   assertStoredDefinitionSourcesEnabled,
   formatSourceCapabilityError,
@@ -52,6 +54,7 @@ function formatSignalForResponse(signal: SignalRow) {
   return {
     ...signal,
     definition,
+    delivery: inferManagedSignalDelivery(signal.webhook_url),
   };
 }
 
@@ -60,12 +63,16 @@ router.post("/", async (req, res) => {
   try {
     if (!req.auth?.userId) return res.status(401).json({ error: "Unauthorized" });
     const validated = CreateSignalSchema.parse(req.body);
+    const webhookUrl = await resolveSignalWebhookUrl(validated, req.auth.userId);
     const compiled = compileSignalDefinition(validated.definition);
     assertSignalDefinitionSourcesEnabled(compiled.dsl);
     const signal = await repo.create({
-      ...validated,
       user_id: req.auth.userId,
+      name: validated.name,
+      description: validated.description,
       definition: compiled,
+      webhook_url: webhookUrl,
+      cooldown_minutes: validated.cooldown_minutes,
     });
     res.status(201).json(formatSignalForResponse(signal));
   } catch (error: unknown) {
@@ -77,6 +84,9 @@ router.post("/", async (req, res) => {
     }
     if (error instanceof SourceCapabilityError) {
       return res.status(409).json(formatSourceCapabilityError(error));
+    }
+    if (error instanceof DeliveryIntegrationError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
     logger.error({ error: getErrorMessage(error) }, "Failed to create signal");
     res.status(500).json({ error: "Internal server error" });
@@ -160,16 +170,29 @@ router.patch("/:id", async (req, res) => {
     const existing = await repo.getById(req.auth.userId, req.params.id);
     if (!existing) return res.status(404).json({ error: "Signal not found" });
 
-    const payload = validated.definition
-      ? {
-          ...validated,
-          definition: (() => {
-            const compiled = compileSignalDefinition(validated.definition);
-            assertSignalDefinitionSourcesEnabled(compiled.dsl);
-            return compiled;
-          })(),
-        }
-      : validated;
+    const nextWebhookUrl =
+      validated.delivery || validated.webhook_url
+        ? await resolveSignalWebhookUrl(validated, req.auth.userId)
+        : undefined;
+
+    const payload = {
+      ...(validated.name !== undefined ? { name: validated.name } : {}),
+      ...(validated.description !== undefined ? { description: validated.description } : {}),
+      ...(validated.cooldown_minutes !== undefined
+        ? { cooldown_minutes: validated.cooldown_minutes }
+        : {}),
+      ...(validated.is_active !== undefined ? { is_active: validated.is_active } : {}),
+      ...(nextWebhookUrl !== undefined ? { webhook_url: nextWebhookUrl } : {}),
+      ...(validated.definition
+        ? {
+            definition: (() => {
+              const compiled = compileSignalDefinition(validated.definition);
+              assertSignalDefinitionSourcesEnabled(compiled.dsl);
+              return compiled;
+            })(),
+          }
+        : {}),
+    };
 
     if (validated.is_active === true) {
       assertStoredDefinitionSourcesEnabled(payload.definition ?? existing.definition);
@@ -187,6 +210,9 @@ router.patch("/:id", async (req, res) => {
     }
     if (error instanceof SourceCapabilityError) {
       return res.status(409).json(formatSourceCapabilityError(error));
+    }
+    if (error instanceof DeliveryIntegrationError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
     logger.error({ error: getErrorMessage(error) }, "Failed to update signal");
     res.status(500).json({ error: "Internal server error" });

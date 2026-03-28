@@ -302,6 +302,19 @@ Request body:
 }
 ```
 
+For Sentinel-managed Telegram delivery, the browser can send:
+
+```json
+{
+  "name": "Telegram Alert",
+  "definition": { "...": "see DSL.md" },
+  "delivery": { "provider": "telegram" },
+  "cooldown_minutes": 5
+}
+```
+
+In that mode, Sentinel resolves the actual delivery webhook target server-side using `DELIVERY_BASE_URL`. The client should not submit internal Docker or private-network hostnames.
+
 Use [DSL.md](./DSL.md) for:
 
 - reference families: state, indexed, raw

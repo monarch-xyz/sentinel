@@ -131,13 +131,28 @@ const SignalDefinitionSchema = z.object({
   window: TimeWindowSchema,
 });
 
-export const CreateSignalSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  definition: SignalDefinitionSchema,
-  webhook_url: z.string().url(),
-  cooldown_minutes: z.number().int().min(0).default(5),
+const ManagedDeliverySchema = z.object({
+  provider: z.literal("telegram"),
 });
+
+export const CreateSignalSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    definition: SignalDefinitionSchema,
+    webhook_url: z.string().url().optional(),
+    delivery: ManagedDeliverySchema.optional(),
+    cooldown_minutes: z.number().int().min(0).default(5),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.webhook_url && !value.delivery) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "webhook_url or delivery is required",
+        path: ["webhook_url"],
+      });
+    }
+  });
 
 export const UpdateSignalSchema = z
   .object({
@@ -145,6 +160,7 @@ export const UpdateSignalSchema = z
     description: z.string().optional(),
     definition: SignalDefinitionSchema.optional(),
     webhook_url: z.string().url().optional(),
+    delivery: ManagedDeliverySchema.optional(),
     cooldown_minutes: z.number().int().min(0).optional(),
     is_active: z.boolean().optional(),
   })

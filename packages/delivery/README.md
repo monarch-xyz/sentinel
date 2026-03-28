@@ -59,7 +59,12 @@ Current implementation detail:
 
 ## Local Notes
 
-- when the full Docker stack is running, signals should target `http://delivery:3100/webhook/deliver`
+- for first-party Telegram delivery, create signals through Sentinel with
+  `delivery: { "provider": "telegram" }`
+- when the full Docker stack is running, the raw delivery webhook target is
+  `http://delivery:3100/webhook/deliver`
+- the browser should not need to know that internal hostname unless you are
+  bypassing Sentinel-managed delivery
 - direct Telegram linking currently expects the Sentinel `user_id` as `app_user_id`
 
 ## Related Docs

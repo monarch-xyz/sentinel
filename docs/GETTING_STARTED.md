@@ -179,7 +179,8 @@ Before writing a signal, choose one DSL reference family:
 - indexed metrics for semantic indexed entities and event history
 - raw events for decoded log scans like ERC-20 transfers or swap activity
 
-If you are running the delivery container locally, the signal `webhook_url` should be:
+If you are bypassing Sentinel-managed Telegram delivery and setting the raw
+`webhook_url` manually, use:
 
 ```text
 http://delivery:3100/webhook/deliver
@@ -192,7 +193,7 @@ Do not use `http://localhost:3100/webhook/deliver` for container-to-container de
 1. Start the full stack with `pnpm docker:up:all`.
 2. Send `/start` to the bot.
 3. Open the returned link and connect it with your Sentinel `user_id`, or exchange the token through `POST /api/v1/me/integrations/telegram/link` once you have a session.
-4. Create a signal whose `webhook_url` points at the delivery service.
+4. Create a signal with `delivery: { "provider": "telegram" }`, or manually point `webhook_url` at the delivery service if you are bypassing the managed path.
 5. Wait for the worker to evaluate and dispatch the webhook.
 
 The delivery contract is documented in [TELEGRAM_DELIVERY.md](./TELEGRAM_DELIVERY.md).
