@@ -7,13 +7,13 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 FROM base AS build
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY . .
 # Build only the main service TypeScript (API/worker image does not need delivery build)
 RUN pnpm exec tsc
 
 FROM base AS prod-deps
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
