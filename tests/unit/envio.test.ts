@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type BatchQuery, EnvioClient, EnvioQueryError } from "../../src/envio/client.js";
+import { config } from "../../src/config/index.js";
 import type { FilterOp } from "../../src/types/index.js";
 
-const mockRequest = vi.fn();
+const { mockRequest, mockGraphQLClient } = vi.hoisted(() => ({
+  mockRequest: vi.fn(),
+  mockGraphQLClient: vi.fn(),
+}));
 vi.mock("graphql-request", () => {
   return {
-    GraphQLClient: vi.fn().mockImplementation(() => ({
+    GraphQLClient: mockGraphQLClient.mockImplementation(() => ({
       request: mockRequest,
     })),
   };
@@ -16,7 +20,21 @@ describe("EnvioClient", () => {
 
   beforeEach(() => {
     mockRequest.mockReset();
+    mockGraphQLClient.mockClear();
+    config.envio.apiKey = "";
     client = new EnvioClient("https://mock-envio.endpoint");
+  });
+
+  it("adds bearer authorization when MONARCH_GRAPHQL_API_KEY is configured", () => {
+    config.envio.apiKey = "secret-key";
+
+    new EnvioClient("https://mock-envio.endpoint");
+
+    expect(mockGraphQLClient).toHaveBeenLastCalledWith("https://mock-envio.endpoint", {
+      headers: {
+        Authorization: "Bearer secret-key",
+      },
+    });
   });
 
   describe("fetchEvents", () => {

@@ -66,6 +66,7 @@ export const config = {
   // Envio
   envio: {
     endpoint: readEnv("ENVIO_ENDPOINT"),
+    apiKey: readEnv("MONARCH_GRAPHQL_API_KEY"),
     validateSchema:
       process.env.ENVIO_VALIDATE_SCHEMA !== undefined
         ? process.env.ENVIO_VALIDATE_SCHEMA === "true"

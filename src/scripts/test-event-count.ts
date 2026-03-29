@@ -5,9 +5,8 @@
  *   ENVIO_ENDPOINT=... tsx src/scripts/test-event-count.ts
  */
 
-import { GraphQLClient } from "graphql-request";
 import { config } from "../config/index.js";
-import { EnvioClient } from "../envio/client.js";
+import { createEnvioGraphQLClient, EnvioClient } from "../envio/client.js";
 import type { EventRef } from "../types/index.js";
 import { parseDuration } from "../utils/duration.js";
 
@@ -43,7 +42,7 @@ async function main() {
       throw new Error("ENVIO_ENDPOINT is required to auto-detect event fields");
     }
 
-    const client = new GraphQLClient(endpoint);
+    const client = createEnvioGraphQLClient(endpoint);
     const boolExpType = `${eventType}_bool_exp`;
     const query =
       "\n      query IntrospectBoolExp($name: String!) {\n        __type(name: $name) {\n          inputFields { name }\n        }\n      }\n    ";

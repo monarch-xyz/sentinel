@@ -7,7 +7,7 @@
  */
 
 import "dotenv/config";
-import { GraphQLClient } from "graphql-request";
+import { createEnvioGraphQLClient } from "../envio/client.js";
 
 // GraphQL Introspection types
 interface GraphQLTypeRef {
@@ -38,7 +38,7 @@ if (!endpoint) {
 const eventType = process.env.ENVIO_TYPE ?? "Morpho_Supply";
 const boolExpType = `${eventType}_bool_exp`;
 
-const client = new GraphQLClient(endpoint);
+const client = createEnvioGraphQLClient(endpoint);
 
 const boolExpQuery = `
   query IntrospectBoolExp($name: String!) {

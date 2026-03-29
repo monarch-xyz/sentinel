@@ -29,6 +29,7 @@ API and worker:
 - `AUTH_SIWE_DOMAIN`
 - `AUTH_SIWE_URI`
 - optional `ENVIO_ENDPOINT` if you want indexed semantic signals
+- optional `MONARCH_GRAPHQL_API_KEY` if your indexed GraphQL endpoint requires bearer auth
 - optional `ENVIO_API_TOKEN` if you want `raw-events`
 - optional shared webhook secret for signed outbound webhooks
 - optional `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`, `NONCE_TTL_MINUTES`

@@ -24,6 +24,7 @@ Source families are optional at runtime:
 | --- | --- | --- |
 | state | none | stays enabled through RPC fallbacks |
 | indexed | `ENVIO_ENDPOINT` | API rejects indexed signal definitions and activation attempts |
+| indexed auth | `MONARCH_GRAPHQL_API_KEY` | Adds `Authorization: Bearer ...` to indexed GraphQL requests when required by your endpoint |
 | raw | `ENVIO_API_TOKEN` | API rejects `raw-events` signal definitions and activation attempts |
 
 The service does not crash when optional source config is missing.

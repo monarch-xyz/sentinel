@@ -47,15 +47,34 @@ export interface BatchResult {
   [alias: string]: number;
 }
 
+function buildEnvioHeaders(): Record<string, string> | undefined {
+  if (!config.envio.apiKey) {
+    return undefined;
+  }
+
+  return {
+    Authorization: `Bearer ${config.envio.apiKey}`,
+  };
+}
+
+export function createEnvioGraphQLClient(
+  endpoint: string = config.envio.endpoint,
+): GraphQLClient {
+  if (!endpoint) {
+    throw new Error("Envio endpoint not configured");
+  }
+
+  return new GraphQLClient(endpoint, {
+    headers: buildEnvioHeaders(),
+  });
+}
+
 export class EnvioClient {
   private client: GraphQLClient;
   private static filterSchemaCache = new Map<string, Set<string> | null>();
 
   constructor(endpoint: string = config.envio.endpoint) {
-    if (!endpoint) {
-      throw new Error("Envio endpoint not configured");
-    }
-    this.client = new GraphQLClient(endpoint);
+    this.client = createEnvioGraphQLClient(endpoint);
   }
 
   private normalizeEventEntityName(eventType: string): string {
@@ -280,11 +299,7 @@ export class EnvioClient {
 }
 
 export async function probeEnvioEndpoint(endpoint: string = config.envio.endpoint): Promise<void> {
-  if (!endpoint) {
-    throw new Error("Envio endpoint not configured");
-  }
-
-  const client = new GraphQLClient(endpoint);
+  const client = createEnvioGraphQLClient(endpoint);
   await client.request<{ __schema: { queryType: { name: string } } }>(`
     query EnvioHealthcheck {
       __schema {
