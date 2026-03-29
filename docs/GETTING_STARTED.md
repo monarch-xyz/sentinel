@@ -30,6 +30,7 @@ Main service `.env`:
 - recommended: `RPC_URL_*` for the chains you care about
 - optional: `ENVIO_ENDPOINT` to enable indexed semantic signals
 - optional: `MONARCH_GRAPHQL_API_KEY` if that indexed endpoint requires bearer auth
+- optional: `HYPERSYNC_MAX_LOGS_PER_REQUEST`, `HYPERSYNC_MAX_LOGS_PER_QUERY`, and `HYPERSYNC_MAX_PAGES_PER_QUERY` if raw-event queries are too broad for the defaults
 - optional: `ENVIO_API_TOKEN` to enable `raw-events`
 - optional: `WEBHOOK_SECRET` if you will use signed delivery
 - optional: `REGISTER_ADMIN_KEY` if you want to gate `POST /api/v1/auth/register`

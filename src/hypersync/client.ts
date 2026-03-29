@@ -1,5 +1,5 @@
 import { HypersyncClient, JoinMode, type Log, type Query } from "@envio-dev/hypersync-client";
-import { decodeEventLog, parseAbiItem } from "viem";
+import { decodeEventLog, encodeAbiParameters, parseAbiItem, type AbiEvent } from "viem";
 import { config } from "../config/index.js";
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
 import type { Filter, RawEventQuery, RawEventRef } from "../types/index.js";
@@ -9,7 +9,7 @@ import { createLogger } from "../utils/logger.js";
 const logger = createLogger("hypersync-client");
 
 const clientCache = new Map<number, HypersyncClient>();
-const abiCache = new Map<string, ReturnType<typeof parseAbiItem>>();
+const abiCache = new Map<string, AbiEvent>();
 
 type NumericValue = number | bigint;
 
@@ -68,8 +68,136 @@ function getParsedAbiItem(signature: string) {
   const cached = abiCache.get(signature);
   if (cached) return cached;
   const abiItem = parseAbiItem(signature);
+  if (abiItem.type !== "event") {
+    throw new Error(`raw-events signature must be an event: ${signature}`);
+  }
   abiCache.set(signature, abiItem);
   return abiItem;
+}
+
+function supportsTopicPushdown(type: string): boolean {
+  if (type.includes("[") || type === "string" || type === "bytes" || type.startsWith("tuple")) {
+    return false;
+  }
+
+  return (
+    type === "address" ||
+    type === "bool" ||
+    /^uint(\d{0,3})$/.test(type) ||
+    /^int(\d{0,3})$/.test(type) ||
+    /^bytes([1-9]|[1-2]\d|3[0-2])$/.test(type)
+  );
+}
+
+function coerceTopicValue(type: string, value: string | number | boolean): unknown {
+  if (type === "address" || /^bytes([1-9]|[1-2]\d|3[0-2])$/.test(type)) {
+    if (typeof value !== "string") {
+      throw new Error(`raw-events topic filter for ${type} requires a string value`);
+    }
+    return value.toLowerCase();
+  }
+
+  if (type === "bool") {
+    if (typeof value !== "boolean") {
+      throw new Error("raw-events topic filter for bool requires a boolean value");
+    }
+    return value;
+  }
+
+  if (/^u?int(\d{0,3})$/.test(type)) {
+    if (typeof value === "number") {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error(`raw-events topic filter for ${type} requires a safe integer value`);
+      }
+      return BigInt(value);
+    }
+
+    if (typeof value === "string" && /^-?\d+$/.test(value)) {
+      return BigInt(value);
+    }
+
+    throw new Error(`raw-events topic filter for ${type} requires an integer value`);
+  }
+
+  return value;
+}
+
+function encodeTopicValue(type: string, value: string | number | boolean): string {
+  return encodeAbiParameters([{ type }], [coerceTopicValue(type, value)]).toLowerCase();
+}
+
+function trimTrailingWildcards(topics: string[][]): string[][] {
+  const trimmed = [...topics];
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1]?.length === 0) {
+    trimmed.pop();
+  }
+  return trimmed;
+}
+
+function buildTopicFilters(
+  abiItem: AbiEvent,
+  query: RawEventQuery,
+  filters?: Filter[],
+): string[][] {
+  const topics: string[][] = [[query.topic0]];
+  if (!filters || filters.length === 0) {
+    return topics;
+  }
+
+  let indexedInputPosition = 0;
+  for (const input of abiItem.inputs ?? []) {
+    if (!input.indexed) {
+      continue;
+    }
+
+    indexedInputPosition += 1;
+
+    const matchingFilter = filters.find(
+      (filter) => filter.field === input.name && (filter.op === "eq" || filter.op === "in"),
+    );
+    if (!matchingFilter || !supportsTopicPushdown(input.type)) {
+      continue;
+    }
+
+    const values = Array.isArray(matchingFilter.value)
+      ? matchingFilter.value
+      : [matchingFilter.value];
+    const encodedValues = values
+      .filter(
+        (value): value is string | number | boolean =>
+          typeof value === "string" || typeof value === "number" || typeof value === "boolean",
+      )
+      .map((value) => encodeTopicValue(input.type, value));
+
+    if (encodedValues.length === 0) {
+      continue;
+    }
+
+    while (topics.length <= indexedInputPosition) {
+      topics.push([]);
+    }
+    topics[indexedInputPosition] = encodedValues;
+  }
+
+  return trimTrailingWildcards(topics);
+}
+
+function buildAddressFilters(ref: RawEventRef): string[] | undefined {
+  const contractAddressFilters = ref.filters
+    ?.filter(
+      (filter) =>
+        filter.field === "contract_address" && (filter.op === "eq" || filter.op === "in"),
+    )
+    .flatMap((filter) => (Array.isArray(filter.value) ? filter.value : [filter.value]))
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.toLowerCase());
+
+  const merged = [
+    ...(ref.contractAddresses?.map((address) => address.toLowerCase()) ?? []),
+    ...(contractAddressFilters ?? []),
+  ];
+
+  return merged.length > 0 ? Array.from(new Set(merged)) : undefined;
 }
 
 function normalizeStringValue(value: string): string {
@@ -406,12 +534,14 @@ export class HyperSyncClient {
 
       for (const query of queries) {
         const abiItem = getParsedAbiItem(query.eventSignature);
+        const topicFilters = buildTopicFilters(abiItem, query, ref.filters);
+        const addressFilters = buildAddressFilters(ref);
         const queryBase: Omit<Query, "fromBlock"> = {
           toBlock,
           logs: [
             {
-              address: ref.contractAddresses,
-              topics: [[query.topic0]],
+              address: addressFilters,
+              topics: topicFilters,
             },
           ],
           fieldSelection: {
@@ -465,7 +595,7 @@ export class HyperSyncClient {
             logsSeenForQuery += 1;
             if (logsSeenForQuery > config.hypersync.maxLogsPerQuery) {
               throw new HyperSyncQueryError(
-                `raw-events query exceeded max logs (${config.hypersync.maxLogsPerQuery})`,
+                `raw-events query exceeded max logs (${config.hypersync.maxLogsPerQuery}). Narrow the query with contract_addresses or a shorter window, or raise HYPERSYNC_MAX_LOGS_PER_QUERY.`,
                 ref.chainId,
               );
             }

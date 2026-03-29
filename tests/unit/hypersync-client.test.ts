@@ -120,6 +120,111 @@ describe("HyperSyncClient", () => {
         fromBlock: 100,
         toBlock: 102,
         maxNumLogs: 1000,
+        logs: [
+          expect.objectContaining({
+            address: ["0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+            topics: [
+              ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],
+              ["0x0000000000000000000000001111111111111111111111111111111111111111"],
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("pushes indexed recipient filters into query-time topics", async () => {
+    mockedResolveBlockByTimestamp.mockResolvedValueOnce(100).mockResolvedValueOnce(100);
+
+    getMock.mockResolvedValue({
+      nextBlock: 101,
+      totalExecutionTime: 1,
+      data: {
+        blocks: [{ number: 100, timestamp: 1_700_000_000 }],
+        transactions: [],
+        traces: [],
+        logs: [],
+      },
+    });
+
+    const client = new HyperSyncClient();
+    const ref: RawEventRef = {
+      type: "raw_event",
+      source: "hypersync",
+      chainId: 1,
+      queries: [
+        {
+          eventSignature: "event Transfer(address indexed from, address indexed to, uint256 value)",
+          topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          normalizer: "none",
+        },
+      ],
+      aggregation: "count",
+      filters: [{ field: "to", op: "eq", value: "0x2222222222222222222222222222222222222222" }],
+    };
+
+    await client.fetchRawEvents(ref, 1_700_000_000_000, 1_700_000_000_999);
+
+    expect(getMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logs: [
+          expect.objectContaining({
+            topics: [
+              ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],
+              [],
+              ["0x0000000000000000000000002222222222222222222222222222222222222222"],
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("pushes contract_address filters into query-time address filters", async () => {
+    mockedResolveBlockByTimestamp.mockResolvedValueOnce(100).mockResolvedValueOnce(100);
+
+    getMock.mockResolvedValue({
+      nextBlock: 101,
+      totalExecutionTime: 1,
+      data: {
+        blocks: [{ number: 100, timestamp: 1_700_000_000 }],
+        transactions: [],
+        traces: [],
+        logs: [],
+      },
+    });
+
+    const client = new HyperSyncClient();
+    const ref: RawEventRef = {
+      type: "raw_event",
+      source: "hypersync",
+      chainId: 1,
+      queries: [
+        {
+          eventSignature: "event Transfer(address indexed from, address indexed to, uint256 value)",
+          topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          normalizer: "none",
+        },
+      ],
+      aggregation: "count",
+      filters: [
+        {
+          field: "contract_address",
+          op: "eq",
+          value: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        },
+      ],
+    };
+
+    await client.fetchRawEvents(ref, 1_700_000_000_000, 1_700_000_000_999);
+
+    expect(getMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logs: [
+          expect.objectContaining({
+            address: ["0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
+          }),
+        ],
       }),
     );
   });

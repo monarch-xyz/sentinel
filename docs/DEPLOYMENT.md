@@ -31,6 +31,7 @@ API and worker:
 - optional `ENVIO_ENDPOINT` if you want indexed semantic signals
 - optional `MONARCH_GRAPHQL_API_KEY` if your indexed GraphQL endpoint requires bearer auth
 - optional `ENVIO_API_TOKEN` if you want `raw-events`
+- optional `HYPERSYNC_MAX_LOGS_PER_REQUEST`, `HYPERSYNC_MAX_LOGS_PER_QUERY`, and `HYPERSYNC_MAX_PAGES_PER_QUERY` if raw-event queries need higher scan ceilings
 - optional shared webhook secret for signed outbound webhooks
 - optional `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`, `NONCE_TTL_MINUTES`
 - optional `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if using Sentinel-native Telegram integration routes
