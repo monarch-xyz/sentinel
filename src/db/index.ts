@@ -5,9 +5,14 @@ import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger("db");
 const { Pool } = pg;
+const databaseUrl = process.env.DATABASE_URL?.trim();
+
+if (!databaseUrl && process.env.NODE_ENV === "production") {
+  throw new Error("DATABASE_URL is required in production");
+}
 
 export const pool = new Pool({
-  connectionString: config.database.url,
+  connectionString: databaseUrl || config.database.url,
 });
 
 export async function verifyDbConnection() {
@@ -16,6 +21,7 @@ export async function verifyDbConnection() {
     logger.info("Database connection verified");
   } catch (error: unknown) {
     logger.error({ error: getErrorMessage(error) }, "Database connection check failed");
+    console.error("Database connection check failed:", getErrorMessage(error));
     throw error;
   }
 }

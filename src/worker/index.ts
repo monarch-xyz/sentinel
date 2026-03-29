@@ -72,6 +72,10 @@ const start = async () => {
     process.on("SIGINT", () => shutdown("SIGINT"));
   } catch (error: unknown) {
     logger.error({ error: getErrorMessage(error) }, "Failed to start worker process");
+    console.error("Failed to start worker process:", getErrorMessage(error));
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack);
+    }
     process.exit(1);
   }
 };
