@@ -20,7 +20,12 @@ import {
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
-import { planMorphoEventRead, planMorphoRawEventRead, planMorphoStateRead } from "./source-plan.js";
+import {
+  bindMorphoRpcStateRead,
+  planGenericRpcStateRead,
+  planMorphoEventRead,
+  planMorphoRawEventRead,
+} from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
@@ -79,7 +84,8 @@ export function createMorphoFetcher(
    * Fetch current state from RPC (latest block)
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
-    const plan = planMorphoStateRead(ref, undefined, defaultChainId);
+    const plannedRead = planGenericRpcStateRead(ref, undefined, defaultChainId);
+    const plan = bindMorphoRpcStateRead(plannedRead);
 
     if (verbose) {
       logger.info(
@@ -111,7 +117,8 @@ export function createMorphoFetcher(
    * Fetch historical state from RPC at specific block
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
-    const plan = planMorphoStateRead(ref, timestamp, defaultChainId);
+    const plannedRead = planGenericRpcStateRead(ref, timestamp, defaultChainId);
+    const plan = bindMorphoRpcStateRead(plannedRead);
 
     // Resolve timestamp to block number
     const blockNumber = await resolveBlockByTimestamp(plan.chainId, timestamp);

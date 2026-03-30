@@ -158,6 +158,20 @@ describe("createMorphoFetcher", () => {
     );
   });
 
+  it("throws clear error when Position user filter is missing", async () => {
+    const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
+    const missingUser: StateRef = {
+      type: "state",
+      entity_type: "Position",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "supplyShares",
+    };
+
+    await expect(fetcher.fetchState(missingUser)).rejects.toThrow(
+      "user filter required for Position queries",
+    );
+  });
+
   it("forwards raw event queries when a raw event fetcher is configured", async () => {
     const rawEventFetcher: RawEventFetcher = {
       fetchRawEvents: vi.fn().mockResolvedValue(321),

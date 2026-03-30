@@ -7,7 +7,12 @@ import {
   isGroupCondition,
   isSimpleCondition,
 } from "../../src/engine/compiler.js";
-import type { BinaryExpression, Condition as InternalCondition } from "../../src/types/index.js";
+import { planRpcStateRead } from "../../src/engine/source-plan.js";
+import type {
+  BinaryExpression,
+  Condition as InternalCondition,
+  StateRef,
+} from "../../src/types/index.js";
 import type {
   AggregateCondition,
   ChangeCondition,
@@ -83,6 +88,13 @@ describe("Compiler", () => {
           { field: "chainId", op: "eq", value: 1 },
           { field: "marketId", op: "eq", value: "0xmarket123" },
         ]),
+      });
+
+      const rpcPlan = planRpcStateRead(result.left as StateRef, undefined, 1);
+      expect(rpcPlan).toMatchObject({
+        family: "state",
+        provider: "rpc",
+        chainId: 1,
       });
     });
 
