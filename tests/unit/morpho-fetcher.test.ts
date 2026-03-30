@@ -25,6 +25,7 @@ describe("createMorphoFetcher", () => {
 
   const positionRef: StateRef = {
     type: "state",
+    protocol: "morpho",
     entity_type: "Position",
     filters: [
       { field: "marketId", op: "eq", value: MARKET_ID },
@@ -35,6 +36,7 @@ describe("createMorphoFetcher", () => {
 
   const marketRef: StateRef = {
     type: "state",
+    protocol: "morpho",
     entity_type: "Market",
     filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
     field: "totalBorrowAssets",
@@ -144,6 +146,7 @@ describe("createMorphoFetcher", () => {
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
     const missingMarket: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [],
       field: "totalBorrowAssets",
@@ -158,6 +161,7 @@ describe("createMorphoFetcher", () => {
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
     const missingUser: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "supplyShares",

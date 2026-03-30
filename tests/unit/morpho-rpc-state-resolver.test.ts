@@ -16,6 +16,7 @@ describe("morpho rpc state resolver", () => {
   it("binds generic state reads to Morpho runtime requirements", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
@@ -42,6 +43,7 @@ describe("morpho rpc state resolver", () => {
   it("binds generic state reads to a generic archive RPC call representation", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
@@ -71,6 +73,7 @@ describe("morpho rpc state resolver", () => {
   it("dispatches archive RPC binding using protocol discriminator", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "totalBorrowAssets",
@@ -84,6 +87,7 @@ describe("morpho rpc state resolver", () => {
   it("preserves legacy Morpho state planner behavior", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
@@ -109,6 +113,7 @@ describe("morpho rpc state resolver", () => {
   it("rejects missing market filters when binding Morpho state reads", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [],
       field: "totalBorrowAssets",
@@ -122,6 +127,7 @@ describe("morpho rpc state resolver", () => {
   it("rejects Position state reads missing user filters when binding Morpho state reads", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "supplyShares",
@@ -135,6 +141,7 @@ describe("morpho rpc state resolver", () => {
   it("rejects invalid marketId filters at the resolver boundary", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [{ field: "marketId", op: "eq", value: "0xnot-bytes32" }],
       field: "totalBorrowAssets",
@@ -148,6 +155,7 @@ describe("morpho rpc state resolver", () => {
   it("rejects invalid user filters at the resolver boundary", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [
         { field: "marketId", op: "eq", value: MARKET_ID },
@@ -164,6 +172,7 @@ describe("morpho rpc state resolver", () => {
   it("keeps legacy planRpcStateRead behavior for compatibility", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
@@ -189,6 +198,7 @@ describe("morpho rpc state resolver", () => {
   it("fails clearly on unknown Morpho state names", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Vault",
       filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "assets",
@@ -228,6 +238,37 @@ describe("morpho rpc state resolver", () => {
 
     expect(() => bindArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
       "Unsupported state protocol for RPC: aave",
+    );
+  });
+
+  it("rejects non-string marketId filter values before format validation", () => {
+    const ref: StateRef = {
+      type: "state",
+      protocol: "morpho",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: true }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      'Invalid marketId filter value "true": Expected a string',
+    );
+  });
+
+  it("rejects non-string user filter values before address validation", () => {
+    const ref: StateRef = {
+      type: "state",
+      protocol: "morpho",
+      entity_type: "Position",
+      filters: [
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: 123 },
+      ],
+      field: "supplyShares",
+    };
+
+    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      'Invalid user filter value "123": Expected a string',
     );
   });
 });

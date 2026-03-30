@@ -10,6 +10,7 @@ describe("source plan", () => {
   it("plans generic state reads through RPC using the default chain", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
       field: "totalBorrowAssets",
@@ -28,6 +29,7 @@ describe("source plan", () => {
   it("uses chainId filter override for generic state reads", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
@@ -49,6 +51,7 @@ describe("source plan", () => {
   it("rejects invalid chainId filter values at planning boundary", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [
         { field: "chainId", op: "eq", value: "foo" },
@@ -60,6 +63,62 @@ describe("source plan", () => {
     expect(() => planGenericRpcStateRead(ref, undefined, 1)).toThrow(
       "Invalid chainId filter value: foo. Expected a positive integer.",
     );
+  });
+
+  it("rejects protocol-less generic state refs", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => planGenericRpcStateRead(ref, undefined, 1)).toThrow(
+      "State ref protocol is required for generic RPC planning.",
+    );
+  });
+
+  it("rejects non-strict chainId filter coercions", () => {
+    const baseRef: StateRef = {
+      type: "state",
+      protocol: "morpho",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: "8453foo" }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: 8453foo. Expected a positive integer.");
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: "1.5" }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: 1.5. Expected a positive integer.");
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: true }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: true. Expected a positive integer.");
   });
 
   it("plans indexed event reads through Envio", () => {

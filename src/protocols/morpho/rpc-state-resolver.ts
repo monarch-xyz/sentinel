@@ -8,9 +8,10 @@ import { planGenericRpcStateRead } from "../../engine/source-plan.js";
 import { MORPHO_ADDRESSES } from "../../rpc/abi.js";
 import type { Filter } from "../../types/index.js";
 import { normalizeMarketId } from "../../utils/market.js";
+import { buildMorphoMarketCall, buildMorphoPositionCall } from "./rpc-calls.js";
 
 type FilterValue = string | number | boolean;
-const MorphoEntityTypeSchema = z.enum(["Position", "Market"]);
+type MorphoEntityType = "Position" | "Market";
 const MorphoUserSchema = z.string().refine((value) => isAddress(value), {
   message: "Expected a valid EVM address",
 });
@@ -37,17 +38,49 @@ export interface PlannedMorphoRpcStateRead {
  */
 export type PlannedRpcStateRead = PlannedMorphoRpcStateRead;
 
-function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: string): T | undefined {
+function getEqFilterValue(filters: Filter[], field: string): FilterValue | undefined {
   const match = filters.find((filter) => filter.field === field && filter.op === "eq");
-  return match?.value as T | undefined;
+  return match?.value as FilterValue | undefined;
+}
+
+function requireStringFilterValue(
+  filters: Filter[],
+  field: string,
+  requiredMessage: string,
+): string {
+  const value = getEqFilterValue(filters, field);
+  if (value === undefined || value === "") {
+    throw new Error(requiredMessage);
+  }
+  if (typeof value !== "string") {
+    throw new Error(`Invalid ${field} filter value "${String(value)}": Expected a string`);
+  }
+  return value;
+}
+
+function parseMorphoEntityType(entityType: string): MorphoEntityType {
+  if (entityType === "Position" || entityType === "Market") {
+    return entityType;
+  }
+
+  throw new Error(
+    `Unsupported Morpho entity type "${entityType}". Supported types: Position, Market.`,
+  );
+}
+
+function requireBoundUser(plan: PlannedMorphoRpcStateRead): string {
+  if (typeof plan.user !== "string" || plan.user.length === 0) {
+    throw new Error("user filter required for Position queries");
+  }
+  return plan.user;
 }
 
 function requireMarketId(filters: Filter[]): string {
-  const marketId = getEqFilterValue<string>(filters, "marketId");
-  if (!marketId) {
-    throw new Error("marketId filter required for state queries");
-  }
-
+  const marketId = requireStringFilterValue(
+    filters,
+    "marketId",
+    "marketId filter required for state queries",
+  );
   const normalizedMarketId = normalizeMarketId(marketId);
   const parsedMarketId = MorphoMarketIdSchema.safeParse(normalizedMarketId);
   if (!parsedMarketId.success) {
@@ -59,11 +92,11 @@ function requireMarketId(filters: Filter[]): string {
 }
 
 function requireUser(filters: Filter[]): string {
-  const user = getEqFilterValue<string>(filters, "user");
-  if (!user) {
-    throw new Error("user filter required for Position queries");
-  }
-
+  const user = requireStringFilterValue(
+    filters,
+    "user",
+    "user filter required for Position queries",
+  );
   const parsedUser = MorphoUserSchema.safeParse(user);
   if (!parsedUser.success) {
     throw new Error(`Invalid user filter value "${user}": ${parsedUser.error.issues[0]?.message}`);
@@ -76,7 +109,8 @@ export function planMorphoStateRead(
   timestamp: number | undefined,
   defaultChainId: number,
 ): PlannedMorphoRpcStateRead {
-  return bindMorphoRpcStateRead(planGenericRpcStateRead(ref, timestamp, defaultChainId));
+  const morphoRef = ref.protocol === undefined ? { ...ref, protocol: "morpho" } : ref;
+  return bindMorphoRpcStateRead(planGenericRpcStateRead(morphoRef, timestamp, defaultChainId));
 }
 
 /**
@@ -96,14 +130,7 @@ export function bindMorphoRpcStateRead(
   if (plan.protocol !== "morpho") {
     throw new Error(`Morpho binder received incompatible protocol: ${plan.protocol}`);
   }
-  const parsedEntityType = MorphoEntityTypeSchema.safeParse(plan.ref.entity_type);
-  if (!parsedEntityType.success) {
-    throw new Error(
-      `Unsupported Morpho entity type "${plan.ref.entity_type}". Supported types: Position, Market.`,
-    );
-  }
-
-  const entityType = parsedEntityType.data;
+  const entityType = parseMorphoEntityType(plan.ref.entity_type);
 
   return {
     family: plan.family,
@@ -133,15 +160,7 @@ export function bindMorphoArchiveRpcExecution(
       provider: bound.provider,
       chainId: bound.chainId,
       timestamp: bound.timestamp,
-      call: {
-        to: address,
-        signature:
-          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
-        args: [
-          { type: "bytes32", value: bound.marketId },
-          { type: "address", value: bound.user as string },
-        ],
-      },
+      call: buildMorphoPositionCall(address, bound.marketId, requireBoundUser(bound)),
     };
   }
 
@@ -151,12 +170,7 @@ export function bindMorphoArchiveRpcExecution(
       provider: bound.provider,
       chainId: bound.chainId,
       timestamp: bound.timestamp,
-      call: {
-        to: address,
-        signature:
-          "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
-        args: [{ type: "bytes32", value: bound.marketId }],
-      },
+      call: buildMorphoMarketCall(address, bound.marketId),
     };
   }
 

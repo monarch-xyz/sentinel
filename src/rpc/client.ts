@@ -57,6 +57,7 @@ const monad = defineChain({
     default: { name: "Monad Explorer", url: "https://testnet.monadexplorer.com" },
   },
 });
+import { buildMorphoMarketCall, buildMorphoPositionCall } from "../protocols/morpho/rpc-calls.js";
 import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
@@ -482,15 +483,7 @@ export async function readPositionAtBlock(
 
     const result = await executeArchiveRpcCall(
       chainId,
-      {
-        to: morphoAddress,
-        signature:
-          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
-        args: [
-          { type: "bytes32", value: normalizedMarketId },
-          { type: "address", value: user },
-        ],
-      },
+      buildMorphoPositionCall(morphoAddress, normalizedMarketId, user),
       blockNumber,
     );
     const [supplyShares, borrowShares, collateral] = toBigIntTuple(
@@ -544,12 +537,7 @@ export async function readMarketAtBlock(
 
     const result = await executeArchiveRpcCall(
       chainId,
-      {
-        to: morphoAddress,
-        signature:
-          "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
-        args: [{ type: "bytes32", value: normalizedMarketId }],
-      },
+      buildMorphoMarketCall(morphoAddress, normalizedMarketId),
       blockNumber,
     );
     const [
@@ -595,15 +583,10 @@ export async function readPosition(
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await executeArchiveRpcCall(chainId, {
-      to: morphoAddress,
-      signature:
-        "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
-      args: [
-        { type: "bytes32", value: normalizedMarketId },
-        { type: "address", value: user },
-      ],
-    });
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoPositionCall(morphoAddress, normalizedMarketId, user),
+    );
     const [supplyShares, borrowShares, collateral] = toBigIntTuple(
       chainId,
       undefined,
@@ -630,12 +613,10 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await executeArchiveRpcCall(chainId, {
-      to: morphoAddress,
-      signature:
-        "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
-      args: [{ type: "bytes32", value: normalizedMarketId }],
-    });
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoMarketCall(morphoAddress, normalizedMarketId),
+    );
     const [
       totalSupplyAssets,
       totalSupplyShares,

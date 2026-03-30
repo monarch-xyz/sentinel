@@ -40,6 +40,7 @@ describe("SignalEvaluator RPC historical state", () => {
           type: "condition",
           left: {
             type: "state",
+            protocol: "morpho",
             entity_type: "Position",
             filters: [
               { field: "marketId", op: "eq", value: MARKET_ID },
@@ -54,6 +55,7 @@ describe("SignalEvaluator RPC historical state", () => {
             operator: "mul",
             left: {
               type: "state",
+              protocol: "morpho",
               entity_type: "Position",
               filters: [
                 { field: "marketId", op: "eq", value: MARKET_ID },

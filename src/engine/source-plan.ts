@@ -1,9 +1,6 @@
-import { z } from "zod";
 import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
 
 type FilterValue = string | number | boolean;
-const DEFAULT_STATE_PROTOCOL = "morpho";
-const ChainIdSchema = z.coerce.number().int().positive();
 
 export interface PlannedGenericRpcStateRead {
   family: "state";
@@ -50,20 +47,42 @@ function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: strin
   return match?.value as T | undefined;
 }
 
-function resolveChainId(filters: Filter[], defaultChainId: number): number {
-  const raw = getEqFilterValue<FilterValue>(filters, "chainId");
-  const value = raw === undefined ? defaultChainId : raw;
-  const parsed = ChainIdSchema.safeParse(value);
-  if (!parsed.success) {
-    const source = raw === undefined ? "default chainId" : "chainId filter value";
+function parseStrictPositiveChainId(value: unknown, source: string): number {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value > 0) {
+      return value;
+    }
     throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
   }
 
-  return parsed.data;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+    }
+
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+    }
+    return parsed;
+  }
+
+  throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+}
+
+function resolveChainId(filters: Filter[], defaultChainId: number): number {
+  const raw = getEqFilterValue<FilterValue>(filters, "chainId");
+  const value = raw === undefined ? defaultChainId : raw;
+  const source = raw === undefined ? "default chainId" : "chainId filter value";
+  return parseStrictPositiveChainId(value, source);
 }
 
 function resolveStateProtocol(ref: StateRef): string {
-  return ref.protocol ?? DEFAULT_STATE_PROTOCOL;
+  if (typeof ref.protocol !== "string" || ref.protocol.trim().length === 0) {
+    throw new Error("State ref protocol is required for generic RPC planning.");
+  }
+  return ref.protocol;
 }
 
 /**
