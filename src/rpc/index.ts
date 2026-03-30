@@ -7,6 +7,7 @@
 
 export {
   getPublicClient,
+  executeArchiveRpcCall,
   readPositionAtBlock,
   readMarketAtBlock,
   readPosition,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bindMorphoArchiveRpcExecution,
   bindMorphoRpcStateRead,
   planGenericRpcStateRead,
   planMorphoEventRead,
@@ -49,6 +50,35 @@ describe("source plan", () => {
       marketId: "0xmarket",
       user: "0xuser",
       timestamp: 1700000000000,
+    });
+  });
+
+  it("binds generic state reads to a generic archive RPC call representation", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Position",
+      filters: [
+        { field: "chainId", op: "eq", value: 8453 },
+        { field: "marketId", op: "eq", value: "0xmarket" },
+        { field: "user", op: "eq", value: "0xuser" },
+      ],
+      field: "supplyShares",
+    };
+
+    expect(bindMorphoArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toEqual({
+      family: "state",
+      provider: "rpc",
+      chainId: 8453,
+      timestamp: undefined,
+      call: {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature:
+          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+        args: [
+          { type: "bytes32", value: "0xmarket" },
+          { type: "address", value: "0xuser" },
+        ],
+      },
     });
   });
 

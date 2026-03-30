@@ -58,7 +58,8 @@ Today the AST already has the right shape for mixed-source evaluation:
 That means Sentinel can already combine families inside one condition tree.
 For example, a future expression can compare or combine state, indexed, and raw leaves without changing the evaluator model.
 
-The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings.
+The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings that compile into a generic archive call representation.
+Execution is handled by a shared archive RPC executor (`executeArchiveRpcCall`) that supports signature-driven `eth_call` with typed args, including `bytes` and fixed-bytes (`bytesN`) inputs.
 This keeps Morpho behavior intact while preventing state planning from being Morpho-shaped by default.
 
 ## Extension Path

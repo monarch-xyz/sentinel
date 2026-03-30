@@ -10,8 +10,13 @@ import {
   type Chain,
   type PublicClient,
   createPublicClient,
+  decodeFunctionResult,
   defineChain,
+  encodeFunctionData,
   fallback,
+  isAddress,
+  isHex,
+  parseAbi,
 } from "viem";
 import { arbitrum, base, mainnet, polygon } from "viem/chains";
 
@@ -53,9 +58,10 @@ const monad = defineChain({
     default: { name: "Monad Explorer", url: "https://testnet.monadexplorer.com" },
   },
 });
+import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
-import { MORPHO_ADDRESSES, type MarketResult, type PositionResult, morphoAbi } from "./abi.js";
+import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.js";
 
 const logger = createLogger("rpc-client");
 const RPC_TIMEOUT_MS = Number.parseInt(process.env.RPC_TIMEOUT_MS ?? "15000", 10);
@@ -104,6 +110,125 @@ export class RpcQueryError extends Error {
     super(message);
     this.name = "RpcQueryError";
   }
+}
+
+function normalizeFunctionSignature(signature: string): string {
+  const trimmed = signature.trim();
+  if (!trimmed) {
+    throw new Error("RPC call signature is required");
+  }
+  return trimmed.startsWith("function ") ? trimmed : `function ${trimmed}`;
+}
+
+function extractFunctionName(signature: string): string {
+  const normalized = signature.trim().replace(/^function\s+/, "");
+  const functionName = normalized.split("(")[0]?.trim();
+  if (!functionName) {
+    throw new Error(`Invalid function signature: ${signature}`);
+  }
+  return functionName;
+}
+
+function normalizeTypedArg(arg: RpcTypedArg): unknown {
+  const { type, value } = arg;
+
+  if (type === "address") {
+    if (typeof value !== "string" || !isAddress(value)) {
+      throw new Error(`Invalid address argument: ${String(value)}`);
+    }
+    return value;
+  }
+
+  if (type === "bool") {
+    if (typeof value !== "boolean") {
+      throw new Error(`Invalid bool argument: ${String(value)}`);
+    }
+    return value;
+  }
+
+  if (type === "string") {
+    if (typeof value !== "string") {
+      throw new Error(`Invalid string argument: ${String(value)}`);
+    }
+    return value;
+  }
+
+  if (type === "bytes") {
+    if (typeof value !== "string" || !isHex(value) || (value.length - 2) % 2 !== 0) {
+      throw new Error(`Invalid bytes argument: ${String(value)}`);
+    }
+    return value;
+  }
+
+  const fixedBytesMatch = type.match(/^bytes([1-9]|[12][0-9]|3[0-2])$/);
+  if (fixedBytesMatch) {
+    const byteLength = Number.parseInt(fixedBytesMatch[1], 10);
+    if (
+      typeof value !== "string" ||
+      !isHex(value) ||
+      value.length !== 2 + byteLength * 2 ||
+      (value.length - 2) % 2 !== 0
+    ) {
+      throw new Error(`Invalid ${type} argument: ${String(value)}`);
+    }
+    return value;
+  }
+
+  const isUint = /^uint(\d+)$/.test(type);
+  const isInt = /^int(\d+)$/.test(type);
+  if (isUint || isInt) {
+    if (typeof value === "bigint") {
+      if (isUint && value < 0n) {
+        throw new Error(`Invalid ${type} argument: negative value`);
+      }
+      return value;
+    }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || !Number.isInteger(value)) {
+        throw new Error(`Invalid ${type} argument: ${String(value)}`);
+      }
+      if (isUint && value < 0) {
+        throw new Error(`Invalid ${type} argument: negative value`);
+      }
+      if (!Number.isSafeInteger(value)) {
+        throw new Error(
+          `Invalid ${type} argument: unsafe integer number; use string or bigint for large integers`,
+        );
+      }
+      return BigInt(value);
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = BigInt(value);
+      if (isUint && parsed < 0n) {
+        throw new Error(`Invalid ${type} argument: negative value`);
+      }
+      return parsed;
+    }
+    throw new Error(`Invalid ${type} argument: ${String(value)}`);
+  }
+
+  throw new Error(`Unsupported argument type: ${type}`);
+}
+
+function toBigIntTuple(
+  chainId: number,
+  blockNumber: bigint | undefined,
+  functionName: string,
+  value: unknown,
+  expectedLength: number,
+): bigint[] {
+  if (
+    !Array.isArray(value) ||
+    value.length < expectedLength ||
+    value.some((entry) => typeof entry !== "bigint")
+  ) {
+    throw new RpcQueryError(
+      `Unexpected ${functionName} response shape from archive RPC`,
+      chainId,
+      blockNumber,
+    );
+  }
+  return value as bigint[];
 }
 
 /**
@@ -369,6 +494,51 @@ export async function probeRpcChain(chainId: number): Promise<void> {
   await getPublicClient(chainId).getBlockNumber();
 }
 
+export async function executeArchiveRpcCall(
+  chainId: number,
+  call: GenericRpcCall,
+  blockNumber?: bigint,
+): Promise<unknown> {
+  const client = getPublicClient(chainId);
+
+  try {
+    const functionSignature = normalizeFunctionSignature(call.signature);
+    const functionName = extractFunctionName(functionSignature);
+
+    if (!isAddress(call.to)) {
+      throw new Error(`Invalid contract address: ${call.to}`);
+    }
+
+    const abi = parseAbi([functionSignature]);
+    const args = call.args.map((arg) => normalizeTypedArg(arg));
+
+    const data = encodeFunctionData({
+      abi,
+      functionName,
+      args: args as never,
+    } as never);
+
+    const response = await client.call({
+      to: call.to as `0x${string}`,
+      data,
+      blockNumber,
+    });
+
+    if (!response.data) {
+      throw new Error("RPC call returned no data");
+    }
+
+    return decodeFunctionResult({
+      abi,
+      functionName,
+      data: response.data,
+    } as never);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new RpcQueryError(`Failed to execute archive RPC call: ${message}`, chainId, blockNumber);
+  }
+}
+
 /**
  * Read position state at a specific block
  *
@@ -389,7 +559,6 @@ export async function readPositionAtBlock(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId, blockNumber);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
@@ -398,16 +567,26 @@ export async function readPositionAtBlock(
       "Reading position at block",
     );
 
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "position",
-      args: [normalizedMarketId, user as `0x${string}`],
+    const result = await executeArchiveRpcCall(
+      chainId,
+      {
+        to: morphoAddress,
+        signature:
+          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+        args: [
+          { type: "bytes32", value: normalizedMarketId },
+          { type: "address", value: user },
+        ],
+      },
       blockNumber,
-    });
-
-    // Result is a tuple [supplyShares, borrowShares, collateral]
-    const [supplyShares, borrowShares, collateral] = result as [bigint, bigint, bigint];
+    );
+    const [supplyShares, borrowShares, collateral] = toBigIntTuple(
+      chainId,
+      blockNumber,
+      "position",
+      result,
+      3,
+    );
 
     return {
       supplyShares,
@@ -442,7 +621,6 @@ export async function readMarketAtBlock(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId, blockNumber);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
@@ -451,15 +629,16 @@ export async function readMarketAtBlock(
       "Reading market at block",
     );
 
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "market",
-      args: [normalizedMarketId],
+    const result = await executeArchiveRpcCall(
+      chainId,
+      {
+        to: morphoAddress,
+        signature:
+          "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
+        args: [{ type: "bytes32", value: normalizedMarketId }],
+      },
       blockNumber,
-    });
-
-    // Result is a tuple
+    );
     const [
       totalSupplyAssets,
       totalSupplyShares,
@@ -467,7 +646,7 @@ export async function readMarketAtBlock(
       totalBorrowShares,
       lastUpdate,
       fee,
-    ] = result as [bigint, bigint, bigint, bigint, bigint, bigint];
+    ] = toBigIntTuple(chainId, blockNumber, "market", result, 6);
 
     return {
       totalSupplyAssets,
@@ -500,18 +679,25 @@ export async function readPosition(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "position",
-      args: [normalizedMarketId, user as `0x${string}`],
+    const result = await executeArchiveRpcCall(chainId, {
+      to: morphoAddress,
+      signature:
+        "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+      args: [
+        { type: "bytes32", value: normalizedMarketId },
+        { type: "address", value: user },
+      ],
     });
-
-    const [supplyShares, borrowShares, collateral] = result as [bigint, bigint, bigint];
+    const [supplyShares, borrowShares, collateral] = toBigIntTuple(
+      chainId,
+      undefined,
+      "position",
+      result,
+      3,
+    );
     return { supplyShares, borrowShares, collateral };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -528,17 +714,15 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "market",
-      args: [normalizedMarketId],
+    const result = await executeArchiveRpcCall(chainId, {
+      to: morphoAddress,
+      signature:
+        "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
+      args: [{ type: "bytes32", value: normalizedMarketId }],
     });
-
     const [
       totalSupplyAssets,
       totalSupplyShares,
@@ -546,7 +730,7 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
       totalBorrowShares,
       lastUpdate,
       fee,
-    ] = result as [bigint, bigint, bigint, bigint, bigint, bigint];
+    ] = toBigIntTuple(chainId, undefined, "market", result, 6);
 
     return {
       totalSupplyAssets,
