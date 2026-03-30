@@ -8,14 +8,14 @@
  * - Raw decoded event scans: indexing client (currently HyperSync)
  */
 
-import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { executeArchiveRpcCall } from "../rpc/index.js";
-import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
-import { requireBigIntTuple, requireSafeNumberFromBigInt } from "../utils/bigint-tuples.js";
-import { createLogger } from "../utils/logger.js";
-import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
-import { bindArchiveRpcExecution } from "./rpc-state-resolver.js";
-import { planGenericRpcStateRead, planIndexedEventRead, planRawEventRead } from "./source-plan.js";
+import { resolveBlockByTimestamp } from "../envio/blocks.ts";
+import { executeArchiveRpcCall } from "../rpc/index.ts";
+import type { EventRef, RawEventRef, StateRef } from "../types/index.ts";
+import { requireBigIntTuple, requireSafeNumberFromBigInt } from "../utils/bigint-tuples.ts";
+import { createLogger } from "../utils/logger.ts";
+import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.ts";
+import { bindArchiveRpcExecution } from "./rpc-state-resolver.ts";
+import { planGenericRpcStateRead, planIndexedEventRead, planRawEventRead } from "./source-plan.ts";
 
 const logger = createLogger("morpho-fetcher");
 

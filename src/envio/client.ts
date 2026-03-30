@@ -1,9 +1,9 @@
 import { GraphQLClient } from "graphql-request";
-import { config } from "../config/index.js";
-import type { EventRef, Filter } from "../types/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
-import { normalizeMarketId } from "../utils/market.js";
+import { config } from "../config/index.ts";
+import type { EventRef, Filter } from "../types/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
+import { normalizeMarketId } from "../utils/market.ts";
 
 // ============================================
 // GraphQL Types
@@ -57,9 +57,7 @@ function buildEnvioHeaders(): Record<string, string> | undefined {
   };
 }
 
-export function createEnvioGraphQLClient(
-  endpoint: string = config.envio.endpoint,
-): GraphQLClient {
+export function createEnvioGraphQLClient(endpoint: string = config.envio.endpoint): GraphQLClient {
   if (!endpoint) {
     throw new Error("Envio endpoint not configured");
   }

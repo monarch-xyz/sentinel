@@ -1,10 +1,10 @@
 import { HypersyncClient, JoinMode, type Log, type Query } from "@envio-dev/hypersync-client";
-import { decodeEventLog, encodeAbiParameters, parseAbiItem, type AbiEvent } from "viem";
-import { config } from "../config/index.js";
-import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import type { Filter, RawEventQuery, RawEventRef } from "../types/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
+import { type AbiEvent, decodeEventLog, encodeAbiParameters, parseAbiItem } from "viem";
+import { config } from "../config/index.ts";
+import { resolveBlockByTimestamp } from "../envio/blocks.ts";
+import type { Filter, RawEventQuery, RawEventRef } from "../types/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("hypersync-client");
 
@@ -185,8 +185,7 @@ function buildTopicFilters(
 function buildAddressFilters(ref: RawEventRef): string[] | undefined {
   const contractAddressFilters = ref.filters
     ?.filter(
-      (filter) =>
-        filter.field === "contract_address" && (filter.op === "eq" || filter.op === "in"),
+      (filter) => filter.field === "contract_address" && (filter.op === "eq" || filter.op === "in"),
     )
     .flatMap((filter) => (Array.isArray(filter.value) ? filter.value : [filter.value]))
     .filter((value): value is string => typeof value === "string")

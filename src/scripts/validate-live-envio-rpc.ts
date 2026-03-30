@@ -1,15 +1,15 @@
 #!/usr/bin/env npx tsx
 
 import "dotenv/config";
-import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { EnvioClient } from "../envio/client.js";
+import { resolveBlockByTimestamp } from "../envio/blocks.ts";
+import { EnvioClient } from "../envio/client.ts";
 import {
   getPublicClient,
   readMarketAtBlock,
   readPosition,
   readPositionAtBlock,
-} from "../rpc/index.js";
-import type { EventRef, Filter } from "../types/index.js";
+} from "../rpc/index.ts";
+import type { EventRef, Filter } from "../types/index.ts";
 
 type CandidateWindow = {
   label: string;

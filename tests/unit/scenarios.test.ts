@@ -4,8 +4,8 @@ import {
   evaluateCondition,
   evaluateNode,
   parseDuration,
-} from "../../src/engine/evaluator.js";
-import type { Condition, ExpressionNode, StateRef } from "../../src/types/index.js";
+} from "../../src/engine/evaluator.ts";
+import type { Condition, ExpressionNode, StateRef } from "../../src/types/index.ts";
 import scenarios from "../fixtures/scenarios.json";
 
 describe("parseDuration", () => {

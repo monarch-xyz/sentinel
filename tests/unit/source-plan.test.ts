@@ -3,8 +3,8 @@ import {
   planGenericRpcStateRead,
   planIndexedEventRead,
   planRawEventRead,
-} from "../../src/engine/source-plan.js";
-import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.js";
+} from "../../src/engine/source-plan.ts";
+import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.ts";
 
 describe("source plan", () => {
   it("plans generic state reads through RPC using the default chain", () => {

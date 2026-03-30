@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WebhookPayload } from "../../src/types/index.js";
+import type { WebhookPayload } from "../../src/types/index.ts";
 
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
@@ -36,7 +36,7 @@ describe("Webhook signing", () => {
     process.env.WEBHOOK_SECRET = "test-secret";
     vi.resetModules();
 
-    const { dispatchNotification } = await import("../../src/worker/notifier.js");
+    const { dispatchNotification } = await import("../../src/worker/notifier.ts");
     await dispatchNotification("https://example.com/webhook", payload, 5000);
 
     const options = mockedAxios.post.mock.calls[0][2];
@@ -56,7 +56,7 @@ describe("Webhook signing", () => {
     delete process.env.WEBHOOK_SECRET;
     vi.resetModules();
 
-    const { dispatchNotification } = await import("../../src/worker/notifier.js");
+    const { dispatchNotification } = await import("../../src/worker/notifier.ts");
     await dispatchNotification("https://example.com/webhook", payload, 5000);
 
     const options = mockedAxios.post.mock.calls[0][2];

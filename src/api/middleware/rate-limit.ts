@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { redis } from "../../redis/client.js";
-import { getErrorMessage } from "../../utils/errors.js";
-import { createLogger } from "../../utils/logger.js";
+import { redis } from "../../redis/client.ts";
+import { getErrorMessage } from "../../utils/errors.ts";
+import { createLogger } from "../../utils/logger.ts";
 
 export interface RateLimitOptions {
   windowMs: number;

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { env } from "./env.js";
+import { env } from "./env.ts";
 
 /**
  * Verify Sentinel webhook signature

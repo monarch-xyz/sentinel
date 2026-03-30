@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { createLogger } from "../../utils/logger.js";
+import { createLogger } from "../../utils/logger.ts";
 
 const logger = createLogger("api:request");
 

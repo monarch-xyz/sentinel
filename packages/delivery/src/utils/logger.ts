@@ -1,4 +1,4 @@
-import { env } from "./env.js";
+import { env } from "./env.ts";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 

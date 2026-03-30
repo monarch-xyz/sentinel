@@ -1,12 +1,12 @@
-import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { createIndexingClient } from "../indexing/client.js";
-import type { ComparisonOp } from "../types/index.js";
-import { isSimpleCondition } from "./compiler.js";
-import { evaluateConditionSet } from "./condition.js";
-import type { EvaluatableSignal } from "./condition.js";
-import { type EvalContext, evaluateNode, parseDuration } from "./evaluator.js";
-import type { DataFetcher } from "./fetcher.js";
-import { createMorphoFetcher } from "./morpho-fetcher.js";
+import { resolveBlockByTimestamp } from "../envio/blocks.ts";
+import { createIndexingClient } from "../indexing/client.ts";
+import type { ComparisonOp } from "../types/index.ts";
+import { isSimpleCondition } from "./compiler.ts";
+import { evaluateConditionSet } from "./condition.ts";
+import type { EvaluatableSignal } from "./condition.ts";
+import { type EvalContext, evaluateNode, parseDuration } from "./evaluator.ts";
+import type { DataFetcher } from "./fetcher.ts";
+import { createMorphoFetcher } from "./morpho-fetcher.ts";
 
 export interface SimulationRequest {
   signal: EvaluatableSignal; // The signal to simulate

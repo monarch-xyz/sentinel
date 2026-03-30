@@ -1,5 +1,9 @@
 import axios from "axios";
-import { getConfiguredRpcChainIds, getConfiguredRpcUrls, isChainSupportedForRpc } from "../rpc/client.js";
+import {
+  getConfiguredRpcChainIds,
+  getConfiguredRpcUrls,
+  isChainSupportedForRpc,
+} from "../rpc/client.ts";
 
 /**
  * Chain configuration for block resolution

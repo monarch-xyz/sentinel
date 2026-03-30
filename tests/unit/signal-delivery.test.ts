@@ -24,7 +24,7 @@ describe("signal delivery resolution", () => {
       app_user_id: "user-1",
     });
 
-    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.js");
+    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.ts");
     await expect(
       resolveSignalWebhookUrl({ delivery: { provider: "telegram" } }, "user-1"),
     ).resolves.toBe("http://delivery:3100/webhook/deliver");
@@ -37,14 +37,14 @@ describe("signal delivery resolution", () => {
       app_user_id: "user-1",
     });
 
-    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.js");
+    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.ts");
     await expect(
       resolveSignalWebhookUrl({ delivery: { provider: "telegram" } }, "user-1"),
     ).rejects.toThrow("Telegram is not linked for this user");
   });
 
   it("infers telegram-managed delivery from the internal delivery webhook", async () => {
-    const { inferManagedSignalDelivery } = await import("../../src/api/signal-delivery.js");
+    const { inferManagedSignalDelivery } = await import("../../src/api/signal-delivery.ts");
     expect(inferManagedSignalDelivery("http://delivery:3100/webhook/deliver")).toEqual({
       provider: "telegram",
     });
@@ -57,7 +57,7 @@ describe("signal delivery resolution", () => {
       app_user_id: "user-1",
     });
 
-    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.js");
+    const { resolveSignalWebhookUrl } = await import("../../src/api/signal-delivery.ts");
     await expect(
       resolveSignalWebhookUrl(
         {

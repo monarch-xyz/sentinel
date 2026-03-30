@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMarketId } from "../../src/utils/market.js";
+import { normalizeMarketId } from "../../src/utils/market.ts";
 
 describe("normalizeMarketId", () => {
   it("extracts a bytes32 market id from a market URL", () => {

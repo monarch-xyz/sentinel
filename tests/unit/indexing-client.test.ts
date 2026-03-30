@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IndexedEventFetcher, RawEventFetcher } from "../../src/engine/fetcher.js";
-import { IndexingClient, createIndexingClient } from "../../src/indexing/client.js";
-import type { EventRef, RawEventRef } from "../../src/types/index.js";
+import type { IndexedEventFetcher, RawEventFetcher } from "../../src/engine/fetcher.ts";
+import { IndexingClient, createIndexingClient } from "../../src/indexing/client.ts";
+import type { EventRef, RawEventRef } from "../../src/types/index.ts";
 
 describe("createIndexingClient", () => {
   it("forwards indexed semantic reads and raw event reads through one boundary", async () => {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type BatchQuery, EnvioClient, EnvioQueryError } from "../../src/envio/client.js";
-import { config } from "../../src/config/index.js";
-import type { FilterOp } from "../../src/types/index.js";
+import { config } from "../../src/config/index.ts";
+import { type BatchQuery, EnvioClient, EnvioQueryError } from "../../src/envio/client.ts";
+import type { FilterOp } from "../../src/types/index.ts";
 
 const { mockRequest, mockGraphQLClient } = vi.hoisted(() => ({
   mockRequest: vi.fn(),

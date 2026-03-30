@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventFetcher, RawEventFetcher } from "../../src/engine/fetcher.js";
-import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.js";
-import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
-import { executeArchiveRpcCall } from "../../src/rpc/index.js";
-import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.js";
+import type { EventFetcher, RawEventFetcher } from "../../src/engine/fetcher.ts";
+import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.ts";
+import { resolveBlockByTimestamp } from "../../src/envio/blocks.ts";
+import { executeArchiveRpcCall } from "../../src/rpc/index.ts";
+import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.ts";
 
 vi.mock("../../src/envio/blocks.js", () => ({
   resolveBlockByTimestamp: vi.fn(),

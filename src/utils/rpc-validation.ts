@@ -1,6 +1,6 @@
 import { isAddress, isHex } from "viem";
 import { z } from "zod";
-import type { RpcTypedArg } from "../types/index.js";
+import type { RpcTypedArg } from "../types/index.ts";
 
 const RpcTypedArgSchema = z.object({
   type: z.string().min(1),

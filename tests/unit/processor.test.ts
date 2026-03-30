@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pool } from "../../src/db/index.js";
-import { dispatchNotification } from "../../src/worker/notifier.js";
+import { pool } from "../../src/db/index.ts";
+import { dispatchNotification } from "../../src/worker/notifier.ts";
 
 // Mock ioredis first (before bullmq)
 vi.mock("ioredis", () => ({
@@ -63,7 +63,7 @@ describe("Processor Logic", () => {
   });
 
   it("evaluates a signal and dispatches notification", async () => {
-    const { setupWorker } = await import("../../src/worker/processor.js");
+    const { setupWorker } = await import("../../src/worker/processor.ts");
     setupWorker();
 
     // 1. Mock DB returning a simple signal

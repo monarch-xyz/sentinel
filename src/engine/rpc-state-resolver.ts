@@ -1,5 +1,5 @@
-import { bindMorphoArchiveRpcExecution } from "../protocols/morpho/index.js";
-import type { PlannedArchiveRpcExecution, PlannedGenericRpcStateRead } from "./source-plan.js";
+import { bindMorphoArchiveRpcExecution } from "../protocols/morpho/index.ts";
+import type { PlannedArchiveRpcExecution, PlannedGenericRpcStateRead } from "./source-plan.ts";
 
 /**
  * Protocol-level RPC state dispatch.

@@ -9,8 +9,8 @@ import {
   getSupportedChains,
   isChainSupported,
   resolveBlockByTimestamp,
-} from "../../src/envio/blocks.js";
-import { clearRpcConfigurationCache } from "../../src/rpc/client.js";
+} from "../../src/envio/blocks.ts";
+import { clearRpcConfigurationCache } from "../../src/rpc/client.ts";
 
 // Mock axios
 vi.mock("axios");

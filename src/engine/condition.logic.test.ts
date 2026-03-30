@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { EventRef, StateRef } from "../types/index.js";
-import type { SignalDefinition } from "../types/signal.js";
-import { compileSignalDefinition } from "./compile-signal.js";
-import { SignalEvaluator } from "./condition.js";
-import type { DataFetcher } from "./fetcher.js";
+import type { EventRef, StateRef } from "../types/index.ts";
+import type { SignalDefinition } from "../types/signal.ts";
+import { compileSignalDefinition } from "./compile-signal.ts";
+import { SignalEvaluator } from "./condition.ts";
+import type { DataFetcher } from "./fetcher.ts";
 
 function getFilterValue(ref: StateRef | EventRef, field: string): string | number | undefined {
   const match = ref.filters.find((filter) => filter.field === field && filter.op === "eq");

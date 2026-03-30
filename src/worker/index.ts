@@ -6,15 +6,15 @@
  * 2. Processor - evaluates signals and dispatches notifications
  */
 
-import { config } from "../config/index.js";
-import { closeDb, verifyDbConnection } from "../db/index.js";
-import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
-import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
-import { closeConnection } from "./connection.js";
-import { setupWorker } from "./processor.js";
-import { setupSchedulerWorker, startScheduler } from "./scheduler.js";
+import { config } from "../config/index.ts";
+import { closeDb, verifyDbConnection } from "../db/index.ts";
+import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.ts";
+import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
+import { closeConnection } from "./connection.ts";
+import { setupWorker } from "./processor.ts";
+import { setupSchedulerWorker, startScheduler } from "./scheduler.ts";
 
 const logger = createLogger("worker");
 

@@ -3,7 +3,7 @@
  * while applying scope defaults and enforcing supported subsets.
  */
 
-import type { Condition as AstCondition, ComparisonOp } from "../types/index.js";
+import type { Condition as AstCondition, ComparisonOp } from "../types/index.ts";
 import type {
   AggregateCondition,
   ChangeCondition,
@@ -14,22 +14,22 @@ import type {
   SignalDefinition,
   SignalScope,
   ThresholdCondition,
-} from "../types/signal.js";
+} from "../types/signal.ts";
+import { normalizeMarketId } from "../utils/market.ts";
 import {
   ValidationError,
   validateChains,
   validateCondition,
   validateDuration,
-} from "../utils/validation.js";
-import { normalizeMarketId } from "../utils/market.js";
+} from "../utils/validation.ts";
 import {
   type CompiledAggregateCondition,
   type CompiledCondition,
   compileCondition,
   isSimpleCondition,
   validateEventFilters,
-} from "./compiler.js";
-import { getMetric } from "./metrics.js";
+} from "./compiler.ts";
+import { getMetric } from "./metrics.ts";
 
 export interface CompiledSignalDefinition {
   chains: number[];

@@ -3,22 +3,22 @@ import express from "express";
 import { type Address, getAddress, verifyMessage } from "viem";
 import { generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { z } from "zod";
-import { config } from "../../config/index.js";
+import { config } from "../../config/index.ts";
 import {
   ApiKeyRepository,
   AuthIdentityRepository,
   AuthNonceRepository,
   UserRepository,
   UserSessionRepository,
-} from "../../db/index.js";
-import { getErrorMessage, isZodError } from "../../utils/errors.js";
-import { createLogger } from "../../utils/logger.js";
+} from "../../db/index.ts";
+import { getErrorMessage, isZodError } from "../../utils/errors.ts";
+import { createLogger } from "../../utils/logger.ts";
 import {
   generateApiKey,
   generateSessionToken,
   hashApiKey,
   hashSessionToken,
-} from "../middleware/auth.js";
+} from "../middleware/auth.ts";
 
 const logger = createLogger("api:auth");
 const router: express.Router = express.Router();

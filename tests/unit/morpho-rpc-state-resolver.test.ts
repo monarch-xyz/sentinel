@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { bindArchiveRpcExecution } from "../../src/engine/rpc-state-resolver.js";
-import { planGenericRpcStateRead } from "../../src/engine/source-plan.js";
+import { bindArchiveRpcExecution } from "../../src/engine/rpc-state-resolver.ts";
+import { planGenericRpcStateRead } from "../../src/engine/source-plan.ts";
 import {
   bindMorphoArchiveRpcExecution,
   bindMorphoRpcStateRead,
   planMorphoStateRead,
   planRpcStateRead,
-} from "../../src/protocols/morpho/index.js";
-import type { StateRef } from "../../src/types/index.js";
+} from "../../src/protocols/morpho/index.ts";
+import type { StateRef } from "../../src/types/index.ts";
 
 describe("morpho rpc state resolver", () => {
   const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;

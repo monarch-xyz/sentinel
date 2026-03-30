@@ -27,16 +27,16 @@
  */
 
 import { readFileSync } from "node:fs";
-import { compileSignalDefinition } from "../engine/compile-signal.js";
-import { type CompiledCondition, compileConditions } from "../engine/compiler.js";
-import { type EvaluatableSignal, evaluateConditionSet } from "../engine/condition.js";
-import type { EvalContext } from "../engine/evaluator.js";
-import { createMorphoFetcher } from "../engine/morpho-fetcher.js";
-import { createIndexingClient } from "../indexing/client.js";
-import type { SignalDefinition } from "../types/signal.js";
-import type { Condition as UserCondition } from "../types/signal.js";
-import { parseDuration } from "../utils/duration.js";
-import { createLogger } from "../utils/logger.js";
+import { compileSignalDefinition } from "../engine/compile-signal.ts";
+import { type CompiledCondition, compileConditions } from "../engine/compiler.ts";
+import { type EvaluatableSignal, evaluateConditionSet } from "../engine/condition.ts";
+import type { EvalContext } from "../engine/evaluator.ts";
+import { createMorphoFetcher } from "../engine/morpho-fetcher.ts";
+import { createIndexingClient } from "../indexing/client.ts";
+import type { SignalDefinition } from "../types/signal.ts";
+import type { Condition as UserCondition } from "../types/signal.ts";
+import { parseDuration } from "../utils/duration.ts";
+import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("test-condition");
 

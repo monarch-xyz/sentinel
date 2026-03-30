@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { beforeAll, describe, expect, it } from "vitest";
-import { readMarketAtBlock, readPositionAtBlock } from "../../src/rpc/index.js";
+import { readMarketAtBlock, readPositionAtBlock } from "../../src/rpc/index.ts";
 
 const RUN = process.env.RUN_LIVE_SNAPSHOT_TESTS === "true";
 const suite = RUN ? describe : describe.skip;

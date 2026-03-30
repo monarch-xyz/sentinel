@@ -1,7 +1,7 @@
 import { Redis } from "ioredis";
-import { config } from "../config/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
+import { config } from "../config/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("redis");
 

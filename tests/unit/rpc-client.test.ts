@@ -18,7 +18,7 @@ import {
   isChainSupportedForRpc,
   readMarketAtBlock,
   readPositionAtBlock,
-} from "../../src/rpc/client.js";
+} from "../../src/rpc/client.ts";
 
 vi.mock("viem", async () => {
   const actual = await vi.importActual<typeof import("viem")>("viem");

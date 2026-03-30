@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { toEventSelector } from "viem";
 import { describe, expect, it } from "vitest";
-import { HyperSyncClient } from "../../src/hypersync/client.js";
-import type { RawEventRef } from "../../src/types/index.js";
+import { HyperSyncClient } from "../../src/hypersync/client.ts";
+import type { RawEventRef } from "../../src/types/index.ts";
 
 const RUN = process.env.RUN_LIVE_HYPERSYNC_TESTS === "true";
 const suite = RUN ? describe : describe.skip;

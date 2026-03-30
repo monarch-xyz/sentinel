@@ -1,8 +1,8 @@
-import { normalizeStoredDefinition } from "../engine/compile-signal.js";
+import { normalizeStoredDefinition } from "../engine/compile-signal.ts";
 import {
   type SourceCapabilityError,
   assertSignalDefinitionSourcesEnabled,
-} from "../engine/source-capabilities.js";
+} from "../engine/source-capabilities.ts";
 
 export function assertStoredDefinitionSourcesEnabled(definition: unknown): void {
   const storedDefinition = normalizeStoredDefinition(definition);

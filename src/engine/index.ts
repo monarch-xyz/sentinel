@@ -1,10 +1,10 @@
 // Engine module exports
 
-export { evaluateNode, evaluateCondition, EvaluationError, parseDuration } from "./evaluator.js";
-export type { EvalContext } from "./evaluator.js";
+export { evaluateNode, evaluateCondition, EvaluationError, parseDuration } from "./evaluator.ts";
+export type { EvalContext } from "./evaluator.ts";
 
-export { SignalEvaluator } from "./condition.js";
-export type { SignalEvaluationResult } from "./condition.js";
+export { SignalEvaluator } from "./condition.ts";
+export type { SignalEvaluationResult } from "./condition.ts";
 
 // DataFetcher abstraction
 export type {
@@ -12,22 +12,22 @@ export type {
   DataFetcherOptions,
   IndexedEventFetcher,
   IndexingDataClient,
-} from "./fetcher.js";
+} from "./fetcher.ts";
 
 // Morpho-specific implementation
-export { createMorphoFetcher } from "./morpho-fetcher.js";
+export { createMorphoFetcher } from "./morpho-fetcher.ts";
 export {
   planGenericRpcStateRead,
   planIndexedEventRead,
   planRawEventRead,
-} from "./source-plan.js";
+} from "./source-plan.ts";
 export type {
   PlannedArchiveRpcExecution,
   PlannedEnvioEventRead,
   PlannedGenericRpcStateRead,
   PlannedIndexedEventRead,
   PlannedRawEventRead,
-} from "./source-plan.js";
+} from "./source-plan.ts";
 export {
   createSourceCapabilityError,
   SourceCapabilityError,
@@ -37,26 +37,26 @@ export {
   getDisabledSourceCapabilities,
   getSourceCapabilities,
   getSourceCapabilityHealth,
-} from "./source-capabilities.js";
+} from "./source-capabilities.ts";
 export type {
   SignalSourceUsage,
   SourceCapabilities,
   SourceCapability,
   SourceFamily,
   SourceProvider,
-} from "./source-capabilities.js";
+} from "./source-capabilities.ts";
 
 export {
   compileCondition,
   compileConditions,
   isGroupCondition,
   isSimpleCondition,
-} from "./compiler.js";
+} from "./compiler.ts";
 export type {
   CompiledCondition,
   CompiledAggregateCondition,
   CompiledGroupCondition,
-} from "./compiler.js";
+} from "./compiler.ts";
 
 export {
   METRIC_REGISTRY,
@@ -65,11 +65,11 @@ export {
   getMetricsByProtocol,
   listMetrics,
   getMetricsByKind,
-} from "./metrics.js";
+} from "./metrics.ts";
 export type {
   MetricDef,
   StateMetricDef,
   EventMetricDef,
   ComputedMetricDef,
   ChainedEventMetricDef,
-} from "./metrics.js";
+} from "./metrics.ts";

@@ -5,10 +5,10 @@
  *   ENVIO_ENDPOINT=... tsx src/scripts/test-event-count.ts
  */
 
-import { config } from "../config/index.js";
-import { createEnvioGraphQLClient, EnvioClient } from "../envio/client.js";
-import type { EventRef } from "../types/index.js";
-import { parseDuration } from "../utils/duration.js";
+import { config } from "../config/index.ts";
+import { EnvioClient, createEnvioGraphQLClient } from "../envio/client.ts";
+import type { EventRef } from "../types/index.ts";
+import { parseDuration } from "../utils/duration.ts";
 
 // GraphQL introspection types
 interface InputField {

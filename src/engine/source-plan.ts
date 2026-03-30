@@ -1,4 +1,4 @@
-import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
+import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.ts";
 
 type FilterValue = string | number | boolean;
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SignalEvaluator } from "../../src/engine/condition.js";
-import { type EvalContext, evaluateCondition, evaluateNode } from "../../src/engine/evaluator.js";
-import type { DataFetcher } from "../../src/engine/fetcher.js";
+import { SignalEvaluator } from "../../src/engine/condition.ts";
+import { type EvalContext, evaluateCondition, evaluateNode } from "../../src/engine/evaluator.ts";
+import type { DataFetcher } from "../../src/engine/fetcher.ts";
 import type {
   ComparisonOp,
   Condition,
@@ -9,7 +9,7 @@ import type {
   ExpressionNode,
   Signal,
   StateRef,
-} from "../../src/types/index.js";
+} from "../../src/types/index.ts";
 
 type FetchStateFn = (ref: StateRef, timestamp?: number) => Promise<number>;
 type FetchEventsFn = (ref: EventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;

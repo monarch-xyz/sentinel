@@ -1,9 +1,9 @@
-import { config } from "../config/index.js";
+import { config } from "../config/index.ts";
 import {
   DeliveryIntegrationError,
   getTelegramIntegrationStatus,
-} from "../integrations/delivery.js";
-import { ValidationError } from "../utils/validation.js";
+} from "../integrations/delivery.ts";
+import { ValidationError } from "../utils/validation.ts";
 
 export interface ManagedSignalDelivery {
   provider: "telegram";

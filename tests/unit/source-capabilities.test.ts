@@ -4,8 +4,8 @@ import {
   assertSignalDefinitionSourcesEnabled,
   collectSignalSourceUsage,
   createSourceCapabilities,
-} from "../../src/engine/source-capabilities.js";
-import type { SignalDefinition } from "../../src/types/signal.js";
+} from "../../src/engine/source-capabilities.ts";
+import type { SignalDefinition } from "../../src/types/signal.ts";
 
 describe("source capabilities", () => {
   it("collects source families used by a mixed signal definition", () => {

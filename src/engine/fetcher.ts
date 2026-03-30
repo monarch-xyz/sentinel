@@ -9,7 +9,7 @@
  * - raw decoded event scans
  */
 
-import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
+import type { EventRef, RawEventRef, StateRef } from "../types/index.ts";
 
 /**
  * Interface for fetching state and event data

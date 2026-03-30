@@ -1,1 +1,1 @@
-export { HyperSyncClient, HyperSyncQueryError, clearHyperSyncClientCache } from "./client.js";
+export { HyperSyncClient, HyperSyncQueryError, clearHyperSyncClientCache } from "./client.ts";

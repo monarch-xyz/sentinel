@@ -1,14 +1,14 @@
 import { type Job, Queue, Worker } from "bullmq";
-import { pool } from "../db/index.js";
-import { normalizeStoredDefinition } from "../engine/compile-signal.js";
-import { type EvaluatableSignal, SignalEvaluator } from "../engine/condition.js";
-import { createMorphoFetcher } from "../engine/morpho-fetcher.js";
-import { createIndexingClient } from "../indexing/client.js";
-import type { WebhookPayload } from "../types/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
-import { connection } from "./connection.js";
-import { dispatchNotification } from "./notifier.js";
+import { pool } from "../db/index.ts";
+import { normalizeStoredDefinition } from "../engine/compile-signal.ts";
+import { type EvaluatableSignal, SignalEvaluator } from "../engine/condition.ts";
+import { createMorphoFetcher } from "../engine/morpho-fetcher.ts";
+import { createIndexingClient } from "../indexing/client.ts";
+import type { WebhookPayload } from "../types/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
+import { connection } from "./connection.ts";
+import { dispatchNotification } from "./notifier.ts";
 
 const logger = createLogger("worker:processor");
 
@@ -108,7 +108,9 @@ export const setupWorker = () => {
             if (typeof primaryChain === "number") {
               context.chain_id = primaryChain;
             }
-            const conditionsMet = result.conditionResults.filter((condition) => condition.triggered);
+            const conditionsMet = result.conditionResults.filter(
+              (condition) => condition.triggered,
+            );
             const triggeredAt = new Date(result.timestamp).toISOString();
             const summary =
               conditionsMet.length > 0
