@@ -11,7 +11,7 @@
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
 import { executeArchiveRpcCall } from "../rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
-import { requireBigIntTuple } from "../utils/bigint-tuples.js";
+import { requireBigIntTuple, requireSafeNumberFromBigInt } from "../utils/bigint-tuples.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
 import { bindArchiveRpcExecution } from "./rpc-state-resolver.js";
@@ -23,11 +23,11 @@ function extractPositionField(result: unknown, field: string): number {
   const [supplyShares, borrowShares, collateral] = requireBigIntTuple(result, 3, "position RPC");
   switch (field) {
     case "supplyShares":
-      return Number(supplyShares);
+      return requireSafeNumberFromBigInt(supplyShares, "position.supplyShares");
     case "borrowShares":
-      return Number(borrowShares);
+      return requireSafeNumberFromBigInt(borrowShares, "position.borrowShares");
     case "collateral":
-      return Number(collateral);
+      return requireSafeNumberFromBigInt(collateral, "position.collateral");
     default:
       throw new Error(`Unknown Position field: ${field}`);
   }
@@ -48,17 +48,17 @@ function extractMarketField(result: unknown, field: string): number {
 
   switch (field) {
     case "totalSupplyAssets":
-      return Number(totalSupplyAssets);
+      return requireSafeNumberFromBigInt(totalSupplyAssets, "market.totalSupplyAssets");
     case "totalSupplyShares":
-      return Number(totalSupplyShares);
+      return requireSafeNumberFromBigInt(totalSupplyShares, "market.totalSupplyShares");
     case "totalBorrowAssets":
-      return Number(totalBorrowAssets);
+      return requireSafeNumberFromBigInt(totalBorrowAssets, "market.totalBorrowAssets");
     case "totalBorrowShares":
-      return Number(totalBorrowShares);
+      return requireSafeNumberFromBigInt(totalBorrowShares, "market.totalBorrowShares");
     case "lastUpdate":
-      return Number(lastUpdate);
+      return requireSafeNumberFromBigInt(lastUpdate, "market.lastUpdate");
     case "fee":
-      return Number(fee);
+      return requireSafeNumberFromBigInt(fee, "market.fee");
     default:
       throw new Error(`Unknown Market field: ${field}`);
   }

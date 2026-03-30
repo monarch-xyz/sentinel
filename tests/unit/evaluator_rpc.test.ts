@@ -15,6 +15,8 @@ vi.mock("../../src/rpc/index.js", () => ({
 }));
 
 describe("SignalEvaluator RPC historical state", () => {
+  const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
+  const USER = "0x2222222222222222222222222222222222222222" as const;
   const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
   const mockedExecuteArchiveRpcCall = vi.mocked(executeArchiveRpcCall);
 
@@ -40,8 +42,8 @@ describe("SignalEvaluator RPC historical state", () => {
             type: "state",
             entity_type: "Position",
             filters: [
-              { field: "marketId", op: "eq", value: "0xmarket" },
-              { field: "user", op: "eq", value: "0xuser" },
+              { field: "marketId", op: "eq", value: MARKET_ID },
+              { field: "user", op: "eq", value: USER },
             ],
             field: "supplyShares",
             snapshot: "current",
@@ -54,8 +56,8 @@ describe("SignalEvaluator RPC historical state", () => {
               type: "state",
               entity_type: "Position",
               filters: [
-                { field: "marketId", op: "eq", value: "0xmarket" },
-                { field: "user", op: "eq", value: "0xuser" },
+                { field: "marketId", op: "eq", value: MARKET_ID },
+                { field: "user", op: "eq", value: USER },
               ],
               field: "supplyShares",
               snapshot: "window_start",

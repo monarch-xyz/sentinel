@@ -46,6 +46,22 @@ describe("source plan", () => {
     });
   });
 
+  it("rejects invalid chainId filter values at planning boundary", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Market",
+      filters: [
+        { field: "chainId", op: "eq", value: "foo" },
+        { field: "marketId", op: "eq", value: "0xmarket" },
+      ],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => planGenericRpcStateRead(ref, undefined, 1)).toThrow(
+      "Invalid chainId filter value: foo. Expected a positive integer.",
+    );
+  });
+
   it("plans indexed event reads through Envio", () => {
     const ref: EventRef = {
       type: "event",

@@ -1,7 +1,9 @@
+import { z } from "zod";
 import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
 
 type FilterValue = string | number | boolean;
 const DEFAULT_STATE_PROTOCOL = "morpho";
+const ChainIdSchema = z.coerce.number().int().positive();
 
 export interface PlannedGenericRpcStateRead {
   family: "state";
@@ -50,16 +52,14 @@ function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: strin
 
 function resolveChainId(filters: Filter[], defaultChainId: number): number {
   const raw = getEqFilterValue<FilterValue>(filters, "chainId");
-  if (raw === undefined) {
-    return defaultChainId;
+  const value = raw === undefined ? defaultChainId : raw;
+  const parsed = ChainIdSchema.safeParse(value);
+  if (!parsed.success) {
+    const source = raw === undefined ? "default chainId" : "chainId filter value";
+    throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
   }
 
-  const chainId = typeof raw === "string" ? Number.parseInt(raw, 10) : Number(raw);
-  if (!Number.isInteger(chainId) || chainId <= 0) {
-    throw new Error(`Invalid chainId filter value: ${String(raw)}`);
-  }
-
-  return chainId;
+  return parsed.data;
 }
 
 function resolveStateProtocol(ref: StateRef): string {

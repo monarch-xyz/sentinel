@@ -7,7 +7,7 @@ import {
   isGroupCondition,
   isSimpleCondition,
 } from "../../src/engine/compiler.js";
-import { planRpcStateRead } from "../../src/protocols/morpho/index.js";
+import { planMorphoStateRead } from "../../src/protocols/morpho/index.js";
 import type {
   BinaryExpression,
   Condition as InternalCondition,
@@ -75,7 +75,7 @@ describe("Compiler", () => {
         operator: "<",
         value: 10000000,
         chain_id: 1,
-        market_id: "0xmarket123",
+        market_id: "0x1111111111111111111111111111111111111111111111111111111111111111",
       };
 
       const result = compileCondition(userCondition) as InternalCondition;
@@ -86,11 +86,15 @@ describe("Compiler", () => {
         entity_type: "Market",
         filters: expect.arrayContaining([
           { field: "chainId", op: "eq", value: 1 },
-          { field: "marketId", op: "eq", value: "0xmarket123" },
+          {
+            field: "marketId",
+            op: "eq",
+            value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+          },
         ]),
       });
 
-      const rpcPlan = planRpcStateRead(result.left as StateRef, undefined, 1);
+      const rpcPlan = planMorphoStateRead(result.left as StateRef, undefined, 1);
       expect(rpcPlan).toMatchObject({
         family: "state",
         provider: "rpc",

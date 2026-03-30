@@ -36,6 +36,7 @@ describe("rpc client", () => {
   const httpMock = vi.mocked(http);
   const originalSupportedChainIds = process.env.SUPPORTED_CHAIN_IDS;
   const originalRpcUrl1 = process.env.RPC_URL_1;
+  const originalRpcUrl10 = process.env.RPC_URL_10;
 
   function createClientWithCall(call: PublicClient["call"]): PublicClient {
     return { call } as unknown as PublicClient;
@@ -58,6 +59,12 @@ describe("rpc client", () => {
       delete process.env.RPC_URL_1;
     } else {
       process.env.RPC_URL_1 = originalRpcUrl1;
+    }
+    if (originalRpcUrl10 === undefined) {
+      // biome-ignore lint/performance/noDelete: env cleanup for test isolation
+      delete process.env.RPC_URL_10;
+    } else {
+      process.env.RPC_URL_10 = originalRpcUrl10;
     }
     if (originalSupportedChainIds === undefined) {
       // biome-ignore lint/performance/noDelete: env cleanup for test isolation
@@ -102,6 +109,28 @@ describe("rpc client", () => {
   it("throws RpcQueryError for unsupported chains", () => {
     expect(() => getPublicClient(10)).toThrow(RpcQueryError);
     expect(() => getPublicClient(10)).toThrow("Chain 10 is not configured for archive RPC access");
+  });
+
+  it("supports generic configured chains outside MORPHO_ADDRESSES", () => {
+    process.env.SUPPORTED_CHAIN_IDS = "10";
+    process.env.RPC_URL_10 = "https://rpc.optimism.example.org";
+    clearRpcConfigurationCache();
+
+    const client = createClientWithCall(vi.fn());
+    createPublicClientMock.mockReturnValue(client);
+
+    const resolved = getPublicClient(10);
+
+    expect(resolved).toBe(client);
+    expect(createPublicClientMock).toHaveBeenCalledTimes(1);
+    expect(httpMock).toHaveBeenCalledWith(
+      "https://rpc.optimism.example.org",
+      expect.objectContaining({
+        retryCount: 1,
+        retryDelay: 250,
+        timeout: 15000,
+      }),
+    );
   });
 
   it("executes generic archive RPC calls and decodes tuple outputs", async () => {

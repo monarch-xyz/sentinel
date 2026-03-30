@@ -10,14 +10,17 @@ import {
 import type { StateRef } from "../../src/types/index.js";
 
 describe("morpho rpc state resolver", () => {
+  const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
+  const USER = "0x2222222222222222222222222222222222222222" as const;
+
   it("binds generic state reads to Morpho runtime requirements", () => {
     const ref: StateRef = {
       type: "state",
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: USER },
       ],
       field: "supplyShares",
     };
@@ -30,8 +33,8 @@ describe("morpho rpc state resolver", () => {
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
+      marketId: MARKET_ID,
+      user: USER,
       timestamp: 1700000000000,
     });
   });
@@ -42,8 +45,8 @@ describe("morpho rpc state resolver", () => {
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: USER },
       ],
       field: "supplyShares",
     };
@@ -58,8 +61,8 @@ describe("morpho rpc state resolver", () => {
         signature:
           "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
         args: [
-          { type: "bytes32", value: "0xmarket" },
-          { type: "address", value: "0xuser" },
+          { type: "bytes32", value: MARKET_ID },
+          { type: "address", value: USER },
         ],
       },
     });
@@ -69,7 +72,7 @@ describe("morpho rpc state resolver", () => {
     const ref: StateRef = {
       type: "state",
       entity_type: "Market",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "totalBorrowAssets",
     };
 
@@ -84,8 +87,8 @@ describe("morpho rpc state resolver", () => {
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: USER },
       ],
       field: "supplyShares",
     };
@@ -97,8 +100,8 @@ describe("morpho rpc state resolver", () => {
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
+      marketId: MARKET_ID,
+      user: USER,
       timestamp: 1700000000000,
     });
   });
@@ -120,12 +123,41 @@ describe("morpho rpc state resolver", () => {
     const ref: StateRef = {
       type: "state",
       entity_type: "Position",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "supplyShares",
     };
 
     expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
       "user filter required for Position queries",
+    );
+  });
+
+  it("rejects invalid marketId filters at the resolver boundary", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xnot-bytes32" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      'Invalid marketId filter value "0xnot-bytes32": Expected a bytes32 hex value (0x + 64 hex chars)',
+    );
+  });
+
+  it("rejects invalid user filters at the resolver boundary", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Position",
+      filters: [
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: "0xnot-an-address" },
+      ],
+      field: "supplyShares",
+    };
+
+    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      'Invalid user filter value "0xnot-an-address": Expected a valid EVM address',
     );
   });
 
@@ -135,8 +167,8 @@ describe("morpho rpc state resolver", () => {
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: USER },
       ],
       field: "supplyShares",
     };
@@ -148,8 +180,8 @@ describe("morpho rpc state resolver", () => {
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
+      marketId: MARKET_ID,
+      user: USER,
       timestamp: 1700000000000,
     });
   });
@@ -158,12 +190,12 @@ describe("morpho rpc state resolver", () => {
     const ref: StateRef = {
       type: "state",
       entity_type: "Vault",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "assets",
     };
 
     expect(() => bindMorphoArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
-      "Unknown entity type for RPC: Vault",
+      'Unsupported Morpho entity type "Vault". Supported types: Position, Market.',
     );
   });
 
@@ -174,8 +206,8 @@ describe("morpho rpc state resolver", () => {
       entity_type: "Position",
       filters: [
         { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
+        { field: "marketId", op: "eq", value: MARKET_ID },
+        { field: "user", op: "eq", value: USER },
       ],
       field: "supplyShares",
     };
@@ -190,7 +222,7 @@ describe("morpho rpc state resolver", () => {
       type: "state",
       protocol: "aave",
       entity_type: "Market",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "totalBorrowAssets",
     };
 

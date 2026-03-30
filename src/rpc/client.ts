@@ -15,7 +15,6 @@ import {
   encodeFunctionData,
   fallback,
   isAddress,
-  isHex,
   parseAbi,
 } from "viem";
 import { arbitrum, base, mainnet, polygon } from "viem/chains";
@@ -59,9 +58,9 @@ const monad = defineChain({
   },
 });
 import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
-import { requireBigIntTuple } from "../utils/bigint-tuples.js";
 import { createLogger } from "../utils/logger.js";
 import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
+import { normalizeRpcTypedArg, parseRpcBigIntTuple } from "../utils/rpc-validation.js";
 import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.js";
 
 const logger = createLogger("rpc-client");
@@ -75,6 +74,7 @@ type ResolvedRpcChain = {
   rpcEnvVar: string;
   rpcUrls: string[];
   archiveRequired: true;
+  chain?: Chain;
 };
 
 type ResolvedRpcConfigurationStatus = {
@@ -131,85 +131,7 @@ function extractFunctionName(signature: string): string {
 }
 
 function normalizeTypedArg(arg: RpcTypedArg): unknown {
-  const { type } = arg;
-  const value = arg.value as unknown;
-
-  if (type === "address") {
-    if (typeof value !== "string" || !isAddress(value)) {
-      throw new Error(`Invalid address argument: ${String(value)}`);
-    }
-    return value;
-  }
-
-  if (type === "bool") {
-    if (typeof value !== "boolean") {
-      throw new Error(`Invalid bool argument: ${String(value)}`);
-    }
-    return value;
-  }
-
-  if (type === "string") {
-    if (typeof value !== "string") {
-      throw new Error(`Invalid string argument: ${String(value)}`);
-    }
-    return value;
-  }
-
-  if (type === "bytes") {
-    if (typeof value !== "string" || !isHex(value) || (value.length - 2) % 2 !== 0) {
-      throw new Error(`Invalid bytes argument: ${String(value)}`);
-    }
-    return value;
-  }
-
-  const fixedBytesMatch = type.match(/^bytes([1-9]|[12][0-9]|3[0-2])$/);
-  if (fixedBytesMatch) {
-    const byteLength = Number.parseInt(fixedBytesMatch[1], 10);
-    if (
-      typeof value !== "string" ||
-      !isHex(value) ||
-      value.length !== 2 + byteLength * 2 ||
-      (value.length - 2) % 2 !== 0
-    ) {
-      throw new Error(`Invalid ${type} argument: ${String(value)}`);
-    }
-    return value;
-  }
-
-  const isUint = /^uint(\d+)$/.test(type);
-  const isInt = /^int(\d+)$/.test(type);
-  if (isUint || isInt) {
-    if (typeof value === "bigint") {
-      if (isUint && value < 0n) {
-        throw new Error(`Invalid ${type} argument: negative value`);
-      }
-      return value;
-    }
-    if (typeof value === "number") {
-      if (!Number.isFinite(value) || !Number.isInteger(value)) {
-        throw new Error(`Invalid ${type} argument: ${String(value)}`);
-      }
-      if (isUint && value < 0) {
-        throw new Error(`Invalid ${type} argument: negative value`);
-      }
-      if (!Number.isSafeInteger(value)) {
-        throw new Error(
-          `Invalid ${type} argument: unsafe integer number; use string or bigint for large integers`,
-        );
-      }
-      return BigInt(value);
-    }
-    if (typeof value === "string" && value.trim() !== "") {
-      const parsed = BigInt(value);
-      if (isUint && parsed < 0n) {
-        throw new Error(`Invalid ${type} argument: negative value`);
-      }
-      return parsed;
-    }
-    throw new Error(`Invalid ${type} argument: ${String(value)}`);
-  }
-
-  throw new Error(`Unsupported argument type: ${type}`);
+  return normalizeRpcTypedArg(arg);
 }
 
 function toBigIntTuple(
@@ -220,7 +142,7 @@ function toBigIntTuple(
   expectedLength: number,
 ): bigint[] {
   try {
-    return requireBigIntTuple(value, expectedLength, functionName);
+    return parseRpcBigIntTuple(value, expectedLength, functionName);
   } catch {
     throw new RpcQueryError(
       `Unexpected ${functionName} response shape from archive RPC`,
@@ -275,9 +197,9 @@ function buildUnsupportedChainMessage(chainId: number): string {
   return `Chain ${chainId} is not configured for archive RPC access.${supportedHint}`;
 }
 
-function getTestFallbackChain(chainId: number): (ResolvedRpcChain & { chain: Chain }) | undefined {
+function getTestFallbackChain(chainId: number): ResolvedRpcChain | undefined {
   const chain = CHAIN_MAP[chainId];
-  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
+  if (!chain) {
     return undefined;
   }
 
@@ -332,27 +254,19 @@ function getResolvedRpcConfigurationStatus(): ResolvedRpcConfigurationStatus {
     const rpcEnvVar = `RPC_URL_${chainId}`;
     const rpcUrls = splitRpcUrls(process.env[rpcEnvVar]);
 
-    if (!chain || !(chainId in MORPHO_ADDRESSES)) {
-      issues.push(`Unsupported chain in SUPPORTED_CHAIN_IDS: ${chainId}.`);
-      return {
-        chainId,
-        name: `Chain ${chainId}`,
-        rpcEnvVar,
-        rpcUrls,
-        archiveRequired: true as const,
-      };
-    }
-
     if (rpcUrls.length === 0) {
-      issues.push(`${rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`);
+      issues.push(
+        `${rpcEnvVar} is required for supported chain ${chainId} (${chain?.name ?? `Chain ${chainId}`}).`,
+      );
     }
 
     return {
       chainId,
-      name: chain.name,
+      name: chain?.name ?? `Chain ${chainId}`,
       rpcEnvVar,
       rpcUrls,
       archiveRequired: true as const,
+      chain,
     };
   });
 
@@ -390,7 +304,7 @@ export function assertRpcConfiguration(): void {
   throw new Error(status.issues.join(" "));
 }
 
-function getConfiguredRpcChain(chainId: number): ResolvedRpcChain & { chain: Chain } {
+function getConfiguredRpcChain(chainId: number): ResolvedRpcChain {
   const status = getResolvedRpcConfigurationStatus();
   if (status.mode === "test-permissive") {
     const chain = getTestFallbackChain(chainId);
@@ -405,30 +319,20 @@ function getConfiguredRpcChain(chainId: number): ResolvedRpcChain & { chain: Cha
     throw new RpcQueryError(buildUnsupportedChainMessage(chainId), chainId);
   }
 
-  const chain = CHAIN_MAP[chainId];
-  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
-    throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
-  }
-
   if (configuredChain.rpcUrls.length === 0) {
     throw new RpcQueryError(
-      `${configuredChain.rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`,
+      `${configuredChain.rpcEnvVar} is required for supported chain ${chainId} (${configuredChain.name}).`,
       chainId,
     );
   }
 
-  return {
-    ...configuredChain,
-    chain,
-  };
+  return configuredChain;
 }
 
 export function getConfiguredRpcChainIds(): number[] {
   const status = getResolvedRpcConfigurationStatus();
   if (status.mode === "test-permissive") {
-    return Object.keys(CHAIN_MAP)
-      .map(Number)
-      .filter((chainId) => chainId in MORPHO_ADDRESSES);
+    return Object.keys(CHAIN_MAP).map(Number);
   }
 
   return status.supportedChains
@@ -453,6 +357,16 @@ export function getPublicClient(chainId: number): PublicClient {
   if (cached) return cached;
 
   const configuredChain = getConfiguredRpcChain(chainId);
+  const resolvedChain =
+    configuredChain.chain ??
+    defineChain({
+      id: configuredChain.chainId,
+      name: configuredChain.name,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: {
+        default: { http: configuredChain.rpcUrls },
+      },
+    });
   const transportOptions = {
     retryCount: RPC_RETRY_COUNT,
     retryDelay: RPC_RETRY_DELAY_MS,
@@ -464,7 +378,7 @@ export function getPublicClient(chainId: number): PublicClient {
       : fallback(configuredChain.rpcUrls.map((url) => http(url, transportOptions)));
 
   const client = createPublicClient({
-    chain: configuredChain.chain,
+    chain: resolvedChain,
     transport,
   });
 

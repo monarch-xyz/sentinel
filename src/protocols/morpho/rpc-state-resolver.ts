@@ -1,3 +1,5 @@
+import { isAddress } from "viem";
+import { z } from "zod";
 import type {
   PlannedArchiveRpcExecution,
   PlannedGenericRpcStateRead,
@@ -8,6 +10,13 @@ import type { Filter } from "../../types/index.js";
 import { normalizeMarketId } from "../../utils/market.js";
 
 type FilterValue = string | number | boolean;
+const MorphoEntityTypeSchema = z.enum(["Position", "Market"]);
+const MorphoUserSchema = z.string().refine((value) => isAddress(value), {
+  message: "Expected a valid EVM address",
+});
+const MorphoMarketIdSchema = z
+  .string()
+  .regex(/^0x[0-9a-f]{64}$/i, "Expected a bytes32 hex value (0x + 64 hex chars)");
 
 export interface PlannedMorphoRpcStateRead {
   family: "state";
@@ -38,7 +47,15 @@ function requireMarketId(filters: Filter[]): string {
   if (!marketId) {
     throw new Error("marketId filter required for state queries");
   }
-  return normalizeMarketId(marketId);
+
+  const normalizedMarketId = normalizeMarketId(marketId);
+  const parsedMarketId = MorphoMarketIdSchema.safeParse(normalizedMarketId);
+  if (!parsedMarketId.success) {
+    throw new Error(
+      `Invalid marketId filter value "${marketId}": ${parsedMarketId.error.issues[0]?.message}`,
+    );
+  }
+  return parsedMarketId.data;
 }
 
 function requireUser(filters: Filter[]): string {
@@ -46,7 +63,12 @@ function requireUser(filters: Filter[]): string {
   if (!user) {
     throw new Error("user filter required for Position queries");
   }
-  return user;
+
+  const parsedUser = MorphoUserSchema.safeParse(user);
+  if (!parsedUser.success) {
+    throw new Error(`Invalid user filter value "${user}": ${parsedUser.error.issues[0]?.message}`);
+  }
+  return parsedUser.data;
 }
 
 export function planMorphoStateRead(
@@ -74,16 +96,24 @@ export function bindMorphoRpcStateRead(
   if (plan.protocol !== "morpho") {
     throw new Error(`Morpho binder received incompatible protocol: ${plan.protocol}`);
   }
+  const parsedEntityType = MorphoEntityTypeSchema.safeParse(plan.ref.entity_type);
+  if (!parsedEntityType.success) {
+    throw new Error(
+      `Unsupported Morpho entity type "${plan.ref.entity_type}". Supported types: Position, Market.`,
+    );
+  }
+
+  const entityType = parsedEntityType.data;
 
   return {
     family: plan.family,
     provider: plan.provider,
     protocol: "morpho",
     chainId: plan.chainId,
-    entityType: plan.ref.entity_type,
+    entityType,
     field: plan.ref.field,
     marketId: requireMarketId(plan.ref.filters),
-    user: plan.ref.entity_type === "Position" ? requireUser(plan.ref.filters) : undefined,
+    user: entityType === "Position" ? requireUser(plan.ref.filters) : undefined,
     timestamp: plan.timestamp,
   };
 }

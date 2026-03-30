@@ -29,13 +29,6 @@ export type {
   PlannedRawEventRead,
 } from "./source-plan.js";
 export {
-  bindMorphoArchiveRpcExecution,
-  bindMorphoRpcStateRead,
-  planMorphoStateRead,
-  planRpcStateRead,
-} from "../protocols/morpho/index.js";
-export type { PlannedMorphoRpcStateRead, PlannedRpcStateRead } from "../protocols/morpho/index.js";
-export {
   createSourceCapabilityError,
   SourceCapabilityError,
   assertSignalDefinitionSourcesEnabled,

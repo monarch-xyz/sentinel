@@ -14,6 +14,8 @@ vi.mock("../../src/rpc/index.js", () => ({
 }));
 
 describe("createMorphoFetcher", () => {
+  const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
+  const USER = "0x2222222222222222222222222222222222222222" as const;
   const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
   const mockedExecuteArchiveRpcCall = vi.mocked(executeArchiveRpcCall);
 
@@ -25,8 +27,8 @@ describe("createMorphoFetcher", () => {
     type: "state",
     entity_type: "Position",
     filters: [
-      { field: "marketId", op: "eq", value: "0xmarket" },
-      { field: "user", op: "eq", value: "0xuser" },
+      { field: "marketId", op: "eq", value: MARKET_ID },
+      { field: "user", op: "eq", value: USER },
     ],
     field: "supplyShares",
   };
@@ -34,14 +36,14 @@ describe("createMorphoFetcher", () => {
   const marketRef: StateRef = {
     type: "state",
     entity_type: "Market",
-    filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+    filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
     field: "totalBorrowAssets",
   };
 
   const eventRef: EventRef = {
     type: "event",
     event_type: "Supply",
-    filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+    filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
     field: "assets",
     aggregation: "sum",
   };
@@ -77,6 +79,15 @@ describe("createMorphoFetcher", () => {
       expect.objectContaining({
         signature: expect.stringContaining("position(bytes32 id, address user)"),
       }),
+    );
+  });
+
+  it("rejects position bigint values that cannot be represented safely as numbers", async () => {
+    mockedExecuteArchiveRpcCall.mockResolvedValue([BigInt(Number.MAX_SAFE_INTEGER) + 1n, 0n, 0n]);
+    const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
+
+    await expect(fetcher.fetchState(positionRef)).rejects.toThrow(
+      "Cannot convert position.supplyShares=",
     );
   });
 
@@ -148,7 +159,7 @@ describe("createMorphoFetcher", () => {
     const missingUser: StateRef = {
       type: "state",
       entity_type: "Position",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "supplyShares",
     };
 
