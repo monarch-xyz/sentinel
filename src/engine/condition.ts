@@ -12,18 +12,18 @@ import {
   type ExpressionNode,
   type Filter,
   StateRef,
-} from "../types/index.js";
-import { parseDuration } from "../utils/duration.js";
-import { createLogger } from "../utils/logger.js";
+} from "../types/index.ts";
+import { parseDuration } from "../utils/duration.ts";
+import { createLogger } from "../utils/logger.ts";
 import {
   type CompiledAggregateCondition,
   type CompiledCondition,
   buildMetricExpression,
   isSimpleCondition,
-} from "./compiler.js";
-import { type EvalContext, evaluateCondition, evaluateNode } from "./evaluator.js";
-import type { DataFetcher } from "./fetcher.js";
-import { getMetric } from "./metrics.js";
+} from "./compiler.ts";
+import { type EvalContext, evaluateCondition, evaluateNode } from "./evaluator.ts";
+import type { DataFetcher } from "./fetcher.ts";
+import { getMetric } from "./metrics.ts";
 
 const logger = createLogger("signal-evaluator");
 

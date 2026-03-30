@@ -1,1 +1,1 @@
-export { createIndexingClient, IndexingClient } from "./client.js";
+export { createIndexingClient, IndexingClient } from "./client.ts";

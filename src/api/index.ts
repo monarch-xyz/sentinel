@@ -3,20 +3,20 @@
  */
 
 import express from "express";
-import { config } from "../config/index.js";
-import { closeDb, verifyDbConnection } from "../db/index.js";
-import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
-import { getReadinessReport } from "../health/readiness.js";
-import { closeRedis } from "../redis/client.js";
-import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.js";
-import { getErrorMessage, toErrorWithMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
-import { authMiddleware } from "./middleware/auth.js";
-import { requestLogger } from "./middleware/requestLogger.js";
-import authRouter from "./routes/auth.js";
-import meRouter from "./routes/me.js";
-import signalsRouter from "./routes/signals.js";
-import simulateRouter from "./routes/simulate.js";
+import { config } from "../config/index.ts";
+import { closeDb, verifyDbConnection } from "../db/index.ts";
+import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.ts";
+import { getReadinessReport } from "../health/readiness.ts";
+import { closeRedis } from "../redis/client.ts";
+import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.ts";
+import { getErrorMessage, toErrorWithMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
+import { authMiddleware } from "./middleware/auth.ts";
+import { requestLogger } from "./middleware/requestLogger.ts";
+import authRouter from "./routes/auth.ts";
+import meRouter from "./routes/me.ts";
+import signalsRouter from "./routes/signals.ts";
+import simulateRouter from "./routes/simulate.ts";
 
 const logger = createLogger("api");
 const app = express();

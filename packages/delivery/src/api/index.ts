@@ -2,11 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { sendAlert } from "../bot/index.js";
-import * as repo from "../db/repository.js";
-import { verifyWebhookSignature } from "../utils/crypto.js";
-import { env } from "../utils/env.js";
-import { logger } from "../utils/logger.js";
+import { sendAlert } from "../bot/index.ts";
+import * as repo from "../db/repository.ts";
+import { verifyWebhookSignature } from "../utils/crypto.ts";
+import { env } from "../utils/env.ts";
+import { logger } from "../utils/logger.ts";
 
 export const api = new Hono();
 
@@ -468,7 +468,7 @@ api.get("/admin/stats", async (c) => {
   }
 
   // Get basic stats
-  const { pool } = await import("../db/client.js");
+  const { pool } = await import("../db/client.ts");
 
   const [users, deliveries, recentDeliveries] = await Promise.all([
     pool.query("SELECT COUNT(*) as count FROM users WHERE is_active = true"),

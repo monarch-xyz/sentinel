@@ -17,7 +17,7 @@ import type {
   Condition as InternalCondition,
   RawEventQuery,
   StateRef,
-} from "../types/index.js";
+} from "../types/index.ts";
 
 import type {
   AggregateCondition,
@@ -28,12 +28,12 @@ import type {
   RawEventsCondition,
   ThresholdCondition,
   Condition as UserCondition,
-} from "../types/signal.js";
+} from "../types/signal.ts";
 
-import { assertNever } from "../utils/errors.js";
-import { normalizeMarketId } from "../utils/market.js";
+import { assertNever } from "../utils/errors.ts";
+import { normalizeMarketId } from "../utils/market.ts";
 
-import { type MetricDef, getMetric } from "./metrics.js";
+import { type MetricDef, getMetric } from "./metrics.ts";
 
 /**
  * Result of compiling a group condition - needs special handling

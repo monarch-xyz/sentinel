@@ -1,4 +1,4 @@
-import type { GenericRpcCall } from "../../types/index.js";
+import type { GenericRpcCall } from "../../types/index.ts";
 
 export const MORPHO_POSITION_SIGNATURE =
   "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)";

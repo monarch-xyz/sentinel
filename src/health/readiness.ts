@@ -1,10 +1,14 @@
-import { pool } from "../db/index.js";
-import { getSourceCapabilities } from "../engine/source-capabilities.js";
-import { probeEnvioEndpoint } from "../envio/client.js";
-import { probeHyperSync } from "../hypersync/client.js";
-import { pingRedis } from "../redis/client.js";
-import { getConfiguredRpcChainIds, getRpcConfigurationStatus, probeRpcChain } from "../rpc/client.js";
-import { getErrorMessage } from "../utils/errors.js";
+import { pool } from "../db/index.ts";
+import { getSourceCapabilities } from "../engine/source-capabilities.ts";
+import { probeEnvioEndpoint } from "../envio/client.ts";
+import { probeHyperSync } from "../hypersync/client.ts";
+import { pingRedis } from "../redis/client.ts";
+import {
+  getConfiguredRpcChainIds,
+  getRpcConfigurationStatus,
+  probeRpcChain,
+} from "../rpc/client.ts";
+import { getErrorMessage } from "../utils/errors.ts";
 
 type CheckStatus = "ok" | "error" | "disabled";
 
@@ -60,7 +64,9 @@ async function collectReadiness(): Promise<ReadinessReport> {
       .then(() => buildCheck("redis", false, "ok", "redis connection verified"))
       .catch((error: unknown) => buildCheck("redis", false, "error", getErrorMessage(error))),
     !rpcConfig.configured
-      ? Promise.resolve(buildCheck("rpc", false, "error", rpcConfig.issues[0] ?? "rpc is not configured"))
+      ? Promise.resolve(
+          buildCheck("rpc", false, "error", rpcConfig.issues[0] ?? "rpc is not configured"),
+        )
       : withTimeout(
           Promise.all(configuredChainIds.map((chainId) => probeRpcChain(chainId))),
           READINESS_TIMEOUT_MS,

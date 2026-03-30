@@ -1,9 +1,9 @@
 import { createHmac } from "node:crypto";
 import axios, { isAxiosError } from "axios";
-import { config } from "../config/index.js";
-import type { WebhookPayload } from "../types/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
+import { config } from "../config/index.ts";
+import type { WebhookPayload } from "../types/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("worker:notifier");
 

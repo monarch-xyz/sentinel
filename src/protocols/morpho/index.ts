@@ -3,12 +3,12 @@ export {
   bindMorphoRpcStateRead,
   planMorphoStateRead,
   planRpcStateRead,
-} from "./rpc-state-resolver.js";
+} from "./rpc-state-resolver.ts";
 export {
   MORPHO_MARKET_SIGNATURE,
   MORPHO_POSITION_SIGNATURE,
   buildMorphoMarketCall,
   buildMorphoPositionCall,
-} from "./rpc-calls.js";
+} from "./rpc-calls.ts";
 
-export type { PlannedMorphoRpcStateRead, PlannedRpcStateRead } from "./rpc-state-resolver.js";
+export type { PlannedMorphoRpcStateRead, PlannedRpcStateRead } from "./rpc-state-resolver.ts";

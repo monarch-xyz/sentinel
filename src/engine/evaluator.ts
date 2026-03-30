@@ -5,11 +5,11 @@ import type {
   MathOp,
   RawEventRef,
   StateRef,
-} from "../types/index.js";
-import { parseDuration } from "../utils/duration.js";
+} from "../types/index.ts";
+import { parseDuration } from "../utils/duration.ts";
 
 // Re-export for engine consumers
-export { parseDuration } from "../utils/duration.js";
+export { parseDuration } from "../utils/duration.ts";
 
 /**
  * Error thrown during expression evaluation

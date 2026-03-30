@@ -1,5 +1,5 @@
 import pg from "pg";
-import { runDeliveryMigrations } from "../db/migrator.js";
+import { runDeliveryMigrations } from "../db/migrator.ts";
 import "dotenv/config";
 
 async function migrate() {

@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
-import { config } from "../../config/index.js";
-import { ApiKeyRepository, UserSessionRepository } from "../../db/index.js";
-import { getErrorMessage } from "../../utils/errors.js";
+import { config } from "../../config/index.ts";
+import { ApiKeyRepository, UserSessionRepository } from "../../db/index.ts";
+import { getErrorMessage } from "../../utils/errors.ts";
 
 export interface AuthContext {
   userId: string;

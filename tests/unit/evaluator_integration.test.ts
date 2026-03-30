@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SignalEvaluator } from "../../src/engine/condition.js";
-import type { DataFetcher } from "../../src/engine/fetcher.js";
-import type { Signal } from "../../src/types/index.js";
+import { SignalEvaluator } from "../../src/engine/condition.ts";
+import type { DataFetcher } from "../../src/engine/fetcher.ts";
+import type { Signal } from "../../src/types/index.ts";
 
 // Mock block resolver to avoid real network calls
 vi.mock("../../src/envio/blocks.js", () => {

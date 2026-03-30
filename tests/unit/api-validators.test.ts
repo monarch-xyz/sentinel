@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CreateSignalSchema } from "../../src/api/validators.js";
+import { CreateSignalSchema } from "../../src/api/validators.ts";
 
 describe("CreateSignalSchema", () => {
   it("accepts count-based raw-events without a field", () => {

@@ -2,14 +2,14 @@ import type {
   IndexedEventFetcher,
   IndexingDataClient,
   RawEventFetcher,
-} from "../engine/fetcher.js";
+} from "../engine/fetcher.ts";
 import {
   createSourceCapabilityError,
   getSourceCapabilities,
-} from "../engine/source-capabilities.js";
-import { EnvioClient } from "../envio/client.js";
-import { HyperSyncClient } from "../hypersync/client.js";
-import type { EventRef } from "../types/index.js";
+} from "../engine/source-capabilities.ts";
+import { EnvioClient } from "../envio/client.ts";
+import { HyperSyncClient } from "../hypersync/client.ts";
+import type { EventRef } from "../types/index.ts";
 
 /**
  * Unified indexing/history boundary for the engine runtime.

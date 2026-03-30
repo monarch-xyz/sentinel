@@ -6,20 +6,20 @@ import {
   compileConditions,
   isGroupCondition,
   isSimpleCondition,
-} from "../../src/engine/compiler.js";
-import { planMorphoStateRead } from "../../src/protocols/morpho/index.js";
+} from "../../src/engine/compiler.ts";
+import { planMorphoStateRead } from "../../src/protocols/morpho/index.ts";
 import type {
   BinaryExpression,
   Condition as InternalCondition,
   StateRef,
-} from "../../src/types/index.js";
+} from "../../src/types/index.ts";
 import type {
   AggregateCondition,
   ChangeCondition,
   GroupCondition,
   RawEventsCondition,
   ThresholdCondition,
-} from "../../src/types/signal.js";
+} from "../../src/types/signal.ts";
 
 describe("Compiler", () => {
   describe("compileCondition - threshold", () => {

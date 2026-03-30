@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SignalDefinition } from "../types/signal.js";
-import { compileSignalDefinition } from "./compile-signal.js";
+import type { SignalDefinition } from "../types/signal.ts";
+import { compileSignalDefinition } from "./compile-signal.ts";
 
 const baseDefinition: SignalDefinition = {
   scope: {

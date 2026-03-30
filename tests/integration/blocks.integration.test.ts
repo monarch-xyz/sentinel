@@ -11,7 +11,7 @@ import {
   clearBlockCache,
   isChainSupported,
   resolveBlockByTimestamp,
-} from "../../src/envio/blocks.js";
+} from "../../src/envio/blocks.ts";
 
 const RUN = process.env.RUN_LIVE_RPC_INTEGRATION_TESTS === "true";
 const suite = RUN ? describe : describe.skip;

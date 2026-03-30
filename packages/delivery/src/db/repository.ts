@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { type DbClient, pool } from "./client.js";
+import { type DbClient, pool } from "./client.ts";
 
 // ============ Pending Links ============
 

@@ -1,4 +1,4 @@
-import { closeRedis, redis } from "../redis/client.js";
+import { closeRedis, redis } from "../redis/client.ts";
 
 // BullMQ requires an IORedis instance, so the worker reuses the shared Redis client.
 export const connection = redis;

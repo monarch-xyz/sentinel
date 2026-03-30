@@ -58,7 +58,7 @@ const loadAuthMiddleware = async ({
     },
   }));
 
-  const { authMiddleware } = await import("../../src/api/middleware/auth.js");
+  const { authMiddleware } = await import("../../src/api/middleware/auth.ts");
   return { authMiddleware, getByHash, touchApiKeyLastUsed, getActiveByHash, touchSessionLastUsed };
 };
 

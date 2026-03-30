@@ -1,7 +1,7 @@
 import { Client } from "pg";
-import { config } from "../config/index.js";
-import { runMainMigrations } from "../db/migrator.js";
-import { createLogger } from "../utils/logger.js";
+import { config } from "../config/index.ts";
+import { runMainMigrations } from "../db/migrator.ts";
+import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("db:migrate");
 

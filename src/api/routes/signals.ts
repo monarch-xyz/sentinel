@@ -3,22 +3,22 @@ import {
   NotificationLogRepository,
   SignalRepository,
   SignalRunLogRepository,
-} from "../../db/index.js";
-import { compileSignalDefinition } from "../../engine/compile-signal.js";
-import { DeliveryIntegrationError } from "../../integrations/delivery.js";
+} from "../../db/index.ts";
+import { compileSignalDefinition } from "../../engine/compile-signal.ts";
 import {
   SourceCapabilityError,
   assertSignalDefinitionSourcesEnabled,
-} from "../../engine/source-capabilities.js";
-import { getErrorMessage, isZodError } from "../../utils/errors.js";
-import { createLogger } from "../../utils/logger.js";
-import { ValidationError } from "../../utils/validation.js";
-import { inferManagedSignalDelivery, resolveSignalWebhookUrl } from "../signal-delivery.js";
+} from "../../engine/source-capabilities.ts";
+import { DeliveryIntegrationError } from "../../integrations/delivery.ts";
+import { getErrorMessage, isZodError } from "../../utils/errors.ts";
+import { createLogger } from "../../utils/logger.ts";
+import { ValidationError } from "../../utils/validation.ts";
+import { inferManagedSignalDelivery, resolveSignalWebhookUrl } from "../signal-delivery.ts";
 import {
   assertStoredDefinitionSourcesEnabled,
   formatSourceCapabilityError,
-} from "../source-guard.js";
-import { CreateSignalSchema, UpdateSignalSchema } from "../validators.js";
+} from "../source-guard.ts";
+import { CreateSignalSchema, UpdateSignalSchema } from "../validators.ts";
 
 const logger = createLogger("api:signals");
 const router: express.Router = express.Router();

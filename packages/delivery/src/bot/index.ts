@@ -1,7 +1,7 @@
 import { Bot, InlineKeyboard } from "grammy";
-import * as repo from "../db/repository.js";
-import { env } from "../utils/env.js";
-import { logger } from "../utils/logger.js";
+import * as repo from "../db/repository.ts";
+import { env } from "../utils/env.ts";
+import { logger } from "../utils/logger.ts";
 
 export const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 

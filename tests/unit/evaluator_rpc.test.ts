@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SignalEvaluator } from "../../src/engine/condition.js";
-import type { EventFetcher } from "../../src/engine/fetcher.js";
-import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.js";
-import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
-import { executeArchiveRpcCall } from "../../src/rpc/index.js";
-import type { Signal } from "../../src/types/index.js";
+import { SignalEvaluator } from "../../src/engine/condition.ts";
+import type { EventFetcher } from "../../src/engine/fetcher.ts";
+import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.ts";
+import { resolveBlockByTimestamp } from "../../src/envio/blocks.ts";
+import { executeArchiveRpcCall } from "../../src/rpc/index.ts";
+import type { Signal } from "../../src/types/index.ts";
 
 vi.mock("../../src/envio/blocks.js", () => ({
   resolveBlockByTimestamp: vi.fn(),

@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { describe, expect, it } from "vitest";
-import { EnvioClient } from "../../src/envio/client.js";
-import { readMarketAtBlock } from "../../src/rpc/index.js";
-import type { EventRef, Filter } from "../../src/types/index.js";
+import { EnvioClient } from "../../src/envio/client.ts";
+import { readMarketAtBlock } from "../../src/rpc/index.ts";
+import type { EventRef, Filter } from "../../src/types/index.ts";
 
 const RUN = process.env.RUN_LIVE_SNAPSHOT_TESTS === "true";
 const suite = RUN ? describe : describe.skip;

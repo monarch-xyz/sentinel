@@ -7,7 +7,7 @@
  */
 
 import "dotenv/config";
-import { createEnvioGraphQLClient } from "../envio/client.js";
+import { createEnvioGraphQLClient } from "../envio/client.ts";
 
 // GraphQL Introspection types
 interface GraphQLTypeRef {

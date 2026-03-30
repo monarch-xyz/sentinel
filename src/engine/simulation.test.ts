@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EvaluatableSignal } from "./condition.js";
-import { findFirstTrigger, simulateSignal, simulateSignalOverTime } from "./simulation.js";
+import type { EvaluatableSignal } from "./condition.ts";
+import { findFirstTrigger, simulateSignal, simulateSignalOverTime } from "./simulation.ts";
 
 // Mock block resolution
 vi.mock("../envio/blocks.js", () => ({
@@ -14,10 +14,10 @@ vi.mock("../rpc/index.js", () => ({
   readPositionAtBlock: vi.fn(),
 }));
 
-import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { readMarketAtBlock } from "../rpc/index.js";
-import type { EventFetcher } from "./fetcher.js";
-import { createMorphoFetcher } from "./morpho-fetcher.js";
+import { resolveBlockByTimestamp } from "../envio/blocks.ts";
+import { readMarketAtBlock } from "../rpc/index.ts";
+import type { EventFetcher } from "./fetcher.ts";
+import { createMorphoFetcher } from "./morpho-fetcher.ts";
 
 // Type the mocked functions
 const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);

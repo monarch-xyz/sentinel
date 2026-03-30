@@ -8,7 +8,7 @@
  * Naming convention: {Protocol}.{Entity}.{field}
  */
 
-import type { Filter } from "../types/index.js";
+import type { Filter } from "../types/index.ts";
 
 // ============================================
 // Metric Definition Types

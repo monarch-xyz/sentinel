@@ -57,12 +57,12 @@ const monad = defineChain({
     default: { name: "Monad Explorer", url: "https://testnet.monadexplorer.com" },
   },
 });
-import { buildMorphoMarketCall, buildMorphoPositionCall } from "../protocols/morpho/rpc-calls.js";
-import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
-import { createLogger } from "../utils/logger.js";
-import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
-import { normalizeRpcTypedArg, parseRpcBigIntTuple } from "../utils/rpc-validation.js";
-import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.js";
+import { buildMorphoMarketCall, buildMorphoPositionCall } from "../protocols/morpho/rpc-calls.ts";
+import type { GenericRpcCall, RpcTypedArg } from "../types/index.ts";
+import { createLogger } from "../utils/logger.ts";
+import { isBytes32MarketId, normalizeMarketId } from "../utils/market.ts";
+import { normalizeRpcTypedArg, parseRpcBigIntTuple } from "../utils/rpc-validation.ts";
+import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.ts";
 
 const logger = createLogger("rpc-client");
 const RPC_TIMEOUT_MS = Number.parseInt(process.env.RPC_TIMEOUT_MS ?? "15000", 10);

@@ -64,7 +64,7 @@ Status checklist:
 - [x] Add/update unit tests
 - [ ] Run validation (`pnpm test`, `pnpm typecheck`, `pnpm lint:check` if applicable)
 - [x] Update architecture/docs
-- [ ] Open PR
+- [x] Open PR
 
 ### Phase 2 — Implement generic archive RPC execution
 
@@ -93,7 +93,7 @@ Status checklist:
 - [x] Add/update unit tests
 - [ ] Run validation
 - [x] Update docs
-- [ ] Open PR
+- [x] Open PR
 
 ### Phase 3 — Expand raw event primitives and well-known event catalog
 
@@ -164,11 +164,10 @@ Status checklist:
 
 ## Immediate next step
 
-Phase 2 implementation is now in place and validation is in progress:
-- added a generic archive `eth_call` executor (`executeArchiveRpcCall`) with signature-driven encode/decode
-- added typed arg handling for `address`, `bool`, `string`, `bytes`, `bytesN`, `uintN`, and `intN`
-- routed Morpho state runtime reads through generic archive execution for current and historical snapshots
-- updated docs and tests for call representation, execution, decoding, and historical path coverage
+We are now moving to Phase 3:
+- expand raw event primitives and introduce a broader well-known event catalog
+- keep indexed semantic data as advanced-only
+- continue updating docs/tests/validation as each step lands
 
 ## Working notes
 

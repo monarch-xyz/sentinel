@@ -20,18 +20,18 @@ describe("Startup smoke tests", () => {
   });
 
   it("Config can be imported", async () => {
-    const { config } = await import("../../src/config/index.js");
+    const { config } = await import("../../src/config/index.ts");
     expect(config).toBeDefined();
     expect(config.api.port).toBeDefined();
   });
 
   it("Compiler can be imported", async () => {
-    const { compileCondition } = await import("../../src/engine/compiler.js");
+    const { compileCondition } = await import("../../src/engine/compiler.ts");
     expect(compileCondition).toBeDefined();
   });
 
   it("Evaluator can be imported", async () => {
-    const { evaluateNode } = await import("../../src/engine/evaluator.js");
+    const { evaluateNode } = await import("../../src/engine/evaluator.ts");
     expect(evaluateNode).toBeDefined();
   });
 });

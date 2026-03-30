@@ -1,9 +1,9 @@
 import { encodeAbiParameters, toEventSelector } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../src/config/index.js";
-import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
-import { HyperSyncClient, clearHyperSyncClientCache } from "../../src/hypersync/client.js";
-import type { RawEventRef } from "../../src/types/index.js";
+import { config } from "../../src/config/index.ts";
+import { resolveBlockByTimestamp } from "../../src/envio/blocks.ts";
+import { HyperSyncClient, clearHyperSyncClientCache } from "../../src/hypersync/client.ts";
+import type { RawEventRef } from "../../src/types/index.ts";
 
 const getMock = vi.fn();
 

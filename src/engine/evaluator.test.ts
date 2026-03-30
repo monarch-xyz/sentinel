@@ -7,14 +7,14 @@ import {
   type ExpressionNode,
   type RawEventRef,
   type StateRef,
-} from "../types/index.js";
+} from "../types/index.ts";
 import {
   type EvalContext,
   EvaluationError,
   evaluateCondition,
   evaluateNode,
   parseDuration,
-} from "./evaluator.js";
+} from "./evaluator.ts";
 
 // Helper to create a mock context
 function createMockContext(overrides: Partial<EvalContext> = {}): EvalContext {

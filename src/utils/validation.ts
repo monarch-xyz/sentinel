@@ -3,9 +3,9 @@
  * Validates signal definitions before they're persisted.
  */
 
-import type { Condition, ExpressionNode } from "../types/index.js";
-import { getConfiguredRpcChainIds, isChainSupportedForRpc } from "../rpc/client.js";
-import { isValidDuration } from "./duration.js";
+import { getConfiguredRpcChainIds, isChainSupportedForRpc } from "../rpc/client.ts";
+import type { Condition, ExpressionNode } from "../types/index.ts";
+import { isValidDuration } from "./duration.ts";
 
 const MAX_EXPRESSION_DEPTH = 20;
 
@@ -99,10 +99,7 @@ export function validateChains(chains: number[]): void {
         supportedChains.length > 0
           ? ` Supported chains: ${supportedChains.join(", ")}.`
           : " No supported chains are configured.";
-      throw new ValidationError(
-        `Unsupported chain ID: ${chainId}.${supportedHint}`,
-        "chains",
-      );
+      throw new ValidationError(`Unsupported chain ID: ${chainId}.${supportedHint}`, "chains");
     }
   }
 }

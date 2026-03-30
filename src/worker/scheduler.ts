@@ -4,12 +4,12 @@
  */
 
 import { type Job, Queue, Worker } from "bullmq";
-import { config } from "../config/index.js";
-import { pool } from "../db/index.js";
-import { getErrorMessage } from "../utils/errors.js";
-import { createLogger } from "../utils/logger.js";
-import { connection } from "./connection.js";
-import { QUEUE_NAME as SIGNAL_QUEUE_NAME, signalQueue } from "./processor.js";
+import { config } from "../config/index.ts";
+import { pool } from "../db/index.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+import { createLogger } from "../utils/logger.ts";
+import { connection } from "./connection.ts";
+import { QUEUE_NAME as SIGNAL_QUEUE_NAME, signalQueue } from "./processor.ts";
 
 const logger = createLogger("worker:scheduler");
 

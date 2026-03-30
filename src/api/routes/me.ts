@@ -4,9 +4,9 @@ import {
   DeliveryIntegrationError,
   getTelegramIntegrationStatus,
   linkTelegramIntegration,
-} from "../../integrations/delivery.js";
-import { getErrorMessage, isZodError } from "../../utils/errors.js";
-import { createLogger } from "../../utils/logger.js";
+} from "../../integrations/delivery.ts";
+import { getErrorMessage, isZodError } from "../../utils/errors.ts";
+import { createLogger } from "../../utils/logger.ts";
 
 const logger = createLogger("api:me");
 const router: express.Router = express.Router();

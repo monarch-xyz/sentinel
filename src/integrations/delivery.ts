@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from "axios";
-import { config } from "../config/index.js";
+import { config } from "../config/index.ts";
 
 export interface TelegramIntegrationStatus {
   provider: "telegram";

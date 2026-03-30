@@ -1,16 +1,16 @@
 import express from "express";
 import { z } from "zod";
-import { SignalRepository } from "../../db/index.js";
-import { normalizeStoredDefinition } from "../../engine/compile-signal.js";
-import { findFirstTrigger, simulateSignalOverTime } from "../../engine/simulation.js";
-import { SourceCapabilityError } from "../../engine/source-capabilities.js";
-import { getErrorMessage, isZodError } from "../../utils/errors.js";
-import { createLogger } from "../../utils/logger.js";
-import { rateLimit } from "../middleware/rate-limit.js";
+import { SignalRepository } from "../../db/index.ts";
+import { normalizeStoredDefinition } from "../../engine/compile-signal.ts";
+import { findFirstTrigger, simulateSignalOverTime } from "../../engine/simulation.ts";
+import { SourceCapabilityError } from "../../engine/source-capabilities.ts";
+import { getErrorMessage, isZodError } from "../../utils/errors.ts";
+import { createLogger } from "../../utils/logger.ts";
+import { rateLimit } from "../middleware/rate-limit.ts";
 import {
   assertStoredDefinitionSourcesEnabled,
   formatSourceCapabilityError,
-} from "../source-guard.js";
+} from "../source-guard.ts";
 
 const logger = createLogger("api:simulate");
 const router: express.Router = express.Router();

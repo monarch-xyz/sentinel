@@ -1,7 +1,7 @@
-import { config } from "../config/index.js";
-import { getRpcConfigurationStatus } from "../rpc/client.js";
-import type { Condition as DslCondition, SignalDefinition } from "../types/signal.js";
-import { type MetricDef, getMetric } from "./metrics.js";
+import { config } from "../config/index.ts";
+import { getRpcConfigurationStatus } from "../rpc/client.ts";
+import type { Condition as DslCondition, SignalDefinition } from "../types/signal.ts";
+import { type MetricDef, getMetric } from "./metrics.ts";
 
 export type SourceFamily = "state" | "indexed" | "raw";
 export type SourceProvider = "rpc" | "envio" | "hypersync";
@@ -167,7 +167,7 @@ export function createSourceCapabilities(
       requiredEnv: Array.from(new Set(stateRequiredEnv)),
       reason: rpcConfig.configured
         ? undefined
-        : rpcConfig.issues[0] ?? "archive RPC configuration is incomplete",
+        : (rpcConfig.issues[0] ?? "archive RPC configuration is incomplete"),
     },
     indexed: {
       family: "indexed",

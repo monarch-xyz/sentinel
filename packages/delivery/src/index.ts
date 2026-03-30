@@ -1,10 +1,10 @@
 import { serve } from "@hono/node-server";
-import { api } from "./api/index.js";
-import { bot } from "./bot/index.js";
-import { closePool, pool } from "./db/client.js";
-import { cleanupExpired } from "./db/repository.js";
-import { env } from "./utils/env.js";
-import { logger } from "./utils/logger.js";
+import { api } from "./api/index.ts";
+import { bot } from "./bot/index.ts";
+import { closePool, pool } from "./db/client.ts";
+import { cleanupExpired } from "./db/repository.ts";
+import { env } from "./utils/env.ts";
+import { logger } from "./utils/logger.ts";
 
 async function main() {
   // Test database connection

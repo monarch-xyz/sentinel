@@ -1,4 +1,4 @@
-export { parseDuration, isValidDuration, formatDuration } from "./duration.js";
+export { parseDuration, isValidDuration, formatDuration } from "./duration.ts";
 export {
   ValidationError,
   validateExpressionDepth,
@@ -7,4 +7,4 @@ export {
   validateWebhookUrl,
   validateChains,
   validateSignal,
-} from "./validation.js";
+} from "./validation.ts";

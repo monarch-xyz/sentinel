@@ -3,12 +3,12 @@ import { z } from "zod";
 import type {
   PlannedArchiveRpcExecution,
   PlannedGenericRpcStateRead,
-} from "../../engine/source-plan.js";
-import { planGenericRpcStateRead } from "../../engine/source-plan.js";
-import { MORPHO_ADDRESSES } from "../../rpc/abi.js";
-import type { Filter } from "../../types/index.js";
-import { normalizeMarketId } from "../../utils/market.js";
-import { buildMorphoMarketCall, buildMorphoPositionCall } from "./rpc-calls.js";
+} from "../../engine/source-plan.ts";
+import { planGenericRpcStateRead } from "../../engine/source-plan.ts";
+import { MORPHO_ADDRESSES } from "../../rpc/abi.ts";
+import type { Filter } from "../../types/index.ts";
+import { normalizeMarketId } from "../../utils/market.ts";
+import { buildMorphoMarketCall, buildMorphoPositionCall } from "./rpc-calls.ts";
 
 type FilterValue = string | number | boolean;
 type MorphoEntityType = "Position" | "Market";

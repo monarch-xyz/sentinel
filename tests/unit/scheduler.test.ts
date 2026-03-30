@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pool } from "../../src/db/index.js";
+import { pool } from "../../src/db/index.ts";
 
 // Mock ioredis first (before bullmq)
 vi.mock("ioredis", () => ({
@@ -43,7 +43,7 @@ describe("Scheduler Logic", () => {
     });
 
     // 2. Import and call queueActiveSignals
-    const { queueActiveSignals } = await import("../../src/worker/scheduler.js");
+    const { queueActiveSignals } = await import("../../src/worker/scheduler.ts");
     const count = await queueActiveSignals();
 
     // 3. Verify
@@ -63,7 +63,7 @@ describe("Scheduler Logic", () => {
   });
 
   it("startScheduler registers a repeatable job", async () => {
-    const { startScheduler } = await import("../../src/worker/scheduler.js");
+    const { startScheduler } = await import("../../src/worker/scheduler.ts");
     await startScheduler();
 
     expect(mockUpsertJobScheduler).toHaveBeenCalledWith(

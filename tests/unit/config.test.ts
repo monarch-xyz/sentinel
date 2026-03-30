@@ -31,7 +31,7 @@ describe("config hypersync numeric env parsing", () => {
     process.env.HYPERSYNC_MAX_PAGES_PER_QUERY = "-1";
     vi.resetModules();
 
-    const { config } = await import("../../src/config/index.js");
+    const { config } = await import("../../src/config/index.ts");
 
     expect(config.hypersync.maxLogsPerRequest).toBe(10000);
     expect(config.hypersync.maxLogsPerQuery).toBe(100000);
@@ -44,7 +44,7 @@ describe("config hypersync numeric env parsing", () => {
     process.env.HYPERSYNC_MAX_PAGES_PER_QUERY = "7";
     vi.resetModules();
 
-    const { config } = await import("../../src/config/index.js");
+    const { config } = await import("../../src/config/index.ts");
 
     expect(config.hypersync.maxLogsPerRequest).toBe(123);
     expect(config.hypersync.maxLogsPerQuery).toBe(456);
