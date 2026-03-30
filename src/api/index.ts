@@ -8,6 +8,7 @@ import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
 import { getReadinessReport } from "../health/readiness.js";
 import { closeRedis } from "../redis/client.js";
+import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.js";
 import { getErrorMessage, toErrorWithMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -30,7 +31,12 @@ app.get("/health", (req, res) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     capabilities: getSourceCapabilityHealth(),
+    chains: getRpcConfigurationStatus(),
   });
+});
+
+app.get("/chains", (req, res) => {
+  res.json(getRpcConfigurationStatus());
 });
 
 app.get("/ready", async (req, res) => {
@@ -66,9 +72,22 @@ app.use(
 
 const start = async () => {
   try {
+    assertRpcConfiguration();
     await verifyDbConnection();
     const capabilities = getSourceCapabilities();
     const capabilityHealth = getSourceCapabilityHealth(capabilities);
+    const rpcStatus = getRpcConfigurationStatus();
+
+    logger.info(
+      {
+        chains: rpcStatus.supportedChains.map((chain) => ({
+          chainId: chain.chainId,
+          name: chain.name,
+          rpcEnvVar: chain.rpcEnvVar,
+        })),
+      },
+      "Configured supported chains loaded",
+    );
 
     for (const family of ["state", "indexed", "raw"] as const) {
       const capability = capabilities[family];

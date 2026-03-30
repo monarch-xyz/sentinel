@@ -3,7 +3,7 @@ import { getSourceCapabilities } from "../engine/source-capabilities.js";
 import { probeEnvioEndpoint } from "../envio/client.js";
 import { probeHyperSync } from "../hypersync/client.js";
 import { pingRedis } from "../redis/client.js";
-import { probeRpcChain } from "../rpc/client.js";
+import { getConfiguredRpcChainIds, getRpcConfigurationStatus, probeRpcChain } from "../rpc/client.js";
 import { getErrorMessage } from "../utils/errors.js";
 
 type CheckStatus = "ok" | "error" | "disabled";
@@ -29,7 +29,6 @@ export interface ReadinessReport {
 }
 
 const READINESS_TTL_MS = Number.parseInt(process.env.READINESS_CACHE_TTL_MS ?? "15000", 10);
-const READINESS_CHAIN_ID = Number.parseInt(process.env.READINESS_CHAIN_ID ?? "1", 10);
 const READINESS_TIMEOUT_MS = Number.parseInt(process.env.READINESS_TIMEOUT_MS ?? "5000", 10);
 
 let cachedReport: { expiresAt: number; value: Promise<ReadinessReport> } | undefined;
@@ -50,6 +49,8 @@ function buildCheck(
 
 async function collectReadiness(): Promise<ReadinessReport> {
   const capabilities = getSourceCapabilities();
+  const rpcConfig = getRpcConfigurationStatus();
+  const configuredChainIds = getConfiguredRpcChainIds();
 
   const [database, redis, state, indexed, raw] = await Promise.all([
     withTimeout(pool.query("SELECT 1"), READINESS_TIMEOUT_MS, "database readiness probe timed out")
@@ -58,15 +59,22 @@ async function collectReadiness(): Promise<ReadinessReport> {
     withTimeout(pingRedis(), READINESS_TIMEOUT_MS, "redis readiness probe timed out")
       .then(() => buildCheck("redis", false, "ok", "redis connection verified"))
       .catch((error: unknown) => buildCheck("redis", false, "error", getErrorMessage(error))),
-    withTimeout(
-      probeRpcChain(READINESS_CHAIN_ID),
-      READINESS_TIMEOUT_MS,
-      "rpc readiness probe timed out",
-    )
-      .then(() =>
-        buildCheck("rpc", false, "ok", `rpc provider verified for chain ${READINESS_CHAIN_ID}`),
-      )
-      .catch((error: unknown) => buildCheck("rpc", false, "error", getErrorMessage(error))),
+    !rpcConfig.configured
+      ? Promise.resolve(buildCheck("rpc", false, "error", rpcConfig.issues[0] ?? "rpc is not configured"))
+      : withTimeout(
+          Promise.all(configuredChainIds.map((chainId) => probeRpcChain(chainId))),
+          READINESS_TIMEOUT_MS,
+          "rpc readiness probe timed out",
+        )
+          .then(() =>
+            buildCheck(
+              "rpc",
+              false,
+              "ok",
+              `rpc providers verified for chains ${configuredChainIds.join(", ")}`,
+            ),
+          )
+          .catch((error: unknown) => buildCheck("rpc", false, "error", getErrorMessage(error))),
     capabilities.indexed.enabled
       ? withTimeout(probeEnvioEndpoint(), READINESS_TIMEOUT_MS, "indexed readiness probe timed out")
           .then(() => buildCheck("envio", true, "ok", "indexed provider verified"))
@@ -76,7 +84,7 @@ async function collectReadiness(): Promise<ReadinessReport> {
         ),
     capabilities.raw.enabled
       ? withTimeout(
-          probeHyperSync(READINESS_CHAIN_ID),
+          Promise.all(configuredChainIds.map((chainId) => probeHyperSync(chainId))),
           READINESS_TIMEOUT_MS,
           "raw readiness probe timed out",
         )
@@ -85,7 +93,7 @@ async function collectReadiness(): Promise<ReadinessReport> {
               "hypersync",
               true,
               "ok",
-              `raw provider verified for chain ${READINESS_CHAIN_ID}`,
+              `raw provider verified for chains ${configuredChainIds.join(", ")}`,
             ),
           )
           .catch((error: unknown) => buildCheck("hypersync", true, "error", getErrorMessage(error)))

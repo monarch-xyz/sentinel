@@ -25,7 +25,8 @@ API and worker:
 
 - `DATABASE_URL`
 - `REDIS_URL`
-- `RPC_URL_*` for the chains you need
+- `SUPPORTED_CHAIN_IDS`
+- `RPC_URL_*` for every chain listed in `SUPPORTED_CHAIN_IDS`
 - `AUTH_SIWE_DOMAIN`
 - `AUTH_SIWE_URI`
 - optional `ENVIO_ENDPOINT` if you want indexed semantic signals
@@ -46,8 +47,9 @@ Missing optional source config does not take the service down:
 - without `ENVIO_ENDPOINT`, indexed semantic signal families are disabled
 - without `ENVIO_API_TOKEN`, `raw-events` are disabled
 - the API rejects unsupported signal definitions and activation attempts with a clear `409`
-- `/health` advertises which source families are enabled
-- `/ready` checks actual dependency reachability with a short cache
+- `/health` advertises which source families are enabled and which supported chains were loaded at startup
+- `/chains` returns the explicit supported-chain set and required archive RPC env vars
+- `/ready` checks actual dependency reachability with a short cache across every configured archive RPC chain
 
 Delivery:
 

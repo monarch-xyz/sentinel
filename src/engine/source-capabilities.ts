@@ -1,4 +1,5 @@
 import { config } from "../config/index.js";
+import { getRpcConfigurationStatus } from "../rpc/client.js";
 import type { Condition as DslCondition, SignalDefinition } from "../types/signal.js";
 import { type MetricDef, getMetric } from "./metrics.js";
 
@@ -152,13 +153,21 @@ export function createSourceCapabilities(
 ): SourceCapabilities {
   const envioEndpoint = sourceConfig.envioEndpoint?.trim() ?? "";
   const hypersyncApiToken = sourceConfig.hypersyncApiToken?.trim() ?? "";
+  const rpcConfig = getRpcConfigurationStatus();
+  const stateRequiredEnv =
+    rpcConfig.supportedChains.length > 0
+      ? ["SUPPORTED_CHAIN_IDS", ...rpcConfig.supportedChains.map((chain) => chain.rpcEnvVar)]
+      : ["SUPPORTED_CHAIN_IDS"];
 
   return {
     state: {
       family: "state",
       provider: "rpc",
-      enabled: true,
-      requiredEnv: [],
+      enabled: rpcConfig.configured,
+      requiredEnv: Array.from(new Set(stateRequiredEnv)),
+      reason: rpcConfig.configured
+        ? undefined
+        : rpcConfig.issues[0] ?? "archive RPC configuration is incomplete",
     },
     indexed: {
       family: "indexed",

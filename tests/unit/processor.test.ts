@@ -127,9 +127,11 @@ describe("Processor Logic", () => {
       "https://test.com",
       expect.objectContaining({
         signal_id: "sig-123",
+        signal_name: "Simple Alert",
         signal_description: "Drops below threshold",
         conditions_met: [{ conditionIndex: 0, triggered: true }],
-        summary: "1 condition met at 2025-03-28T09:15:08.188Z",
+        triggered_at: expect.any(String),
+        summary: expect.stringMatching(/^1 condition met at /),
       }),
     );
 

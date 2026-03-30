@@ -27,7 +27,8 @@ Main service `.env`:
 
 - required: `DATABASE_URL`
 - recommended: `REDIS_URL`
-- recommended: `RPC_URL_*` for the chains you care about
+- required: `SUPPORTED_CHAIN_IDS`
+- required: `RPC_URL_*` for every chain listed in `SUPPORTED_CHAIN_IDS`
 - optional: `ENVIO_ENDPOINT` to enable indexed semantic signals
 - optional: `MONARCH_GRAPHQL_API_KEY` if that indexed endpoint requires bearer auth
 - optional: `HYPERSYNC_MAX_LOGS_PER_REQUEST`, `HYPERSYNC_MAX_LOGS_PER_QUERY`, and `HYPERSYNC_MAX_PAGES_PER_QUERY` if raw-event queries are too broad for the defaults
@@ -38,6 +39,7 @@ Main service `.env`:
 - optional: `DELIVERY_BASE_URL`, `DELIVERY_ADMIN_KEY` if you want Sentinel-native Telegram status routes
 
 When you run the Docker stack, Compose overrides `DELIVERY_BASE_URL` to `http://delivery:3100` so the API container can reach the delivery container over the Docker network.
+Sentinel now loads the supported chain set once at startup from `SUPPORTED_CHAIN_IDS`, requires a matching archive `RPC_URL_<chainId>` for each one, and rejects signals that target any other chain.
 
 If `ENVIO_ENDPOINT` is missing, indexed semantic refs stay disabled.
 If `ENVIO_API_TOKEN` is missing, `raw-events` stay disabled.
@@ -89,6 +91,7 @@ The wrappers also recreate the one-shot migration containers so pending migratio
 
 ```bash
 curl http://localhost:3000/health
+curl http://localhost:3000/chains
 curl http://localhost:3000/ready
 curl http://localhost:3100/health
 docker compose ps
@@ -96,8 +99,9 @@ docker compose ps
 
 If you only started the core stack, `3100` will not be up.
 
-`GET /health` includes source-family capability status so you can verify whether `state`, `indexed`, and `raw` are enabled before wiring the product UI.
-`GET /ready` performs a cached dependency probe against PostgreSQL, Redis, RPC, and any configured indexed/raw providers.
+`GET /health` includes source-family capability status plus the configured supported-chain report.
+`GET /chains` returns the explicit supported-chain set and the required archive RPC env names Sentinel loaded at startup.
+`GET /ready` performs a cached dependency probe against PostgreSQL, Redis, every configured archive RPC chain, and any configured indexed/raw providers.
 
 ## Live Integration Tests
 

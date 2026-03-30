@@ -62,6 +62,36 @@ const RPC_TIMEOUT_MS = Number.parseInt(process.env.RPC_TIMEOUT_MS ?? "15000", 10
 const RPC_RETRY_COUNT = Number.parseInt(process.env.RPC_RETRY_COUNT ?? "1", 10);
 const RPC_RETRY_DELAY_MS = Number.parseInt(process.env.RPC_RETRY_DELAY_MS ?? "250", 10);
 
+type ResolvedRpcChain = {
+  chainId: number;
+  name: string;
+  rpcEnvVar: string;
+  rpcUrls: string[];
+  archiveRequired: true;
+};
+
+type ResolvedRpcConfigurationStatus = {
+  configured: boolean;
+  mode: "explicit" | "test-permissive";
+  supportedChains: ResolvedRpcChain[];
+  issues: string[];
+};
+
+export type RpcConfiguredChainStatus = {
+  chainId: number;
+  name: string;
+  rpcEnvVar: string;
+  rpcUrlCount: number;
+  archiveRequired: true;
+};
+
+export type RpcConfigurationStatus = {
+  configured: boolean;
+  mode: "explicit" | "test-permissive";
+  supportedChains: RpcConfiguredChainStatus[];
+  issues: string[];
+};
+
 /**
  * Error thrown when RPC queries fail
  */
@@ -89,17 +119,201 @@ const CHAIN_MAP: Record<number, Chain> = {
   10143: monad,
 };
 
-/**
- * Get RPC URL for a chain, checking env vars first
- * Env var format: RPC_URL_{chainId} (e.g., RPC_URL_1 for Ethereum)
- */
-function getRpcUrls(chainId: number): string[] {
-  const envVar = process.env[`RPC_URL_${chainId}`];
-  if (!envVar) return [];
-  return envVar
+let rpcConfigurationCache: ResolvedRpcConfigurationStatus | undefined;
+
+function splitRpcUrls(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
     .split(",")
     .map((url) => url.trim())
     .filter(Boolean);
+}
+
+function parseSupportedChainIds(raw: string): number[] {
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => Number.parseInt(value, 10))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  );
+}
+
+function buildUnsupportedChainMessage(chainId: number): string {
+  const supportedChains = getConfiguredRpcChainIds();
+  const supportedHint =
+    supportedChains.length > 0
+      ? ` Supported chains: ${supportedChains.join(", ")}.`
+      : " No supported chains are configured.";
+  return `Chain ${chainId} is not configured for archive RPC access.${supportedHint}`;
+}
+
+function getTestFallbackChain(chainId: number): (ResolvedRpcChain & { chain: Chain }) | undefined {
+  const chain = CHAIN_MAP[chainId];
+  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
+    return undefined;
+  }
+
+  const rpcEnvVar = `RPC_URL_${chainId}`;
+  const rpcUrls = splitRpcUrls(process.env[rpcEnvVar]);
+  const fallbackUrls = chain.rpcUrls.default.http.filter(Boolean);
+
+  return {
+    chainId,
+    name: chain.name,
+    rpcEnvVar,
+    rpcUrls: rpcUrls.length > 0 ? rpcUrls : fallbackUrls,
+    archiveRequired: true,
+    chain,
+  };
+}
+
+function getResolvedRpcConfigurationStatus(): ResolvedRpcConfigurationStatus {
+  if (rpcConfigurationCache) {
+    return rpcConfigurationCache;
+  }
+
+  const supportedChainsRaw = process.env.SUPPORTED_CHAIN_IDS?.trim() ?? "";
+  if (!supportedChainsRaw) {
+    rpcConfigurationCache =
+      process.env.NODE_ENV === "test"
+        ? {
+            configured: true,
+            mode: "test-permissive",
+            supportedChains: [],
+            issues: [],
+          }
+        : {
+            configured: false,
+            mode: "explicit",
+            supportedChains: [],
+            issues: [
+              "SUPPORTED_CHAIN_IDS is required and each configured chain must also set RPC_URL_<chainId>.",
+            ],
+          };
+    return rpcConfigurationCache;
+  }
+
+  const supportedChainIds = parseSupportedChainIds(supportedChainsRaw);
+  const issues: string[] = [];
+  if (supportedChainIds.length === 0) {
+    issues.push("SUPPORTED_CHAIN_IDS must contain at least one positive integer chain ID.");
+  }
+
+  const supportedChains = supportedChainIds.map((chainId) => {
+    const chain = CHAIN_MAP[chainId];
+    const rpcEnvVar = `RPC_URL_${chainId}`;
+    const rpcUrls = splitRpcUrls(process.env[rpcEnvVar]);
+
+    if (!chain || !(chainId in MORPHO_ADDRESSES)) {
+      issues.push(`Unsupported chain in SUPPORTED_CHAIN_IDS: ${chainId}.`);
+      return {
+        chainId,
+        name: `Chain ${chainId}`,
+        rpcEnvVar,
+        rpcUrls,
+        archiveRequired: true as const,
+      };
+    }
+
+    if (rpcUrls.length === 0) {
+      issues.push(`${rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`);
+    }
+
+    return {
+      chainId,
+      name: chain.name,
+      rpcEnvVar,
+      rpcUrls,
+      archiveRequired: true as const,
+    };
+  });
+
+  rpcConfigurationCache = {
+    configured: issues.length === 0 && supportedChains.length > 0,
+    mode: "explicit",
+    supportedChains,
+    issues,
+  };
+  return rpcConfigurationCache;
+}
+
+export function getRpcConfigurationStatus(): RpcConfigurationStatus {
+  const status = getResolvedRpcConfigurationStatus();
+  return {
+    configured: status.configured,
+    mode: status.mode,
+    supportedChains: status.supportedChains.map((chain) => ({
+      chainId: chain.chainId,
+      name: chain.name,
+      rpcEnvVar: chain.rpcEnvVar,
+      rpcUrlCount: chain.rpcUrls.length,
+      archiveRequired: chain.archiveRequired,
+    })),
+    issues: [...status.issues],
+  };
+}
+
+export function assertRpcConfiguration(): void {
+  const status = getResolvedRpcConfigurationStatus();
+  if (status.mode === "test-permissive" || status.configured) {
+    return;
+  }
+
+  throw new Error(status.issues.join(" "));
+}
+
+function getConfiguredRpcChain(chainId: number): ResolvedRpcChain & { chain: Chain } {
+  const status = getResolvedRpcConfigurationStatus();
+  if (status.mode === "test-permissive") {
+    const chain = getTestFallbackChain(chainId);
+    if (!chain) {
+      throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
+    }
+    return chain;
+  }
+
+  const configuredChain = status.supportedChains.find((candidate) => candidate.chainId === chainId);
+  if (!configuredChain) {
+    throw new RpcQueryError(buildUnsupportedChainMessage(chainId), chainId);
+  }
+
+  const chain = CHAIN_MAP[chainId];
+  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
+    throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
+  }
+
+  if (configuredChain.rpcUrls.length === 0) {
+    throw new RpcQueryError(
+      `${configuredChain.rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`,
+      chainId,
+    );
+  }
+
+  return {
+    ...configuredChain,
+    chain,
+  };
+}
+
+export function getConfiguredRpcChainIds(): number[] {
+  const status = getResolvedRpcConfigurationStatus();
+  if (status.mode === "test-permissive") {
+    return Object.keys(CHAIN_MAP)
+      .map(Number)
+      .filter((chainId) => chainId in MORPHO_ADDRESSES);
+  }
+
+  return status.supportedChains
+    .filter((chain) => chain.rpcUrls.length > 0)
+    .map((chain) => chain.chainId);
+}
+
+export function getConfiguredRpcUrls(chainId: number): string[] {
+  return [...getConfiguredRpcChain(chainId).rpcUrls];
 }
 
 /**
@@ -114,26 +328,19 @@ export function getPublicClient(chainId: number): PublicClient {
   const cached = clientCache.get(chainId);
   if (cached) return cached;
 
-  const chain = CHAIN_MAP[chainId];
-  if (!chain) {
-    throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
-  }
-
-  const rpcUrls = getRpcUrls(chainId);
+  const configuredChain = getConfiguredRpcChain(chainId);
   const transportOptions = {
     retryCount: RPC_RETRY_COUNT,
     retryDelay: RPC_RETRY_DELAY_MS,
     timeout: RPC_TIMEOUT_MS,
   };
   const transport =
-    rpcUrls.length === 0
-      ? http(undefined, transportOptions)
-      : rpcUrls.length === 1
-        ? http(rpcUrls[0], transportOptions)
-        : fallback(rpcUrls.map((url) => http(url, transportOptions)));
+    configuredChain.rpcUrls.length === 1
+      ? http(configuredChain.rpcUrls[0], transportOptions)
+      : fallback(configuredChain.rpcUrls.map((url) => http(url, transportOptions)));
 
   const client = createPublicClient({
-    chain,
+    chain: configuredChain.chain,
     transport,
   });
 
@@ -362,9 +569,13 @@ export function clearClientCache(): void {
   clientCache.clear();
 }
 
+export function clearRpcConfigurationCache(): void {
+  rpcConfigurationCache = undefined;
+}
+
 /**
  * Check if a chain is supported for RPC queries
  */
 export function isChainSupportedForRpc(chainId: number): boolean {
-  return chainId in MORPHO_ADDRESSES && chainId in CHAIN_MAP;
+  return getConfiguredRpcChainIds().includes(chainId);
 }

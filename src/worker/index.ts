@@ -9,6 +9,7 @@
 import { config } from "../config/index.js";
 import { closeDb, verifyDbConnection } from "../db/index.js";
 import { getSourceCapabilities, getSourceCapabilityHealth } from "../engine/source-capabilities.js";
+import { assertRpcConfiguration, getRpcConfigurationStatus } from "../rpc/client.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { createLogger } from "../utils/logger.js";
 import { closeConnection } from "./connection.js";
@@ -21,9 +22,22 @@ const start = async () => {
   try {
     logger.info("Starting Sentinel Worker process");
 
+    assertRpcConfiguration();
     await verifyDbConnection();
     const capabilities = getSourceCapabilities();
     const capabilityHealth = getSourceCapabilityHealth(capabilities);
+    const rpcStatus = getRpcConfigurationStatus();
+
+    logger.info(
+      {
+        chains: rpcStatus.supportedChains.map((chain) => ({
+          chainId: chain.chainId,
+          name: chain.name,
+          rpcEnvVar: chain.rpcEnvVar,
+        })),
+      },
+      "Configured supported chains loaded",
+    );
 
     for (const family of ["state", "indexed", "raw"] as const) {
       const capability = capabilities[family];

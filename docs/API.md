@@ -11,6 +11,7 @@ This document owns the HTTP surface. Signal syntax belongs in [DSL.md](./DSL.md)
 ## Auth Summary
 
 - `GET /health` is public
+- `GET /chains` is public
 - `GET /ready` is public
 - `POST /api/v1/auth/register` is public unless `REGISTER_ADMIN_KEY` is configured
 - `POST /api/v1/auth/siwe/nonce` is public
@@ -28,6 +29,7 @@ See [AUTH.md](./AUTH.md) for the full auth model.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Health check |
+| GET | `/chains` | Supported-chain and archive RPC configuration report |
 | GET | `/ready` | Readiness check against DB, Redis, and configured providers |
 | POST | `/api/v1/auth/register` | Create Sentinel owner + API key |
 | POST | `/api/v1/auth/siwe/nonce` | Issue SIWE nonce |
@@ -79,17 +81,37 @@ Response:
       "reason": "ENVIO_API_TOKEN is not configured",
       "message": "raw source family is disabled because ENVIO_API_TOKEN is not configured. Configure ENVIO_API_TOKEN to enable it."
     }
+  },
+  "chains": {
+    "configured": true,
+    "mode": "explicit",
+    "supportedChains": [
+      {
+        "chainId": 8453,
+        "name": "Base",
+        "rpcEnvVar": "RPC_URL_8453",
+        "rpcUrlCount": 1,
+        "archiveRequired": true
+      }
+    ],
+    "issues": []
   }
 }
 ```
 
-`GET /health` is a fast liveness endpoint. It reports configured source capabilities, not live upstream reachability.
+`GET /health` is a fast liveness endpoint. It reports configured source capabilities plus the supported-chain archive RPC configuration loaded at startup, not live upstream reachability.
+
+```http
+GET /chains
+```
+
+`GET /chains` returns the explicit runtime chain allowlist and the required `RPC_URL_<chainId>` env vars Sentinel loaded at startup.
 
 ```http
 GET /ready
 ```
 
-`GET /ready` performs a cached readiness probe against PostgreSQL, Redis, RPC, and any configured indexed/raw providers. It returns `200` when all enabled dependencies are reachable and `503` when the process is up but one of those dependencies is not ready.
+`GET /ready` performs a cached readiness probe against PostgreSQL, Redis, every configured archive RPC chain, and any configured indexed/raw providers. It returns `200` when all enabled dependencies are reachable and `503` when the process is up but one of those dependencies is not ready.
 
 ### Delivery Service
 

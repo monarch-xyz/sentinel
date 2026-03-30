@@ -4,6 +4,7 @@
  */
 
 import type { Condition, ExpressionNode } from "../types/index.js";
+import { getConfiguredRpcChainIds, isChainSupportedForRpc } from "../rpc/client.js";
 import { isValidDuration } from "./duration.js";
 
 const MAX_EXPRESSION_DEPTH = 20;
@@ -83,10 +84,23 @@ export function validateChains(chains: number[]): void {
     throw new ValidationError("At least one chain ID is required", "chains");
   }
 
+  const supportedChains = getConfiguredRpcChainIds();
+
   for (const chainId of chains) {
     if (!Number.isInteger(chainId) || chainId <= 0) {
       throw new ValidationError(
         `Invalid chain ID: ${chainId}. Must be a positive integer.`,
+        "chains",
+      );
+    }
+
+    if (!isChainSupportedForRpc(chainId)) {
+      const supportedHint =
+        supportedChains.length > 0
+          ? ` Supported chains: ${supportedChains.join(", ")}.`
+          : " No supported chains are configured.";
+      throw new ValidationError(
+        `Unsupported chain ID: ${chainId}.${supportedHint}`,
         "chains",
       );
     }

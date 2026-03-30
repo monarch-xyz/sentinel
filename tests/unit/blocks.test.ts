@@ -10,6 +10,7 @@ import {
   isChainSupported,
   resolveBlockByTimestamp,
 } from "../../src/envio/blocks.js";
+import { clearRpcConfigurationCache } from "../../src/rpc/client.js";
 
 // Mock axios
 vi.mock("axios");
@@ -24,13 +25,32 @@ interface RpcRequest {
 }
 
 describe("Block Resolver", () => {
+  const originalEnv = {
+    SUPPORTED_CHAIN_IDS: process.env.SUPPORTED_CHAIN_IDS,
+    RPC_URL_1: process.env.RPC_URL_1,
+    RPC_URL_8453: process.env.RPC_URL_8453,
+    RPC_URL_12345: process.env.RPC_URL_12345,
+  };
+
   beforeEach(() => {
     clearBlockCache();
+    clearRpcConfigurationCache();
     vi.clearAllMocks();
+    process.env.SUPPORTED_CHAIN_IDS = "1,8453";
+    process.env.RPC_URL_1 = "https://eth-primary.example.org,https://eth-fallback.example.org";
+    process.env.RPC_URL_8453 = "https://base-primary.example.org";
   });
 
   afterEach(() => {
     clearBlockCache();
+    clearRpcConfigurationCache();
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   });
 
   describe("LRUCache", () => {
@@ -188,31 +208,26 @@ describe("Block Resolver", () => {
       expect(result).toBe(latestBlock);
     });
 
-    it("falls back to estimation when RPC fails", async () => {
+    it("throws when RPC fails because historical queries require archive RPC", async () => {
       mockedAxios.post.mockRejectedValue(new Error("RPC error"));
 
-      // Should not throw, instead fallback to estimation
-      const timestamp = 1700000000 * 1000;
-      const result = await resolveBlockByTimestamp(1, timestamp);
-
-      expect(typeof result).toBe("number");
-      expect(result).toBeGreaterThan(0);
+      await expect(resolveBlockByTimestamp(1, 1700000000 * 1000)).rejects.toThrow("RPC error");
     });
 
-    it("uses estimation for unsupported chains", async () => {
+    it("rejects unsupported chains", async () => {
       const unsupportedChainId = 99999;
-      const timestamp = 1700000000 * 1000;
 
-      const result = await resolveBlockByTimestamp(unsupportedChainId, timestamp);
-
-      // Should estimate based on default 12s blocks
-      expect(typeof result).toBe("number");
-      expect(result).toBeGreaterThan(0);
+      await expect(resolveBlockByTimestamp(unsupportedChainId, 1700000000 * 1000)).rejects.toThrow(
+        "not configured for archive block resolution",
+      );
       expect(mockedAxios.post).not.toHaveBeenCalled();
     });
 
-    it("tries multiple RPC endpoints on failure", async () => {
+    it("tries multiple configured RPC endpoints on failure", async () => {
       let callCount = 0;
+      process.env.RPC_URL_1 =
+        "https://eth-primary.example.org,https://eth-secondary.example.org,https://eth-tertiary.example.org";
+      clearRpcConfigurationCache();
 
       mockedAxios.post.mockImplementation(async (url: string, data: RpcRequest) => {
         callCount++;
@@ -235,7 +250,6 @@ describe("Block Resolver", () => {
       const result = await resolveBlockByTimestamp(1, 1700000000 * 1000);
 
       expect(typeof result).toBe("number");
-      // Should have tried multiple endpoints
       expect(callCount).toBeGreaterThan(1);
     });
 
@@ -310,8 +324,16 @@ describe("Block Resolver", () => {
 
   describe("clearBlockCache", () => {
     it("clears all cached entries", async () => {
-      // Pre-populate cache via direct estimation (unsupported chain)
-      await resolveBlockByTimestamp(99999, 1700000000 * 1000);
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          result: {
+            number: "0x10",
+            timestamp: "0x6553f100",
+          },
+        },
+      });
+
+      await resolveBlockByTimestamp(1, 1700000000 * 1000);
       expect(getBlockCacheSize()).toBeGreaterThan(0);
 
       clearBlockCache();
@@ -324,17 +346,25 @@ describe("Block Resolver", () => {
     it("returns current cache size", async () => {
       expect(getBlockCacheSize()).toBe(0);
 
-      // Add entries via unsupported chain (uses estimation, no RPC)
-      await resolveBlockByTimestamp(99999, 1700000000 * 1000);
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          result: {
+            number: "0x10",
+            timestamp: "0x6553f100",
+          },
+        },
+      });
+
+      await resolveBlockByTimestamp(1, 1700000000 * 1000);
       expect(getBlockCacheSize()).toBe(1);
 
-      await resolveBlockByTimestamp(99999, 1700001000 * 1000);
+      await resolveBlockByTimestamp(1, 1700001000 * 1000);
       expect(getBlockCacheSize()).toBe(2);
     });
   });
 
   describe("addChainConfig", () => {
-    it("adds new chain configuration", async () => {
+    it("adds new chain metadata but does not make it runtime-supported without explicit RPC config", async () => {
       const newChainId = 12345;
 
       expect(isChainSupported(newChainId)).toBe(false);
@@ -346,8 +376,9 @@ describe("Block Resolver", () => {
         avgBlockTimeMs: 5000,
       });
 
-      expect(isChainSupported(newChainId)).toBe(true);
-      expect(getSupportedChains()).toContain(newChainId);
+      expect(CHAIN_CONFIGS[newChainId]).toBeDefined();
+      expect(isChainSupported(newChainId)).toBe(false);
+      expect(getSupportedChains()).not.toContain(newChainId);
     });
 
     it("updates existing chain configuration", () => {
@@ -411,21 +442,15 @@ describe("Block Resolver", () => {
         },
       });
 
-      // Should fallback to estimation
-      const result = await resolveBlockByTimestamp(1, 1700000000 * 1000);
-
-      expect(typeof result).toBe("number");
-      expect(result).toBeGreaterThan(0);
+      await expect(resolveBlockByTimestamp(1, 1700000000 * 1000)).rejects.toThrow(
+        "Block not found",
+      );
     });
 
     it("handles RPC timeout", async () => {
       mockedAxios.post.mockRejectedValue(new Error("ETIMEDOUT"));
 
-      const result = await resolveBlockByTimestamp(1, 1700000000 * 1000);
-
-      // Should fallback to estimation
-      expect(typeof result).toBe("number");
-      expect(result).toBeGreaterThan(0);
+      await expect(resolveBlockByTimestamp(1, 1700000000 * 1000)).rejects.toThrow("ETIMEDOUT");
     });
 
     it("caches results with second precision", async () => {
@@ -433,10 +458,19 @@ describe("Block Resolver", () => {
       const ts1 = 1700000000100; // ms
       const ts2 = 1700000000900; // ms
 
-      await resolveBlockByTimestamp(99999, ts1);
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          result: {
+            number: "0x10",
+            timestamp: "0x6553f100",
+          },
+        },
+      });
+
+      await resolveBlockByTimestamp(1, ts1);
       const size1 = getBlockCacheSize();
 
-      await resolveBlockByTimestamp(99999, ts2);
+      await resolveBlockByTimestamp(1, ts2);
       const size2 = getBlockCacheSize();
 
       // Both should use same cache entry
@@ -446,8 +480,17 @@ describe("Block Resolver", () => {
     it("different chains have separate cache entries", async () => {
       const timestamp = 1700000000 * 1000;
 
-      await resolveBlockByTimestamp(99998, timestamp);
-      await resolveBlockByTimestamp(99999, timestamp);
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          result: {
+            number: "0x10",
+            timestamp: "0x6553f100",
+          },
+        },
+      });
+
+      await resolveBlockByTimestamp(1, timestamp);
+      await resolveBlockByTimestamp(8453, timestamp);
 
       expect(getBlockCacheSize()).toBe(2);
     });

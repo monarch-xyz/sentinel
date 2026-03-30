@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RpcQueryError,
   clearClientCache,
+  clearRpcConfigurationCache,
   getPublicClient,
+  getRpcConfigurationStatus,
   isChainSupportedForRpc,
   readMarketAtBlock,
   readPositionAtBlock,
@@ -23,6 +25,7 @@ describe("rpc client", () => {
   const createPublicClientMock = vi.mocked(createPublicClient);
   const fallbackMock = vi.mocked(fallback);
   const httpMock = vi.mocked(http);
+  const originalSupportedChainIds = process.env.SUPPORTED_CHAIN_IDS;
   const originalRpcUrl1 = process.env.RPC_URL_1;
 
   function createClientWithReadContract(readContract: PublicClient["readContract"]): PublicClient {
@@ -31,17 +34,26 @@ describe("rpc client", () => {
 
   beforeEach(() => {
     clearClientCache();
+    clearRpcConfigurationCache();
     vi.clearAllMocks();
     httpMock.mockImplementation((url?: string) => ({ url }) as unknown as ReturnType<typeof http>);
     fallbackMock.mockImplementation((transports) => transports[0]);
+    process.env.SUPPORTED_CHAIN_IDS = "1";
+    process.env.RPC_URL_1 = "https://rpc.example.org";
   });
 
   afterEach(() => {
+    clearRpcConfigurationCache();
     if (originalRpcUrl1 === undefined) {
       // biome-ignore lint/performance/noDelete: env cleanup for test isolation
       delete process.env.RPC_URL_1;
     } else {
       process.env.RPC_URL_1 = originalRpcUrl1;
+    }
+    if (originalSupportedChainIds === undefined) {
+      delete process.env.SUPPORTED_CHAIN_IDS;
+    } else {
+      process.env.SUPPORTED_CHAIN_IDS = originalSupportedChainIds;
     }
   });
 
@@ -79,7 +91,7 @@ describe("rpc client", () => {
 
   it("throws RpcQueryError for unsupported chains", () => {
     expect(() => getPublicClient(10)).toThrow(RpcQueryError);
-    expect(() => getPublicClient(10)).toThrow("Unsupported chain for RPC: 10");
+    expect(() => getPublicClient(10)).toThrow("Chain 10 is not configured for archive RPC access");
   });
 
   it("reads position at block via contract call", async () => {
@@ -149,5 +161,15 @@ describe("rpc client", () => {
   it("reports chain support accurately", () => {
     expect(isChainSupportedForRpc(1)).toBe(true);
     expect(isChainSupportedForRpc(10)).toBe(false);
+  });
+
+  it("reports missing archive RPC configuration at startup", () => {
+    delete process.env.RPC_URL_1;
+    clearRpcConfigurationCache();
+
+    expect(getRpcConfigurationStatus()).toMatchObject({
+      configured: false,
+      issues: [expect.stringContaining("RPC_URL_1 is required")],
+    });
   });
 });

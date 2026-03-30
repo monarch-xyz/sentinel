@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getConfiguredRpcChainIds, getConfiguredRpcUrls, isChainSupportedForRpc } from "../rpc/client.js";
 
 /**
  * Chain configuration for block resolution
@@ -8,27 +9,6 @@ interface ChainConfig {
   rpcEndpoints: string[];
   genesisTimestamp: number; // Unix timestamp in seconds
   avgBlockTimeMs: number;
-}
-
-/**
- * Get RPC endpoints for a chain, checking env vars first
- * Env var format: RPC_URL_{chainId} (e.g., RPC_URL_1 for Ethereum)
- * Multiple URLs can be comma-separated
- */
-function getRpcEndpoints(chainId: number, fallbackEndpoints: string[]): string[] {
-  const envVar = process.env[`RPC_URL_${chainId}`];
-  if (envVar) {
-    // Split by comma and trim whitespace
-    const customEndpoints = envVar
-      .split(",")
-      .map((url) => url.trim())
-      .filter(Boolean);
-    if (customEndpoints.length > 0) {
-      // Custom endpoints take priority, fallbacks as backup
-      return [...customEndpoints, ...fallbackEndpoints];
-    }
-  }
-  return fallbackEndpoints;
 }
 
 /**
@@ -160,8 +140,7 @@ async function rpcCall(chainId: number, method: string, params: unknown[]): Prom
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  // Get endpoints with env var override support
-  const endpoints = getRpcEndpoints(chainId, config.rpcEndpoints);
+  const endpoints = getConfiguredRpcUrls(chainId);
   let lastError: Error | null = null;
 
   for (const endpoint of endpoints) {
@@ -338,7 +317,7 @@ async function binarySearchBlock(
  * @param chainId - The chain ID (1 for Ethereum, 8453 for Base, etc.)
  * @param timestampMs - The target timestamp in milliseconds
  * @returns The block number closest to but not exceeding the timestamp
- * @throws Error if the chain is not supported or RPC calls fail
+ * @throws Error if the chain is not configured or RPC calls fail
  */
 export async function resolveBlockByTimestamp(
   chainId: number,
@@ -354,11 +333,8 @@ export async function resolveBlockByTimestamp(
   }
 
   const config = CHAIN_CONFIGS[chainId];
-  if (!config) {
-    // For unsupported chains, use estimation as fallback
-    const estimated = estimateBlockNumber(chainId, timestampSec);
-    blockCache.set(cacheKey, estimated);
-    return estimated;
+  if (!config || !isChainSupportedForRpc(chainId)) {
+    throw new Error(`Chain ${chainId} is not configured for archive block resolution`);
   }
 
   // Handle edge case: timestamp before genesis
@@ -367,42 +343,35 @@ export async function resolveBlockByTimestamp(
     return 0;
   }
 
-  try {
-    // Get latest block to establish upper bound
-    const latestBlock = await getBlock(chainId, "latest");
+  // Get latest block to establish upper bound
+  const latestBlock = await getBlock(chainId, "latest");
 
-    // Handle edge case: timestamp in the future
-    if (timestampSec >= latestBlock.timestamp) {
-      blockCache.set(cacheKey, latestBlock.number);
-      return latestBlock.number;
-    }
-
-    // Perform binary search
-    const blockNumber = await binarySearchBlock(chainId, timestampSec, latestBlock);
-
-    // Cache the result
-    blockCache.set(cacheKey, blockNumber);
-    return blockNumber;
-  } catch (error) {
-    // Fallback to estimation if RPC fails
-    const estimated = estimateBlockNumber(chainId, timestampSec);
-    blockCache.set(cacheKey, estimated);
-    return estimated;
+  // Handle edge case: timestamp in the future
+  if (timestampSec >= latestBlock.timestamp) {
+    blockCache.set(cacheKey, latestBlock.number);
+    return latestBlock.number;
   }
+
+  // Perform binary search
+  const blockNumber = await binarySearchBlock(chainId, timestampSec, latestBlock);
+
+  // Cache the result
+  blockCache.set(cacheKey, blockNumber);
+  return blockNumber;
 }
 
 /**
  * Get supported chain IDs
  */
 export function getSupportedChains(): number[] {
-  return Object.keys(CHAIN_CONFIGS).map(Number);
+  return getConfiguredRpcChainIds().filter((chainId) => chainId in CHAIN_CONFIGS);
 }
 
 /**
  * Check if a chain is supported
  */
 export function isChainSupported(chainId: number): boolean {
-  return chainId in CHAIN_CONFIGS;
+  return chainId in CHAIN_CONFIGS && isChainSupportedForRpc(chainId);
 }
 
 /**
