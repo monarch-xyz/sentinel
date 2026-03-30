@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetTelegramIntegrationStatus = vi.fn();
 
-vi.mock("../../src/integrations/delivery.js", async () => {
-  const actual = await vi.importActual("../../src/integrations/delivery.js");
+vi.mock("../../src/integrations/delivery.ts", async () => {
+  const actual = await vi.importActual("../../src/integrations/delivery.ts");
   return {
     ...actual,
     getTelegramIntegrationStatus: mockGetTelegramIntegrationStatus,

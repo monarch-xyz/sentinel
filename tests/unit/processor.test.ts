@@ -12,11 +12,11 @@ vi.mock("ioredis", () => ({
 }));
 
 // Mock everything
-vi.mock("../../src/db/index.js", () => ({
+vi.mock("../../src/db/index.ts", () => ({
   pool: { query: vi.fn() },
 }));
 
-vi.mock("../../src/envio/client.js", () => ({
+vi.mock("../../src/envio/client.ts", () => ({
   EnvioClient: vi.fn().mockImplementation(() => ({
     fetchState: vi.fn(),
     fetchEvents: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("../../src/envio/client.js", () => ({
 }));
 
 // Mock the evaluator to return triggered=true
-vi.mock("../../src/engine/condition.js", () => ({
+vi.mock("../../src/engine/condition.ts", () => ({
   SignalEvaluator: vi.fn().mockImplementation(() => ({
     evaluate: vi.fn().mockResolvedValue({
       triggered: true,
@@ -35,7 +35,7 @@ vi.mock("../../src/engine/condition.js", () => ({
   })),
 }));
 
-vi.mock("../../src/worker/notifier.js", () => ({
+vi.mock("../../src/worker/notifier.ts", () => ({
   dispatchNotification: vi.fn().mockResolvedValue({ success: true, status: 200, durationMs: 100 }),
 }));
 

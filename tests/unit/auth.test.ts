@@ -47,7 +47,7 @@ const loadAuthMiddleware = async ({
   const getActiveByHash = vi.fn(async (hash: string) => sessionsByHash[hash]);
   const touchSessionLastUsed = vi.fn(async () => {});
 
-  vi.doMock("../../src/db/index.js", () => ({
+  vi.doMock("../../src/db/index.ts", () => ({
     ApiKeyRepository: class {
       getByHash = getByHash;
       touchLastUsed = touchApiKeyLastUsed;

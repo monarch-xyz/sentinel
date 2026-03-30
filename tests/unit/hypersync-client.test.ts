@@ -16,7 +16,7 @@ vi.mock("@envio-dev/hypersync-client", () => ({
   },
 }));
 
-vi.mock("../../src/envio/blocks.js", () => ({
+vi.mock("../../src/envio/blocks.ts", () => ({
   resolveBlockByTimestamp: vi.fn(),
 }));
 

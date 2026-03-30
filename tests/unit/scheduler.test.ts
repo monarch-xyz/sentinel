@@ -25,7 +25,7 @@ vi.mock("bullmq", () => ({
   })),
 }));
 
-vi.mock("../../src/db/index.js", () => ({
+vi.mock("../../src/db/index.ts", () => ({
   pool: {
     query: vi.fn(),
   },

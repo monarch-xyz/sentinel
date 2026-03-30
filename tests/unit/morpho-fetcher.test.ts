@@ -5,11 +5,11 @@ import { resolveBlockByTimestamp } from "../../src/envio/blocks.ts";
 import { executeArchiveRpcCall } from "../../src/rpc/index.ts";
 import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.ts";
 
-vi.mock("../../src/envio/blocks.js", () => ({
+vi.mock("../../src/envio/blocks.ts", () => ({
   resolveBlockByTimestamp: vi.fn(),
 }));
 
-vi.mock("../../src/rpc/index.js", () => ({
+vi.mock("../../src/rpc/index.ts", () => ({
   executeArchiveRpcCall: vi.fn(),
 }));
 
