@@ -141,6 +141,9 @@ The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAV
 
 Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
 
+For RPC state, the planner now emits a generic RPC state read primitive first (`planGenericRpcStateRead`), then protocol-specific bindings (Morpho today) are applied inside the runtime fetcher.
+`planRpcStateRead` is retained temporarily as a compatibility wrapper to reduce public API churn while migration is in progress.
+
 Optional providers are capability-gated instead of process-fatal:
 
 - missing `ENVIO_ENDPOINT` disables indexed semantic families

@@ -3,16 +3,37 @@ import { normalizeMarketId } from "../utils/market.js";
 
 type FilterValue = string | number | boolean;
 
-export interface PlannedRpcStateRead {
+export interface PlannedGenericRpcStateRead {
   family: "state";
   provider: "rpc";
   chainId: number;
-  entityType: StateRef["entity_type"];
-  field: StateRef["field"];
+  ref: StateRef;
+  timestamp?: number;
+}
+
+/**
+ * Morpho-specific RPC read binding.
+ *
+ * This is intentionally derived from the generic `PlannedGenericRpcStateRead`
+ * so protocol-specific requirements stay out of the primitive state plan.
+ */
+export interface PlannedMorphoRpcStateRead {
+  family: "state";
+  provider: "rpc";
+  chainId: number;
+  entityType: string;
+  field: string;
   marketId: string;
   user?: string;
   timestamp?: number;
 }
+
+/**
+ * Backward-compatible Morpho-shaped RPC plan.
+ *
+ * @deprecated Use `PlannedGenericRpcStateRead` + `bindMorphoRpcStateRead`.
+ */
+export type PlannedRpcStateRead = PlannedMorphoRpcStateRead;
 
 export interface PlannedIndexedEventRead {
   family: "indexed";
@@ -77,16 +98,47 @@ export function planMorphoStateRead(
   ref: StateRef,
   timestamp: number | undefined,
   defaultChainId: number,
-): PlannedRpcStateRead {
+): PlannedMorphoRpcStateRead {
+  return bindMorphoRpcStateRead(planGenericRpcStateRead(ref, timestamp, defaultChainId));
+}
+
+export function planGenericRpcStateRead(
+  ref: StateRef,
+  timestamp: number | undefined,
+  defaultChainId: number,
+): PlannedGenericRpcStateRead {
   return {
     family: "state",
     provider: "rpc",
     chainId: resolveChainId(ref.filters, defaultChainId),
-    entityType: ref.entity_type,
-    field: ref.field,
-    marketId: requireMarketId(ref.filters),
-    user: ref.entity_type === "Position" ? requireUser(ref.filters) : undefined,
+    ref,
     timestamp,
+  };
+}
+
+/**
+ * @deprecated Use `planGenericRpcStateRead` + `bindMorphoRpcStateRead` directly.
+ */
+export function planRpcStateRead(
+  ref: StateRef,
+  timestamp: number | undefined,
+  defaultChainId: number,
+): PlannedRpcStateRead {
+  return bindMorphoRpcStateRead(planGenericRpcStateRead(ref, timestamp, defaultChainId));
+}
+
+export function bindMorphoRpcStateRead(
+  plan: PlannedGenericRpcStateRead,
+): PlannedMorphoRpcStateRead {
+  return {
+    family: plan.family,
+    provider: plan.provider,
+    chainId: plan.chainId,
+    entityType: plan.ref.entity_type,
+    field: plan.ref.field,
+    marketId: requireMarketId(plan.ref.filters),
+    user: plan.ref.entity_type === "Position" ? requireUser(plan.ref.filters) : undefined,
+    timestamp: plan.timestamp,
   };
 }
 

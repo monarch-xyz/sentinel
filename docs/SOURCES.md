@@ -16,6 +16,15 @@ The important boundary is family-first, not provider-first.
 Users write `state`, `indexed`, and `raw` semantics.
 The engine decides whether those reads land on RPC, Envio, HyperSync, or a future provider.
 
+For state reads specifically, planning is now two-step:
+
+1. build a generic RPC state read plan (`family=state`, `provider=rpc`, chain, ref, timestamp)
+2. apply protocol/runtime binding (Morpho today) to enforce protocol-specific requirements
+
+Transition note:
+- `planGenericRpcStateRead` is the new primitive planner entrypoint
+- `planRpcStateRead` remains as a compatibility wrapper that returns the legacy Morpho-shaped plan while callers migrate
+
 ## Capability Gating
 
 Source families are optional at runtime:
@@ -48,6 +57,9 @@ Today the AST already has the right shape for mixed-source evaluation:
 
 That means Sentinel can already combine families inside one condition tree.
 For example, a future expression can compare or combine state, indexed, and raw leaves without changing the evaluator model.
+
+The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings.
+This keeps Morpho behavior intact while preventing state planning from being Morpho-shaped by default.
 
 ## Extension Path
 
