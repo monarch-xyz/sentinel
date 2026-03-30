@@ -10,8 +10,12 @@ import {
   type Chain,
   type PublicClient,
   createPublicClient,
+  decodeFunctionResult,
   defineChain,
+  encodeFunctionData,
   fallback,
+  isAddress,
+  parseAbi,
 } from "viem";
 import { arbitrum, base, mainnet, polygon } from "viem/chains";
 
@@ -53,9 +57,12 @@ const monad = defineChain({
     default: { name: "Monad Explorer", url: "https://testnet.monadexplorer.com" },
   },
 });
+import { buildMorphoMarketCall, buildMorphoPositionCall } from "../protocols/morpho/rpc-calls.js";
+import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
-import { MORPHO_ADDRESSES, type MarketResult, type PositionResult, morphoAbi } from "./abi.js";
+import { normalizeRpcTypedArg, parseRpcBigIntTuple } from "../utils/rpc-validation.js";
+import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.js";
 
 const logger = createLogger("rpc-client");
 const RPC_TIMEOUT_MS = Number.parseInt(process.env.RPC_TIMEOUT_MS ?? "15000", 10);
@@ -68,6 +75,7 @@ type ResolvedRpcChain = {
   rpcEnvVar: string;
   rpcUrls: string[];
   archiveRequired: true;
+  chain?: Chain;
 };
 
 type ResolvedRpcConfigurationStatus = {
@@ -103,6 +111,45 @@ export class RpcQueryError extends Error {
   ) {
     super(message);
     this.name = "RpcQueryError";
+  }
+}
+
+function normalizeFunctionSignature(signature: string): string {
+  const trimmed = signature.trim();
+  if (!trimmed) {
+    throw new Error("RPC call signature is required");
+  }
+  return trimmed.startsWith("function ") ? trimmed : `function ${trimmed}`;
+}
+
+function extractFunctionName(signature: string): string {
+  const normalized = signature.trim().replace(/^function\s+/, "");
+  const functionName = normalized.split("(")[0]?.trim();
+  if (!functionName) {
+    throw new Error(`Invalid function signature: ${signature}`);
+  }
+  return functionName;
+}
+
+function normalizeTypedArg(arg: RpcTypedArg): unknown {
+  return normalizeRpcTypedArg(arg);
+}
+
+function toBigIntTuple(
+  chainId: number,
+  blockNumber: bigint | undefined,
+  functionName: string,
+  value: unknown,
+  expectedLength: number,
+): bigint[] {
+  try {
+    return parseRpcBigIntTuple(value, expectedLength, functionName);
+  } catch {
+    throw new RpcQueryError(
+      `Unexpected ${functionName} response shape from archive RPC`,
+      chainId,
+      blockNumber,
+    );
   }
 }
 
@@ -151,9 +198,9 @@ function buildUnsupportedChainMessage(chainId: number): string {
   return `Chain ${chainId} is not configured for archive RPC access.${supportedHint}`;
 }
 
-function getTestFallbackChain(chainId: number): (ResolvedRpcChain & { chain: Chain }) | undefined {
+function getTestFallbackChain(chainId: number): ResolvedRpcChain | undefined {
   const chain = CHAIN_MAP[chainId];
-  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
+  if (!chain) {
     return undefined;
   }
 
@@ -208,27 +255,19 @@ function getResolvedRpcConfigurationStatus(): ResolvedRpcConfigurationStatus {
     const rpcEnvVar = `RPC_URL_${chainId}`;
     const rpcUrls = splitRpcUrls(process.env[rpcEnvVar]);
 
-    if (!chain || !(chainId in MORPHO_ADDRESSES)) {
-      issues.push(`Unsupported chain in SUPPORTED_CHAIN_IDS: ${chainId}.`);
-      return {
-        chainId,
-        name: `Chain ${chainId}`,
-        rpcEnvVar,
-        rpcUrls,
-        archiveRequired: true as const,
-      };
-    }
-
     if (rpcUrls.length === 0) {
-      issues.push(`${rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`);
+      issues.push(
+        `${rpcEnvVar} is required for supported chain ${chainId} (${chain?.name ?? `Chain ${chainId}`}).`,
+      );
     }
 
     return {
       chainId,
-      name: chain.name,
+      name: chain?.name ?? `Chain ${chainId}`,
       rpcEnvVar,
       rpcUrls,
       archiveRequired: true as const,
+      chain,
     };
   });
 
@@ -266,7 +305,7 @@ export function assertRpcConfiguration(): void {
   throw new Error(status.issues.join(" "));
 }
 
-function getConfiguredRpcChain(chainId: number): ResolvedRpcChain & { chain: Chain } {
+function getConfiguredRpcChain(chainId: number): ResolvedRpcChain {
   const status = getResolvedRpcConfigurationStatus();
   if (status.mode === "test-permissive") {
     const chain = getTestFallbackChain(chainId);
@@ -281,30 +320,20 @@ function getConfiguredRpcChain(chainId: number): ResolvedRpcChain & { chain: Cha
     throw new RpcQueryError(buildUnsupportedChainMessage(chainId), chainId);
   }
 
-  const chain = CHAIN_MAP[chainId];
-  if (!chain || !(chainId in MORPHO_ADDRESSES)) {
-    throw new RpcQueryError(`Unsupported chain for RPC: ${chainId}`, chainId);
-  }
-
   if (configuredChain.rpcUrls.length === 0) {
     throw new RpcQueryError(
-      `${configuredChain.rpcEnvVar} is required for supported chain ${chainId} (${chain.name}).`,
+      `${configuredChain.rpcEnvVar} is required for supported chain ${chainId} (${configuredChain.name}).`,
       chainId,
     );
   }
 
-  return {
-    ...configuredChain,
-    chain,
-  };
+  return configuredChain;
 }
 
 export function getConfiguredRpcChainIds(): number[] {
   const status = getResolvedRpcConfigurationStatus();
   if (status.mode === "test-permissive") {
-    return Object.keys(CHAIN_MAP)
-      .map(Number)
-      .filter((chainId) => chainId in MORPHO_ADDRESSES);
+    return Object.keys(CHAIN_MAP).map(Number);
   }
 
   return status.supportedChains
@@ -329,6 +358,16 @@ export function getPublicClient(chainId: number): PublicClient {
   if (cached) return cached;
 
   const configuredChain = getConfiguredRpcChain(chainId);
+  const resolvedChain =
+    configuredChain.chain ??
+    defineChain({
+      id: configuredChain.chainId,
+      name: configuredChain.name,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: {
+        default: { http: configuredChain.rpcUrls },
+      },
+    });
   const transportOptions = {
     retryCount: RPC_RETRY_COUNT,
     retryDelay: RPC_RETRY_DELAY_MS,
@@ -340,7 +379,7 @@ export function getPublicClient(chainId: number): PublicClient {
       : fallback(configuredChain.rpcUrls.map((url) => http(url, transportOptions)));
 
   const client = createPublicClient({
-    chain: configuredChain.chain,
+    chain: resolvedChain,
     transport,
   });
 
@@ -369,6 +408,51 @@ export async function probeRpcChain(chainId: number): Promise<void> {
   await getPublicClient(chainId).getBlockNumber();
 }
 
+export async function executeArchiveRpcCall(
+  chainId: number,
+  call: GenericRpcCall,
+  blockNumber?: bigint,
+): Promise<unknown> {
+  const client = getPublicClient(chainId);
+
+  try {
+    const functionSignature = normalizeFunctionSignature(call.signature);
+    const functionName = extractFunctionName(functionSignature);
+
+    if (!isAddress(call.to)) {
+      throw new Error(`Invalid contract address: ${call.to}`);
+    }
+
+    const abi = parseAbi([functionSignature]);
+    const args = call.args.map((arg) => normalizeTypedArg(arg));
+
+    const data = encodeFunctionData({
+      abi,
+      functionName,
+      args: args as never,
+    } as never);
+
+    const response = await client.call({
+      to: call.to as `0x${string}`,
+      data,
+      blockNumber,
+    });
+
+    if (!response.data) {
+      throw new Error("RPC call returned no data");
+    }
+
+    return decodeFunctionResult({
+      abi,
+      functionName,
+      data: response.data,
+    } as never);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new RpcQueryError(`Failed to execute archive RPC call: ${message}`, chainId, blockNumber);
+  }
+}
+
 /**
  * Read position state at a specific block
  *
@@ -389,7 +473,6 @@ export async function readPositionAtBlock(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId, blockNumber);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
@@ -398,16 +481,18 @@ export async function readPositionAtBlock(
       "Reading position at block",
     );
 
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "position",
-      args: [normalizedMarketId, user as `0x${string}`],
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoPositionCall(morphoAddress, normalizedMarketId, user),
       blockNumber,
-    });
-
-    // Result is a tuple [supplyShares, borrowShares, collateral]
-    const [supplyShares, borrowShares, collateral] = result as [bigint, bigint, bigint];
+    );
+    const [supplyShares, borrowShares, collateral] = toBigIntTuple(
+      chainId,
+      blockNumber,
+      "position",
+      result,
+      3,
+    );
 
     return {
       supplyShares,
@@ -442,7 +527,6 @@ export async function readMarketAtBlock(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId, blockNumber);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId, blockNumber);
 
   try {
@@ -451,15 +535,11 @@ export async function readMarketAtBlock(
       "Reading market at block",
     );
 
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "market",
-      args: [normalizedMarketId],
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoMarketCall(morphoAddress, normalizedMarketId),
       blockNumber,
-    });
-
-    // Result is a tuple
+    );
     const [
       totalSupplyAssets,
       totalSupplyShares,
@@ -467,7 +547,7 @@ export async function readMarketAtBlock(
       totalBorrowShares,
       lastUpdate,
       fee,
-    ] = result as [bigint, bigint, bigint, bigint, bigint, bigint];
+    ] = toBigIntTuple(chainId, blockNumber, "market", result, 6);
 
     return {
       totalSupplyAssets,
@@ -500,18 +580,20 @@ export async function readPosition(
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "position",
-      args: [normalizedMarketId, user as `0x${string}`],
-    });
-
-    const [supplyShares, borrowShares, collateral] = result as [bigint, bigint, bigint];
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoPositionCall(morphoAddress, normalizedMarketId, user),
+    );
+    const [supplyShares, borrowShares, collateral] = toBigIntTuple(
+      chainId,
+      undefined,
+      "position",
+      result,
+      3,
+    );
     return { supplyShares, borrowShares, collateral };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -528,17 +610,13 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
     throw new RpcQueryError(`Morpho not deployed on chain ${chainId}`, chainId);
   }
 
-  const client = getPublicClient(chainId);
   const normalizedMarketId = requireValidMarketId(chainId, marketId);
 
   try {
-    const result = await client.readContract({
-      address: morphoAddress,
-      abi: morphoAbi,
-      functionName: "market",
-      args: [normalizedMarketId],
-    });
-
+    const result = await executeArchiveRpcCall(
+      chainId,
+      buildMorphoMarketCall(morphoAddress, normalizedMarketId),
+    );
     const [
       totalSupplyAssets,
       totalSupplyShares,
@@ -546,7 +624,7 @@ export async function readMarket(chainId: number, marketId: string): Promise<Mar
       totalBorrowShares,
       lastUpdate,
       fee,
-    ] = result as [bigint, bigint, bigint, bigint, bigint, bigint];
+    ] = toBigIntTuple(chainId, undefined, "market", result, 6);
 
     return {
       totalSupplyAssets,

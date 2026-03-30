@@ -1,39 +1,23 @@
-import type { EventRef, Filter, RawEventRef, StateRef } from "../types/index.js";
-import { normalizeMarketId } from "../utils/market.js";
+import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
 
 type FilterValue = string | number | boolean;
 
 export interface PlannedGenericRpcStateRead {
   family: "state";
   provider: "rpc";
+  protocol: string;
   chainId: number;
   ref: StateRef;
   timestamp?: number;
 }
 
-/**
- * Morpho-specific RPC read binding.
- *
- * This is intentionally derived from the generic `PlannedGenericRpcStateRead`
- * so protocol-specific requirements stay out of the primitive state plan.
- */
-export interface PlannedMorphoRpcStateRead {
+export interface PlannedArchiveRpcExecution {
   family: "state";
   provider: "rpc";
   chainId: number;
-  entityType: string;
-  field: string;
-  marketId: string;
-  user?: string;
+  call: GenericRpcCall;
   timestamp?: number;
 }
-
-/**
- * Backward-compatible Morpho-shaped RPC plan.
- *
- * @deprecated Use `PlannedGenericRpcStateRead` + `bindMorphoRpcStateRead`.
- */
-export type PlannedRpcStateRead = PlannedMorphoRpcStateRead;
 
 export interface PlannedIndexedEventRead {
   family: "indexed";
@@ -63,45 +47,47 @@ function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: strin
   return match?.value as T | undefined;
 }
 
+function parseStrictPositiveChainId(value: unknown, source: string): number {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value > 0) {
+      return value;
+    }
+    throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+    }
+
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+    }
+    return parsed;
+  }
+
+  throw new Error(`Invalid ${source}: ${String(value)}. Expected a positive integer.`);
+}
+
 function resolveChainId(filters: Filter[], defaultChainId: number): number {
-  return Number(getEqFilterValue<number>(filters, "chainId") ?? defaultChainId);
+  const raw = getEqFilterValue<FilterValue>(filters, "chainId");
+  const value = raw === undefined ? defaultChainId : raw;
+  const source = raw === undefined ? "default chainId" : "chainId filter value";
+  return parseStrictPositiveChainId(value, source);
 }
 
-function requireMarketId(filters: Filter[]): string {
-  const marketId = getEqFilterValue<string>(filters, "marketId");
-  if (!marketId) {
-    throw new Error("marketId filter required for state queries");
+function resolveStateProtocol(ref: StateRef): string {
+  if (typeof ref.protocol !== "string" || ref.protocol.trim().length === 0) {
+    throw new Error("State ref protocol is required for generic RPC planning.");
   }
-  return normalizeMarketId(marketId);
-}
-
-function requireUser(filters: Filter[]): string {
-  const user = getEqFilterValue<string>(filters, "user");
-  if (!user) {
-    throw new Error("user filter required for Position queries");
-  }
-  return user;
+  return ref.protocol;
 }
 
 /**
- * Centralized source planning keeps provider policy out of the evaluator.
- *
- * Today the Morpho runtime uses:
- * - RPC for state reads
- * - the indexing boundary for indexed semantic event reads
- * - the indexing boundary for raw decoded event reads
- *
- * Future providers should extend this planning layer rather than pushing
- * source decisions back into evaluator or route code.
+ * Generic state planner for archive RPC reads.
  */
-export function planMorphoStateRead(
-  ref: StateRef,
-  timestamp: number | undefined,
-  defaultChainId: number,
-): PlannedMorphoRpcStateRead {
-  return bindMorphoRpcStateRead(planGenericRpcStateRead(ref, timestamp, defaultChainId));
-}
-
 export function planGenericRpcStateRead(
   ref: StateRef,
   timestamp: number | undefined,
@@ -110,6 +96,7 @@ export function planGenericRpcStateRead(
   return {
     family: "state",
     provider: "rpc",
+    protocol: resolveStateProtocol(ref),
     chainId: resolveChainId(ref.filters, defaultChainId),
     ref,
     timestamp,
@@ -117,32 +104,9 @@ export function planGenericRpcStateRead(
 }
 
 /**
- * @deprecated Use `planGenericRpcStateRead` + `bindMorphoRpcStateRead` directly.
+ * Generic indexed event planner.
  */
-export function planRpcStateRead(
-  ref: StateRef,
-  timestamp: number | undefined,
-  defaultChainId: number,
-): PlannedRpcStateRead {
-  return bindMorphoRpcStateRead(planGenericRpcStateRead(ref, timestamp, defaultChainId));
-}
-
-export function bindMorphoRpcStateRead(
-  plan: PlannedGenericRpcStateRead,
-): PlannedMorphoRpcStateRead {
-  return {
-    family: plan.family,
-    provider: plan.provider,
-    chainId: plan.chainId,
-    entityType: plan.ref.entity_type,
-    field: plan.ref.field,
-    marketId: requireMarketId(plan.ref.filters),
-    user: plan.ref.entity_type === "Position" ? requireUser(plan.ref.filters) : undefined,
-    timestamp: plan.timestamp,
-  };
-}
-
-export function planMorphoEventRead(
+export function planIndexedEventRead(
   ref: EventRef,
   startTimeMs: number,
   endTimeMs: number,
@@ -158,7 +122,10 @@ export function planMorphoEventRead(
   };
 }
 
-export function planMorphoRawEventRead(
+/**
+ * Generic raw event planner.
+ */
+export function planRawEventRead(
   ref: RawEventRef,
   startTimeMs: number,
   endTimeMs: number,

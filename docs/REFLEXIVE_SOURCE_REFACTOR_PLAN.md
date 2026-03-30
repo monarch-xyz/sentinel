@@ -66,7 +66,36 @@ Status checklist:
 - [x] Update architecture/docs
 - [ ] Open PR
 
-### Phase 2 — Expand raw event primitives and well-known event catalog
+### Phase 2 — Implement generic archive RPC execution
+
+Objective:
+- Add a true generic archive-RPC execution layer behind the new planning primitive so Sentinel can call arbitrary contracts, including unusual contracts with fixed bytes arguments.
+
+Scope:
+- Add a generic RPC call representation suitable for archive-node execution.
+- Support ABI/signature-driven `eth_call` execution with typed arguments.
+- Support historical block execution via timestamp-to-block resolution.
+- Keep Morpho behavior working while proving the generic executor with at least one real path.
+
+Expected outputs:
+- Generic RPC call/internal execution type(s)
+- Generic archive-node `eth_call` executor
+- Argument encoding and output decoding path
+- Historical block-aware execution path
+- Tests for planning/execution/decoding behavior
+- Docs updated to explain generic archive RPC execution and current limits
+
+Status checklist:
+- [x] Define generic RPC call shape
+- [x] Implement archive-node `eth_call` executor
+- [x] Support weird/fixed-bytes arguments in the execution path
+- [x] Wire at least one real runtime path through the generic executor
+- [x] Add/update unit tests
+- [ ] Run validation
+- [x] Update docs
+- [ ] Open PR
+
+### Phase 3 — Expand raw event primitives and well-known event catalog
 
 Objective:
 - Make raw events the default event primitive and support a broader catalog of well-known events as syntax sugar.
@@ -91,7 +120,7 @@ Status checklist:
 - [ ] Update docs
 - [ ] Open PR
 
-### Phase 3 — Reframe indexed semantic data as advanced integration
+### Phase 4 — Reframe indexed semantic data as advanced integration
 
 Objective:
 - Make indexed semantic reads clearly optional and advanced, both internally and in docs.
@@ -115,7 +144,7 @@ Status checklist:
 - [ ] Update docs
 - [ ] Open PR
 
-### Phase 4 — Catalog-driven templates and UX cleanup
+### Phase 5 — Catalog-driven templates and UX cleanup
 
 Objective:
 - Drive builder/template surfaces from basic primitives and catalogs instead of narrow hardcoded flows.
@@ -135,10 +164,11 @@ Status checklist:
 
 ## Immediate next step
 
-We are starting with Phase 1:
-- introduce a generic RPC state primitive
-- keep docs and this plan file updated
-- include tests and validation in the first PR
+Phase 2 implementation is now in place and validation is in progress:
+- added a generic archive `eth_call` executor (`executeArchiveRpcCall`) with signature-driven encode/decode
+- added typed arg handling for `address`, `bool`, `string`, `bytes`, `bytesN`, `uintN`, and `intN`
+- routed Morpho state runtime reads through generic archive execution for current and historical snapshots
+- updated docs and tests for call representation, execution, decoding, and historical path coverage
 
 ## Working notes
 
@@ -151,6 +181,12 @@ We are starting with Phase 1:
 - What is the cleanest generic state representation: function-signature based, ABI-fragment based, or contract-method catalog based?
 - How much backward-compatibility sugar should remain in the compiler versus being deprecated immediately?
 - Should block resolution infrastructure move in Phase 1 or a follow-up phase?
+
+### Phase 2 implementation notes
+- Generic call representation now uses `GenericRpcCall` + typed args (`RpcTypedArg`) and is produced for Morpho state reads via `bindMorphoArchiveRpcExecution`.
+- Archive execution now runs through `executeArchiveRpcCall` in `src/rpc/client.ts`, using signature-driven encoding and output decoding.
+- Morpho fetcher current/historical state reads now execute through the generic path; historical reads still resolve timestamps to blocks before execution.
+- Legacy `readPosition*` and `readMarket*` helpers now delegate to the same generic executor to keep behavior aligned.
 
 ## Update protocol
 

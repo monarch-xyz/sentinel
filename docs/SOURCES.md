@@ -19,11 +19,11 @@ The engine decides whether those reads land on RPC, Envio, HyperSync, or a futur
 For state reads specifically, planning is now two-step:
 
 1. build a generic RPC state read plan (`family=state`, `provider=rpc`, chain, ref, timestamp)
-2. apply protocol/runtime binding (Morpho today) to enforce protocol-specific requirements
+2. apply protocol/runtime binding (Morpho today in `src/protocols/morpho`) to enforce protocol-specific requirements
 
 Transition note:
 - `planGenericRpcStateRead` is the new primitive planner entrypoint
-- `planRpcStateRead` remains as a compatibility wrapper that returns the legacy Morpho-shaped plan while callers migrate
+- `planRpcStateRead` remains as a compatibility wrapper in the Morpho resolver module while callers migrate
 
 ## Capability Gating
 
@@ -58,7 +58,8 @@ Today the AST already has the right shape for mixed-source evaluation:
 That means Sentinel can already combine families inside one condition tree.
 For example, a future expression can compare or combine state, indexed, and raw leaves without changing the evaluator model.
 
-The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings.
+The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings that compile into a generic archive call representation.
+Execution is handled by a shared archive RPC executor (`executeArchiveRpcCall`) that supports signature-driven `eth_call` with typed args, including `bytes` and fixed-bytes (`bytesN`) inputs.
 This keeps Morpho behavior intact while preventing state planning from being Morpho-shaped by default.
 
 ## Extension Path

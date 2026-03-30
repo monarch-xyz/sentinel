@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  bindMorphoRpcStateRead,
   planGenericRpcStateRead,
-  planMorphoEventRead,
-  planMorphoRawEventRead,
-  planMorphoStateRead,
-  planRpcStateRead,
+  planIndexedEventRead,
+  planRawEventRead,
 } from "../../src/engine/source-plan.js";
 import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.js";
 
@@ -13,6 +10,7 @@ describe("source plan", () => {
   it("plans generic state reads through RPC using the default chain", () => {
     const ref: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
       field: "totalBorrowAssets",
@@ -21,112 +19,109 @@ describe("source plan", () => {
     expect(planGenericRpcStateRead(ref, undefined, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 1,
       ref,
       timestamp: undefined,
     });
   });
 
-  it("binds generic state reads to Morpho runtime requirements", () => {
+  it("uses chainId filter override for generic state reads", () => {
     const ref: StateRef = {
       type: "state",
-      entity_type: "Position",
-      filters: [
-        { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
-      ],
-      field: "supplyShares",
-    };
-    const plannedRead = planGenericRpcStateRead(ref, 1700000000000, 1);
-
-    expect(bindMorphoRpcStateRead(plannedRead)).toEqual({
-      family: "state",
-      provider: "rpc",
-      chainId: 8453,
-      entityType: "Position",
-      field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
-      timestamp: 1700000000000,
-    });
-  });
-
-  it("preserves legacy Morpho state planner behavior", () => {
-    const ref: StateRef = {
-      type: "state",
-      entity_type: "Position",
-      filters: [
-        { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
-      ],
-      field: "supplyShares",
-    };
-
-    expect(planMorphoStateRead(ref, 1700000000000, 1)).toEqual({
-      family: "state",
-      provider: "rpc",
-      chainId: 8453,
-      entityType: "Position",
-      field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
-      timestamp: 1700000000000,
-    });
-  });
-
-  it("rejects missing market filters when binding Morpho state reads", () => {
-    const ref: StateRef = {
-      type: "state",
+      protocol: "morpho",
       entity_type: "Market",
-      filters: [],
+      filters: [
+        { field: "chainId", op: "eq", value: 8453 },
+        { field: "marketId", op: "eq", value: "0xmarket" },
+      ],
       field: "totalBorrowAssets",
     };
 
-    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
-      "marketId filter required for state queries",
-    );
-  });
-
-  it("rejects Position state reads missing user filters when binding Morpho state reads", () => {
-    const ref: StateRef = {
-      type: "state",
-      entity_type: "Position",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
-      field: "supplyShares",
-    };
-
-    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
-      "user filter required for Position queries",
-    );
-  });
-
-  it("keeps legacy planRpcStateRead behavior for compatibility", () => {
-    const ref: StateRef = {
-      type: "state",
-      entity_type: "Position",
-      filters: [
-        { field: "chainId", op: "eq", value: 8453 },
-        { field: "marketId", op: "eq", value: "0xmarket" },
-        { field: "user", op: "eq", value: "0xuser" },
-      ],
-      field: "supplyShares",
-    };
-
-    expect(planRpcStateRead(ref, 1700000000000, 1)).toEqual({
+    expect(planGenericRpcStateRead(ref, 1700000000000, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 8453,
-      entityType: "Position",
-      field: "supplyShares",
-      marketId: "0xmarket",
-      user: "0xuser",
+      ref,
       timestamp: 1700000000000,
     });
   });
 
-  it("plans event reads through Envio", () => {
+  it("rejects invalid chainId filter values at planning boundary", () => {
+    const ref: StateRef = {
+      type: "state",
+      protocol: "morpho",
+      entity_type: "Market",
+      filters: [
+        { field: "chainId", op: "eq", value: "foo" },
+        { field: "marketId", op: "eq", value: "0xmarket" },
+      ],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => planGenericRpcStateRead(ref, undefined, 1)).toThrow(
+      "Invalid chainId filter value: foo. Expected a positive integer.",
+    );
+  });
+
+  it("rejects protocol-less generic state refs", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => planGenericRpcStateRead(ref, undefined, 1)).toThrow(
+      "State ref protocol is required for generic RPC planning.",
+    );
+  });
+
+  it("rejects non-strict chainId filter coercions", () => {
+    const baseRef: StateRef = {
+      type: "state",
+      protocol: "morpho",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: "8453foo" }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: 8453foo. Expected a positive integer.");
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: "1.5" }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: 1.5. Expected a positive integer.");
+
+    expect(() =>
+      planGenericRpcStateRead(
+        {
+          ...baseRef,
+          filters: [...baseRef.filters, { field: "chainId", op: "eq", value: true }],
+        },
+        undefined,
+        1,
+      ),
+    ).toThrow("Invalid chainId filter value: true. Expected a positive integer.");
+  });
+
+  it("plans indexed event reads through Envio", () => {
     const ref: EventRef = {
       type: "event",
       event_type: "Morpho_Supply",
@@ -135,7 +130,7 @@ describe("source plan", () => {
       aggregation: "sum",
     };
 
-    expect(planMorphoEventRead(ref, 1000, 2000, 1)).toEqual({
+    expect(planIndexedEventRead(ref, 1000, 2000, 1)).toEqual({
       family: "indexed",
       provider: "envio",
       chainId: 1,
@@ -143,6 +138,18 @@ describe("source plan", () => {
       startTimeMs: 1000,
       endTimeMs: 2000,
     });
+  });
+
+  it("uses chainId filter override for indexed event reads", () => {
+    const ref: EventRef = {
+      type: "event",
+      event_type: "Morpho_Supply",
+      filters: [{ field: "chainId", op: "eq", value: 137 }],
+      field: "assets",
+      aggregation: "sum",
+    };
+
+    expect(planIndexedEventRead(ref, 1000, 2000, 1).chainId).toBe(137);
   });
 
   it("plans raw event reads through the indexing raw provider", () => {
@@ -161,7 +168,7 @@ describe("source plan", () => {
       aggregation: "sum",
     };
 
-    expect(planMorphoRawEventRead(ref, 1000, 2000)).toEqual({
+    expect(planRawEventRead(ref, 1000, 2000)).toEqual({
       family: "raw",
       provider: "hypersync",
       chainId: 1,

@@ -17,20 +17,16 @@ export type {
 // Morpho-specific implementation
 export { createMorphoFetcher } from "./morpho-fetcher.js";
 export {
-  bindMorphoRpcStateRead,
   planGenericRpcStateRead,
-  planMorphoEventRead,
-  planMorphoRawEventRead,
-  planMorphoStateRead,
-  planRpcStateRead,
+  planIndexedEventRead,
+  planRawEventRead,
 } from "./source-plan.js";
 export type {
+  PlannedArchiveRpcExecution,
   PlannedEnvioEventRead,
   PlannedGenericRpcStateRead,
   PlannedIndexedEventRead,
-  PlannedMorphoRpcStateRead,
   PlannedRawEventRead,
-  PlannedRpcStateRead,
 } from "./source-plan.js";
 export {
   createSourceCapabilityError,

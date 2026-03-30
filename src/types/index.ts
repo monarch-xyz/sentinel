@@ -39,6 +39,7 @@ export interface RawEventRef {
 
 export interface StateRef {
   type: "state";
+  protocol?: string;
   entity_type: string;
   filters: Filter[];
   field: string;
@@ -49,6 +50,28 @@ export interface StateRef {
    * - Custom duration string (e.g., "2d", "7d"): state at N time ago
    */
   snapshot?: "current" | "window_start" | string;
+}
+
+export type RpcTypedArgType =
+  | "address"
+  | "bool"
+  | "string"
+  | "bytes"
+  | `bytes${number}`
+  | `uint${number}`
+  | `int${number}`;
+
+export type RpcTypedArgValue = string | bigint | boolean;
+
+export interface RpcTypedArg {
+  type: RpcTypedArgType;
+  value: RpcTypedArgValue;
+}
+
+export interface GenericRpcCall {
+  to: string;
+  signature: string;
+  args: RpcTypedArg[];
 }
 
 export type MathOp = "add" | "sub" | "mul" | "div";

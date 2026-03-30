@@ -2,12 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventFetcher, RawEventFetcher } from "../../src/engine/fetcher.js";
 import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.js";
 import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
-import {
-  readMarket,
-  readMarketAtBlock,
-  readPosition,
-  readPositionAtBlock,
-} from "../../src/rpc/index.js";
+import { executeArchiveRpcCall } from "../../src/rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../../src/types/index.js";
 
 vi.mock("../../src/envio/blocks.js", () => ({
@@ -15,18 +10,14 @@ vi.mock("../../src/envio/blocks.js", () => ({
 }));
 
 vi.mock("../../src/rpc/index.js", () => ({
-  readMarket: vi.fn(),
-  readMarketAtBlock: vi.fn(),
-  readPosition: vi.fn(),
-  readPositionAtBlock: vi.fn(),
+  executeArchiveRpcCall: vi.fn(),
 }));
 
 describe("createMorphoFetcher", () => {
+  const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
+  const USER = "0x2222222222222222222222222222222222222222" as const;
   const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
-  const mockedReadPosition = vi.mocked(readPosition);
-  const mockedReadPositionAtBlock = vi.mocked(readPositionAtBlock);
-  const mockedReadMarket = vi.mocked(readMarket);
-  const mockedReadMarketAtBlock = vi.mocked(readMarketAtBlock);
+  const mockedExecuteArchiveRpcCall = vi.mocked(executeArchiveRpcCall);
 
   const eventFetcher: EventFetcher = {
     fetchEvents: vi.fn(),
@@ -34,25 +25,27 @@ describe("createMorphoFetcher", () => {
 
   const positionRef: StateRef = {
     type: "state",
+    protocol: "morpho",
     entity_type: "Position",
     filters: [
-      { field: "marketId", op: "eq", value: "0xmarket" },
-      { field: "user", op: "eq", value: "0xuser" },
+      { field: "marketId", op: "eq", value: MARKET_ID },
+      { field: "user", op: "eq", value: USER },
     ],
     field: "supplyShares",
   };
 
   const marketRef: StateRef = {
     type: "state",
+    protocol: "morpho",
     entity_type: "Market",
-    filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+    filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
     field: "totalBorrowAssets",
   };
 
   const eventRef: EventRef = {
     type: "event",
     event_type: "Supply",
-    filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+    filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
     field: "assets",
     aggregation: "sum",
   };
@@ -76,39 +69,46 @@ describe("createMorphoFetcher", () => {
     vi.clearAllMocks();
   });
 
-  it("routes current position state to readPosition", async () => {
-    mockedReadPosition.mockResolvedValue({
-      supplyShares: 123n,
-      borrowShares: 0n,
-      collateral: 0n,
-    });
+  it("routes current position state through generic archive RPC execution", async () => {
+    mockedExecuteArchiveRpcCall.mockResolvedValue([123n, 0n, 0n]);
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
 
     const value = await fetcher.fetchState(positionRef);
 
     expect(value).toBe(123);
-    expect(mockedReadPosition).toHaveBeenCalledWith(1, "0xmarket", "0xuser");
-    expect(mockedReadPositionAtBlock).not.toHaveBeenCalled();
+    expect(mockedExecuteArchiveRpcCall).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        signature: expect.stringContaining("position(bytes32 id, address user)"),
+      }),
+    );
   });
 
-  it("routes historical market state to resolveBlockByTimestamp + readMarketAtBlock", async () => {
+  it("rejects position bigint values that cannot be represented safely as numbers", async () => {
+    mockedExecuteArchiveRpcCall.mockResolvedValue([BigInt(Number.MAX_SAFE_INTEGER) + 1n, 0n, 0n]);
+    const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
+
+    await expect(fetcher.fetchState(positionRef)).rejects.toThrow(
+      "Cannot convert position.supplyShares=",
+    );
+  });
+
+  it("routes historical market state to block resolution + generic archive RPC execution", async () => {
     mockedResolveBlockByTimestamp.mockResolvedValue(19001234);
-    mockedReadMarketAtBlock.mockResolvedValue({
-      totalSupplyAssets: 0n,
-      totalSupplyShares: 0n,
-      totalBorrowAssets: 456n,
-      totalBorrowShares: 0n,
-      lastUpdate: 0n,
-      fee: 0n,
-    });
+    mockedExecuteArchiveRpcCall.mockResolvedValue([0n, 0n, 456n, 0n, 0n, 0n]);
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
 
     const value = await fetcher.fetchState(marketRef, 1700000000000);
 
     expect(value).toBe(456);
     expect(mockedResolveBlockByTimestamp).toHaveBeenCalledWith(1, 1700000000000);
-    expect(mockedReadMarketAtBlock).toHaveBeenCalledWith(1, "0xmarket", 19001234n);
-    expect(mockedReadMarket).not.toHaveBeenCalled();
+    expect(mockedExecuteArchiveRpcCall).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        signature: expect.stringContaining("market(bytes32 id)"),
+      }),
+      19001234n,
+    );
   });
 
   it("forwards event queries to the event fetcher unchanged", async () => {
@@ -124,14 +124,7 @@ describe("createMorphoFetcher", () => {
   });
 
   it("uses chainId filter override when present", async () => {
-    mockedReadMarket.mockResolvedValue({
-      totalSupplyAssets: 0n,
-      totalSupplyShares: 0n,
-      totalBorrowAssets: 777n,
-      totalBorrowShares: 0n,
-      lastUpdate: 0n,
-      fee: 0n,
-    });
+    mockedExecuteArchiveRpcCall.mockResolvedValue([0n, 0n, 777n, 0n, 0n, 0n]);
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
     const refWithChainOverride: StateRef = {
       ...marketRef,
@@ -141,13 +134,19 @@ describe("createMorphoFetcher", () => {
     const value = await fetcher.fetchState(refWithChainOverride);
 
     expect(value).toBe(777);
-    expect(mockedReadMarket).toHaveBeenCalledWith(8453, "0xmarket");
+    expect(mockedExecuteArchiveRpcCall).toHaveBeenCalledWith(
+      8453,
+      expect.objectContaining({
+        signature: expect.stringContaining("market(bytes32 id)"),
+      }),
+    );
   });
 
   it("throws clear error when required filters are missing", async () => {
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
     const missingMarket: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Market",
       filters: [],
       field: "totalBorrowAssets",
@@ -162,8 +161,9 @@ describe("createMorphoFetcher", () => {
     const fetcher = createMorphoFetcher(eventFetcher, { chainId: 1 });
     const missingUser: StateRef = {
       type: "state",
+      protocol: "morpho",
       entity_type: "Position",
-      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      filters: [{ field: "marketId", op: "eq", value: MARKET_ID }],
       field: "supplyShares",
     };
 

@@ -1,9 +1,18 @@
-import { http, type PublicClient, createPublicClient, fallback } from "viem";
+import {
+  http,
+  type PublicClient,
+  createPublicClient,
+  encodeFunctionData,
+  encodeFunctionResult,
+  fallback,
+  parseAbi,
+} from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RpcQueryError,
   clearClientCache,
   clearRpcConfigurationCache,
+  executeArchiveRpcCall,
   getPublicClient,
   getRpcConfigurationStatus,
   isChainSupportedForRpc,
@@ -27,9 +36,10 @@ describe("rpc client", () => {
   const httpMock = vi.mocked(http);
   const originalSupportedChainIds = process.env.SUPPORTED_CHAIN_IDS;
   const originalRpcUrl1 = process.env.RPC_URL_1;
+  const originalRpcUrl10 = process.env.RPC_URL_10;
 
-  function createClientWithReadContract(readContract: PublicClient["readContract"]): PublicClient {
-    return { readContract } as unknown as PublicClient;
+  function createClientWithCall(call: PublicClient["call"]): PublicClient {
+    return { call } as unknown as PublicClient;
   }
 
   beforeEach(() => {
@@ -50,7 +60,14 @@ describe("rpc client", () => {
     } else {
       process.env.RPC_URL_1 = originalRpcUrl1;
     }
+    if (originalRpcUrl10 === undefined) {
+      // biome-ignore lint/performance/noDelete: env cleanup for test isolation
+      delete process.env.RPC_URL_10;
+    } else {
+      process.env.RPC_URL_10 = originalRpcUrl10;
+    }
     if (originalSupportedChainIds === undefined) {
+      // biome-ignore lint/performance/noDelete: env cleanup for test isolation
       delete process.env.SUPPORTED_CHAIN_IDS;
     } else {
       process.env.SUPPORTED_CHAIN_IDS = originalSupportedChainIds;
@@ -59,7 +76,7 @@ describe("rpc client", () => {
 
   it("caches public clients per chain and honors RPC_URL_{chainId}", () => {
     process.env.RPC_URL_1 = "https://rpc.example.org,https://fallback.example.org";
-    const client = createClientWithReadContract(vi.fn());
+    const client = createClientWithCall(vi.fn());
     createPublicClientMock.mockReturnValue(client);
 
     const first = getPublicClient(1);
@@ -94,9 +111,191 @@ describe("rpc client", () => {
     expect(() => getPublicClient(10)).toThrow("Chain 10 is not configured for archive RPC access");
   });
 
-  it("reads position at block via contract call", async () => {
-    const readContract = vi.fn().mockResolvedValue([11n, 22n, 33n]);
-    createPublicClientMock.mockReturnValue(createClientWithReadContract(readContract));
+  it("supports generic configured chains outside MORPHO_ADDRESSES", () => {
+    process.env.SUPPORTED_CHAIN_IDS = "10";
+    process.env.RPC_URL_10 = "https://rpc.optimism.example.org";
+    clearRpcConfigurationCache();
+
+    const client = createClientWithCall(vi.fn());
+    createPublicClientMock.mockReturnValue(client);
+
+    const resolved = getPublicClient(10);
+
+    expect(resolved).toBe(client);
+    expect(createPublicClientMock).toHaveBeenCalledTimes(1);
+    expect(httpMock).toHaveBeenCalledWith(
+      "https://rpc.optimism.example.org",
+      expect.objectContaining({
+        retryCount: 1,
+        retryDelay: 250,
+        timeout: 15000,
+      }),
+    );
+  });
+
+  it("executes generic archive RPC calls and decodes tuple outputs", async () => {
+    const abi = parseAbi([
+      "function position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+    ]);
+    const callMock = vi.fn().mockResolvedValue({
+      data: encodeFunctionResult({
+        abi,
+        functionName: "position",
+        result: [11n, 22n, 33n],
+      }),
+    });
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    const result = await executeArchiveRpcCall(
+      1,
+      {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature:
+          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+        args: [
+          {
+            type: "bytes32",
+            value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+          },
+          { type: "address", value: "0x2222222222222222222222222222222222222222" },
+        ],
+      },
+      19000000n,
+    );
+
+    expect(result).toEqual([11n, 22n, 33n]);
+    expect(callMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        blockNumber: 19000000n,
+        data: encodeFunctionData({
+          abi,
+          functionName: "position",
+          args: [
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("supports bytes and fixed-bytes typed arguments", async () => {
+    const abi = parseAbi(["function inspect(bytes payload, bytes32 salt) returns (bytes32)"]);
+    const callMock = vi.fn().mockResolvedValue({
+      data: encodeFunctionResult({
+        abi,
+        functionName: "inspect",
+        result: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    });
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    const result = await executeArchiveRpcCall(1, {
+      to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+      signature: "inspect(bytes payload, bytes32 salt) returns (bytes32)",
+      args: [
+        { type: "bytes", value: "0x1234" },
+        {
+          type: "bytes32",
+          value: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+      ],
+    });
+
+    expect(result).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  });
+
+  it("rejects malformed fixed-bytes args", async () => {
+    const callMock = vi.fn();
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "inspect(bytes32 salt) returns (bytes32)",
+        args: [{ type: "bytes32", value: "0x1234" }],
+      }),
+    ).rejects.toThrow(RpcQueryError);
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "inspect(bytes32 salt) returns (bytes32)",
+        args: [{ type: "bytes32", value: "0x1234" }],
+      }),
+    ).rejects.toThrow("Failed to execute archive RPC call: Invalid bytes32 argument");
+    expect(callMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe integer number args for int/uint types", async () => {
+    const callMock = vi.fn();
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "setValue(uint256 value) returns (uint256)",
+        args: [{ type: "uint256", value: Number.MAX_SAFE_INTEGER + 1 }],
+      }),
+    ).rejects.toThrow(
+      "Failed to execute archive RPC call: Invalid uint256 argument: unsafe integer number; use string or bigint for large integers",
+    );
+    expect(callMock).not.toHaveBeenCalled();
+  });
+
+  it("wraps invalid function signatures as RpcQueryError", async () => {
+    const callMock = vi.fn();
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "not a real signature",
+        args: [],
+      }),
+    ).rejects.toThrow(RpcQueryError);
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "not a real signature",
+        args: [],
+      }),
+    ).rejects.toThrow("Failed to execute archive RPC call:");
+    expect(callMock).not.toHaveBeenCalled();
+  });
+
+  it("wraps missing returned data as RpcQueryError", async () => {
+    const callMock = vi.fn().mockResolvedValue({});
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
+
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "totalSupply() returns (uint256)",
+        args: [],
+      }),
+    ).rejects.toThrow(RpcQueryError);
+    await expect(
+      executeArchiveRpcCall(1, {
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        signature: "totalSupply() returns (uint256)",
+        args: [],
+      }),
+    ).rejects.toThrow("Failed to execute archive RPC call: RPC call returned no data");
+  });
+
+  it("reads position at block via the generic executor", async () => {
+    const abi = parseAbi([
+      "function position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+    ]);
+    const callMock = vi.fn().mockResolvedValue({
+      data: encodeFunctionResult({
+        abi,
+        functionName: "position",
+        result: [11n, 22n, 33n],
+      }),
+    });
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
 
     const result = await readPositionAtBlock(
       1,
@@ -110,17 +309,26 @@ describe("rpc client", () => {
       borrowShares: 22n,
       collateral: 33n,
     });
-    expect(readContract).toHaveBeenCalledWith(
+    expect(callMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        functionName: "position",
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
         blockNumber: 19000000n,
       }),
     );
   });
 
-  it("reads market at block via contract call", async () => {
-    const readContract = vi.fn().mockResolvedValue([100n, 200n, 300n, 400n, 500n, 600n]);
-    createPublicClientMock.mockReturnValue(createClientWithReadContract(readContract));
+  it("reads market at block via the generic executor", async () => {
+    const abi = parseAbi([
+      "function market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
+    ]);
+    const callMock = vi.fn().mockResolvedValue({
+      data: encodeFunctionResult({
+        abi,
+        functionName: "market",
+        result: [100n, 200n, 300n, 400n, 500n, 600n],
+      }),
+    });
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
 
     const result = await readMarketAtBlock(
       1,
@@ -136,17 +344,17 @@ describe("rpc client", () => {
       lastUpdate: 500n,
       fee: 600n,
     });
-    expect(readContract).toHaveBeenCalledWith(
+    expect(callMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        functionName: "market",
+        to: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
         blockNumber: 19000001n,
       }),
     );
   });
 
-  it("wraps readContract failures in RpcQueryError", async () => {
-    const readContract = vi.fn().mockRejectedValue(new Error("execution reverted"));
-    createPublicClientMock.mockReturnValue(createClientWithReadContract(readContract));
+  it("wraps generic execution failures in RpcQueryError", async () => {
+    const callMock = vi.fn().mockRejectedValue(new Error("execution reverted"));
+    createPublicClientMock.mockReturnValue(createClientWithCall(callMock));
 
     await expect(
       readPositionAtBlock(
@@ -164,6 +372,7 @@ describe("rpc client", () => {
   });
 
   it("reports missing archive RPC configuration at startup", () => {
+    // biome-ignore lint/performance/noDelete: env cleanup for test isolation
     delete process.env.RPC_URL_1;
     clearRpcConfigurationCache();
 

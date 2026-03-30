@@ -3,7 +3,7 @@ import { SignalEvaluator } from "../../src/engine/condition.js";
 import type { EventFetcher } from "../../src/engine/fetcher.js";
 import { createMorphoFetcher } from "../../src/engine/morpho-fetcher.js";
 import { resolveBlockByTimestamp } from "../../src/envio/blocks.js";
-import { readPosition, readPositionAtBlock } from "../../src/rpc/index.js";
+import { executeArchiveRpcCall } from "../../src/rpc/index.js";
 import type { Signal } from "../../src/types/index.js";
 
 vi.mock("../../src/envio/blocks.js", () => ({
@@ -11,16 +11,14 @@ vi.mock("../../src/envio/blocks.js", () => ({
 }));
 
 vi.mock("../../src/rpc/index.js", () => ({
-  readMarket: vi.fn(),
-  readMarketAtBlock: vi.fn(),
-  readPosition: vi.fn(),
-  readPositionAtBlock: vi.fn(),
+  executeArchiveRpcCall: vi.fn(),
 }));
 
 describe("SignalEvaluator RPC historical state", () => {
+  const MARKET_ID = "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
+  const USER = "0x2222222222222222222222222222222222222222" as const;
   const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
-  const mockedReadPosition = vi.mocked(readPosition);
-  const mockedReadPositionAtBlock = vi.mocked(readPositionAtBlock);
+  const mockedExecuteArchiveRpcCall = vi.mocked(executeArchiveRpcCall);
 
   const eventFetcher: EventFetcher = {
     fetchEvents: vi.fn().mockResolvedValue(0),
@@ -42,10 +40,11 @@ describe("SignalEvaluator RPC historical state", () => {
           type: "condition",
           left: {
             type: "state",
+            protocol: "morpho",
             entity_type: "Position",
             filters: [
-              { field: "marketId", op: "eq", value: "0xmarket" },
-              { field: "user", op: "eq", value: "0xuser" },
+              { field: "marketId", op: "eq", value: MARKET_ID },
+              { field: "user", op: "eq", value: USER },
             ],
             field: "supplyShares",
             snapshot: "current",
@@ -56,10 +55,11 @@ describe("SignalEvaluator RPC historical state", () => {
             operator: "mul",
             left: {
               type: "state",
+              protocol: "morpho",
               entity_type: "Position",
               filters: [
-                { field: "marketId", op: "eq", value: "0xmarket" },
-                { field: "user", op: "eq", value: "0xuser" },
+                { field: "marketId", op: "eq", value: MARKET_ID },
+                { field: "user", op: "eq", value: USER },
               ],
               field: "supplyShares",
               snapshot: "window_start",
@@ -73,17 +73,10 @@ describe("SignalEvaluator RPC historical state", () => {
       is_active: true,
     };
 
-    mockedReadPosition.mockResolvedValue({
-      supplyShares: 700n,
-      borrowShares: 0n,
-      collateral: 0n,
-    });
+    mockedExecuteArchiveRpcCall
+      .mockResolvedValueOnce([700n, 0n, 0n])
+      .mockResolvedValueOnce([1000n, 0n, 0n]);
     mockedResolveBlockByTimestamp.mockResolvedValue(19005555);
-    mockedReadPositionAtBlock.mockResolvedValue({
-      supplyShares: 1000n,
-      borrowShares: 0n,
-      collateral: 0n,
-    });
 
     vi.useFakeTimers();
     vi.setSystemTime(now);
@@ -93,9 +86,22 @@ describe("SignalEvaluator RPC historical state", () => {
       const result = await evaluator.evaluate(signal);
 
       expect(result.triggered).toBe(true); // 700 < 0.8 * 1000
-      expect(mockedReadPosition).toHaveBeenCalledWith(1, "0xmarket", "0xuser");
       expect(mockedResolveBlockByTimestamp).toHaveBeenCalledWith(1, now - 7 * 24 * 60 * 60 * 1000);
-      expect(mockedReadPositionAtBlock).toHaveBeenCalledWith(1, "0xmarket", "0xuser", 19005555n);
+      expect(mockedExecuteArchiveRpcCall).toHaveBeenNthCalledWith(
+        1,
+        1,
+        expect.objectContaining({
+          signature: expect.stringContaining("position(bytes32 id, address user)"),
+        }),
+      );
+      expect(mockedExecuteArchiveRpcCall).toHaveBeenNthCalledWith(
+        2,
+        1,
+        expect.objectContaining({
+          signature: expect.stringContaining("position(bytes32 id, address user)"),
+        }),
+        19005555n,
+      );
     } finally {
       vi.useRealTimers();
     }

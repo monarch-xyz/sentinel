@@ -9,37 +9,25 @@
  */
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import {
-  type MarketResult,
-  type PositionResult,
-  readMarket,
-  readMarketAtBlock,
-  readPosition,
-  readPositionAtBlock,
-} from "../rpc/index.js";
+import { executeArchiveRpcCall } from "../rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
+import { requireBigIntTuple, requireSafeNumberFromBigInt } from "../utils/bigint-tuples.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
-import {
-  bindMorphoRpcStateRead,
-  planGenericRpcStateRead,
-  planMorphoEventRead,
-  planMorphoRawEventRead,
-} from "./source-plan.js";
+import { bindArchiveRpcExecution } from "./rpc-state-resolver.js";
+import { planGenericRpcStateRead, planIndexedEventRead, planRawEventRead } from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
-/**
- * Extract a field value from RPC Position result
- */
-function extractPositionField(result: PositionResult, field: string): number {
+function extractPositionField(result: unknown, field: string): number {
+  const [supplyShares, borrowShares, collateral] = requireBigIntTuple(result, 3, "position RPC");
   switch (field) {
     case "supplyShares":
-      return Number(result.supplyShares);
+      return requireSafeNumberFromBigInt(supplyShares, "position.supplyShares");
     case "borrowShares":
-      return Number(result.borrowShares);
+      return requireSafeNumberFromBigInt(borrowShares, "position.borrowShares");
     case "collateral":
-      return Number(result.collateral);
+      return requireSafeNumberFromBigInt(collateral, "position.collateral");
     default:
       throw new Error(`Unknown Position field: ${field}`);
   }
@@ -48,20 +36,29 @@ function extractPositionField(result: PositionResult, field: string): number {
 /**
  * Extract a field value from RPC Market result
  */
-function extractMarketField(result: MarketResult, field: string): number {
+function extractMarketField(result: unknown, field: string): number {
+  const [
+    totalSupplyAssets,
+    totalSupplyShares,
+    totalBorrowAssets,
+    totalBorrowShares,
+    lastUpdate,
+    fee,
+  ] = requireBigIntTuple(result, 6, "market RPC");
+
   switch (field) {
     case "totalSupplyAssets":
-      return Number(result.totalSupplyAssets);
+      return requireSafeNumberFromBigInt(totalSupplyAssets, "market.totalSupplyAssets");
     case "totalSupplyShares":
-      return Number(result.totalSupplyShares);
+      return requireSafeNumberFromBigInt(totalSupplyShares, "market.totalSupplyShares");
     case "totalBorrowAssets":
-      return Number(result.totalBorrowAssets);
+      return requireSafeNumberFromBigInt(totalBorrowAssets, "market.totalBorrowAssets");
     case "totalBorrowShares":
-      return Number(result.totalBorrowShares);
+      return requireSafeNumberFromBigInt(totalBorrowShares, "market.totalBorrowShares");
     case "lastUpdate":
-      return Number(result.lastUpdate);
+      return requireSafeNumberFromBigInt(lastUpdate, "market.lastUpdate");
     case "fee":
-      return Number(result.fee);
+      return requireSafeNumberFromBigInt(fee, "market.fee");
     default:
       throw new Error(`Unknown Market field: ${field}`);
   }
@@ -85,32 +82,36 @@ export function createMorphoFetcher(
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, undefined, defaultChainId);
-    const plan = bindMorphoRpcStateRead(plannedRead);
+    if (plannedRead.protocol !== "morpho") {
+      throw new Error(
+        `createMorphoFetcher only supports morpho protocol, got "${plannedRead.protocol}"`,
+      );
+    }
+    const plan = bindArchiveRpcExecution(plannedRead);
+    const morphoPlan = plan.call;
 
     if (verbose) {
       logger.info(
         {
-          entity: plan.entityType,
-          field: plan.field,
           chainId: plan.chainId,
           family: plan.family,
           provider: plan.provider,
+          signature: morphoPlan.signature,
         },
         "Fetching current state from RPC",
       );
     }
 
-    if (plan.entityType === "Position") {
-      const result = await readPosition(plan.chainId, plan.marketId, plan.user as string);
-      return extractPositionField(result, plan.field);
+    const result = await executeArchiveRpcCall(plan.chainId, plan.call);
+    if (plannedRead.ref.entity_type === "Position") {
+      return extractPositionField(result, plannedRead.ref.field);
     }
 
-    if (plan.entityType === "Market") {
-      const result = await readMarket(plan.chainId, plan.marketId);
-      return extractMarketField(result, plan.field);
+    if (plannedRead.ref.entity_type === "Market") {
+      return extractMarketField(result, plannedRead.ref.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
+    throw new Error(`Unknown entity type for RPC: ${plannedRead.ref.entity_type}`);
   }
 
   /**
@@ -118,7 +119,12 @@ export function createMorphoFetcher(
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, timestamp, defaultChainId);
-    const plan = bindMorphoRpcStateRead(plannedRead);
+    if (plannedRead.protocol !== "morpho") {
+      throw new Error(
+        `createMorphoFetcher only supports morpho protocol, got "${plannedRead.protocol}"`,
+      );
+    }
+    const plan = bindArchiveRpcExecution(plannedRead);
 
     // Resolve timestamp to block number
     const blockNumber = await resolveBlockByTimestamp(plan.chainId, timestamp);
@@ -126,34 +132,27 @@ export function createMorphoFetcher(
     if (verbose) {
       logger.info(
         {
-          entity: plan.entityType,
-          field: plan.field,
           chainId: plan.chainId,
           blockNumber,
           timestamp,
           family: plan.family,
           provider: plan.provider,
+          signature: plan.call.signature,
         },
         "Fetching historical state from RPC",
       );
     }
 
-    if (plan.entityType === "Position") {
-      const result = await readPositionAtBlock(
-        plan.chainId,
-        plan.marketId,
-        plan.user as string,
-        BigInt(blockNumber),
-      );
-      return extractPositionField(result, plan.field);
+    const result = await executeArchiveRpcCall(plan.chainId, plan.call, BigInt(blockNumber));
+    if (plannedRead.ref.entity_type === "Position") {
+      return extractPositionField(result, plannedRead.ref.field);
     }
 
-    if (plan.entityType === "Market") {
-      const result = await readMarketAtBlock(plan.chainId, plan.marketId, BigInt(blockNumber));
-      return extractMarketField(result, plan.field);
+    if (plannedRead.ref.entity_type === "Market") {
+      return extractMarketField(result, plannedRead.ref.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
+    throw new Error(`Unknown entity type for RPC: ${plannedRead.ref.entity_type}`);
   }
 
   return {
@@ -173,7 +172,7 @@ export function createMorphoFetcher(
      * Fetch indexed semantic events through the unified indexing boundary.
      */
     fetchEvents: async (ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
-      const plan = planMorphoEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
+      const plan = planIndexedEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
       if (verbose) {
         logger.info(
           {
@@ -192,7 +191,7 @@ export function createMorphoFetcher(
 
     fetchRawEvents: rawEventFetcher
       ? async (ref: RawEventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
-          const plan = planMorphoRawEventRead(ref, startTimeMs, endTimeMs);
+          const plan = planRawEventRead(ref, startTimeMs, endTimeMs);
           if (verbose) {
             logger.info(
               {
