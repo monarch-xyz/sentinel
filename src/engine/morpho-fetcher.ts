@@ -9,19 +9,12 @@
  */
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import {
-  type MarketResult,
-  type PositionResult,
-  readMarket,
-  readMarketAtBlock,
-  readPosition,
-  readPositionAtBlock,
-} from "../rpc/index.js";
+import { executeArchiveRpcCall } from "../rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
 import {
-  bindMorphoRpcStateRead,
+  bindMorphoArchiveRpcExecution,
   planGenericRpcStateRead,
   planMorphoEventRead,
   planMorphoRawEventRead,
@@ -32,14 +25,25 @@ const logger = createLogger("morpho-fetcher");
 /**
  * Extract a field value from RPC Position result
  */
-function extractPositionField(result: PositionResult, field: string): number {
+function readBigIntTuple(result: unknown, expectedLength: number, functionName: string): bigint[] {
+  if (!Array.isArray(result) || result.length < expectedLength) {
+    throw new Error(`Unexpected ${functionName} RPC response shape`);
+  }
+  if (result.some((value) => typeof value !== "bigint")) {
+    throw new Error(`Unexpected ${functionName} RPC response value types`);
+  }
+  return result as bigint[];
+}
+
+function extractPositionField(result: unknown, field: string): number {
+  const [supplyShares, borrowShares, collateral] = readBigIntTuple(result, 3, "position");
   switch (field) {
     case "supplyShares":
-      return Number(result.supplyShares);
+      return Number(supplyShares);
     case "borrowShares":
-      return Number(result.borrowShares);
+      return Number(borrowShares);
     case "collateral":
-      return Number(result.collateral);
+      return Number(collateral);
     default:
       throw new Error(`Unknown Position field: ${field}`);
   }
@@ -48,20 +52,29 @@ function extractPositionField(result: PositionResult, field: string): number {
 /**
  * Extract a field value from RPC Market result
  */
-function extractMarketField(result: MarketResult, field: string): number {
+function extractMarketField(result: unknown, field: string): number {
+  const [
+    totalSupplyAssets,
+    totalSupplyShares,
+    totalBorrowAssets,
+    totalBorrowShares,
+    lastUpdate,
+    fee,
+  ] = readBigIntTuple(result, 6, "market");
+
   switch (field) {
     case "totalSupplyAssets":
-      return Number(result.totalSupplyAssets);
+      return Number(totalSupplyAssets);
     case "totalSupplyShares":
-      return Number(result.totalSupplyShares);
+      return Number(totalSupplyShares);
     case "totalBorrowAssets":
-      return Number(result.totalBorrowAssets);
+      return Number(totalBorrowAssets);
     case "totalBorrowShares":
-      return Number(result.totalBorrowShares);
+      return Number(totalBorrowShares);
     case "lastUpdate":
-      return Number(result.lastUpdate);
+      return Number(lastUpdate);
     case "fee":
-      return Number(result.fee);
+      return Number(fee);
     default:
       throw new Error(`Unknown Market field: ${field}`);
   }
@@ -85,32 +98,31 @@ export function createMorphoFetcher(
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, undefined, defaultChainId);
-    const plan = bindMorphoRpcStateRead(plannedRead);
+    const plan = bindMorphoArchiveRpcExecution(plannedRead);
+    const morphoPlan = plan.call;
 
     if (verbose) {
       logger.info(
         {
-          entity: plan.entityType,
-          field: plan.field,
           chainId: plan.chainId,
           family: plan.family,
           provider: plan.provider,
+          signature: morphoPlan.signature,
         },
         "Fetching current state from RPC",
       );
     }
 
-    if (plan.entityType === "Position") {
-      const result = await readPosition(plan.chainId, plan.marketId, plan.user as string);
-      return extractPositionField(result, plan.field);
+    const result = await executeArchiveRpcCall(plan.chainId, plan.call);
+    if (plannedRead.ref.entity_type === "Position") {
+      return extractPositionField(result, plannedRead.ref.field);
     }
 
-    if (plan.entityType === "Market") {
-      const result = await readMarket(plan.chainId, plan.marketId);
-      return extractMarketField(result, plan.field);
+    if (plannedRead.ref.entity_type === "Market") {
+      return extractMarketField(result, plannedRead.ref.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
+    throw new Error(`Unknown entity type for RPC: ${plannedRead.ref.entity_type}`);
   }
 
   /**
@@ -118,7 +130,7 @@ export function createMorphoFetcher(
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, timestamp, defaultChainId);
-    const plan = bindMorphoRpcStateRead(plannedRead);
+    const plan = bindMorphoArchiveRpcExecution(plannedRead);
 
     // Resolve timestamp to block number
     const blockNumber = await resolveBlockByTimestamp(plan.chainId, timestamp);
@@ -126,34 +138,27 @@ export function createMorphoFetcher(
     if (verbose) {
       logger.info(
         {
-          entity: plan.entityType,
-          field: plan.field,
           chainId: plan.chainId,
           blockNumber,
           timestamp,
           family: plan.family,
           provider: plan.provider,
+          signature: plan.call.signature,
         },
         "Fetching historical state from RPC",
       );
     }
 
-    if (plan.entityType === "Position") {
-      const result = await readPositionAtBlock(
-        plan.chainId,
-        plan.marketId,
-        plan.user as string,
-        BigInt(blockNumber),
-      );
-      return extractPositionField(result, plan.field);
+    const result = await executeArchiveRpcCall(plan.chainId, plan.call, BigInt(blockNumber));
+    if (plannedRead.ref.entity_type === "Position") {
+      return extractPositionField(result, plannedRead.ref.field);
     }
 
-    if (plan.entityType === "Market") {
-      const result = await readMarketAtBlock(plan.chainId, plan.marketId, BigInt(blockNumber));
-      return extractMarketField(result, plan.field);
+    if (plannedRead.ref.entity_type === "Market") {
+      return extractMarketField(result, plannedRead.ref.field);
     }
 
-    throw new Error(`Unknown entity type for RPC: ${plan.entityType}`);
+    throw new Error(`Unknown entity type for RPC: ${plannedRead.ref.entity_type}`);
   }
 
   return {

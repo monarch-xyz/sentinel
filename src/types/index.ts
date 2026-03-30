@@ -51,6 +51,28 @@ export interface StateRef {
   snapshot?: "current" | "window_start" | string;
 }
 
+export type RpcTypedArgType =
+  | "address"
+  | "bool"
+  | "string"
+  | "bytes"
+  | `bytes${number}`
+  | `uint${number}`
+  | `int${number}`;
+
+export type RpcTypedArgValue = string | number | bigint | boolean;
+
+export interface RpcTypedArg {
+  type: RpcTypedArgType;
+  value: RpcTypedArgValue;
+}
+
+export interface GenericRpcCall {
+  to: string;
+  signature: string;
+  args: RpcTypedArg[];
+}
+
 export type MathOp = "add" | "sub" | "mul" | "div";
 
 export interface BinaryExpression {

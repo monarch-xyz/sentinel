@@ -1,4 +1,5 @@
-import type { EventRef, Filter, RawEventRef, StateRef } from "../types/index.js";
+import { MORPHO_ADDRESSES } from "../rpc/abi.js";
+import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
 import { normalizeMarketId } from "../utils/market.js";
 
 type FilterValue = string | number | boolean;
@@ -25,6 +26,14 @@ export interface PlannedMorphoRpcStateRead {
   field: string;
   marketId: string;
   user?: string;
+  timestamp?: number;
+}
+
+export interface PlannedGenericArchiveRpcExecution {
+  family: "state";
+  provider: "rpc";
+  chainId: number;
+  call: GenericRpcCall;
   timestamp?: number;
 }
 
@@ -140,6 +149,51 @@ export function bindMorphoRpcStateRead(
     user: plan.ref.entity_type === "Position" ? requireUser(plan.ref.filters) : undefined,
     timestamp: plan.timestamp,
   };
+}
+
+export function bindMorphoArchiveRpcExecution(
+  plan: PlannedGenericRpcStateRead,
+): PlannedGenericArchiveRpcExecution {
+  const bound = bindMorphoRpcStateRead(plan);
+  const address = MORPHO_ADDRESSES[bound.chainId];
+  if (!address) {
+    throw new Error(`Morpho not deployed on chain ${bound.chainId}`);
+  }
+
+  if (bound.entityType === "Position") {
+    return {
+      family: bound.family,
+      provider: bound.provider,
+      chainId: bound.chainId,
+      timestamp: bound.timestamp,
+      call: {
+        to: address,
+        signature:
+          "position(bytes32 id, address user) returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+        args: [
+          { type: "bytes32", value: bound.marketId },
+          { type: "address", value: bound.user as string },
+        ],
+      },
+    };
+  }
+
+  if (bound.entityType === "Market") {
+    return {
+      family: bound.family,
+      provider: bound.provider,
+      chainId: bound.chainId,
+      timestamp: bound.timestamp,
+      call: {
+        to: address,
+        signature:
+          "market(bytes32 id) returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
+        args: [{ type: "bytes32", value: bound.marketId }],
+      },
+    };
+  }
+
+  throw new Error(`Unknown entity type for RPC: ${bound.entityType}`);
 }
 
 export function planMorphoEventRead(
