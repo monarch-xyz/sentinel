@@ -7,7 +7,7 @@ import {
   isGroupCondition,
   isSimpleCondition,
 } from "../../src/engine/compiler.js";
-import { planRpcStateRead } from "../../src/engine/source-plan.js";
+import { planRpcStateRead } from "../../src/protocols/morpho/index.js";
 import type {
   BinaryExpression,
   Condition as InternalCondition,

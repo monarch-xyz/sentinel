@@ -9,16 +9,12 @@
  */
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
+import { bindMorphoArchiveRpcExecution } from "../protocols/morpho/index.js";
 import { executeArchiveRpcCall } from "../rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
-import {
-  bindMorphoArchiveRpcExecution,
-  planGenericRpcStateRead,
-  planMorphoEventRead,
-  planMorphoRawEventRead,
-} from "./source-plan.js";
+import { planGenericRpcStateRead, planIndexedEventRead, planRawEventRead } from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
@@ -178,7 +174,7 @@ export function createMorphoFetcher(
      * Fetch indexed semantic events through the unified indexing boundary.
      */
     fetchEvents: async (ref: EventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
-      const plan = planMorphoEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
+      const plan = planIndexedEventRead(ref, startTimeMs, endTimeMs, defaultChainId);
       if (verbose) {
         logger.info(
           {
@@ -197,7 +193,7 @@ export function createMorphoFetcher(
 
     fetchRawEvents: rawEventFetcher
       ? async (ref: RawEventRef, startTimeMs: number, endTimeMs: number): Promise<number> => {
-          const plan = planMorphoRawEventRead(ref, startTimeMs, endTimeMs);
+          const plan = planRawEventRead(ref, startTimeMs, endTimeMs);
           if (verbose) {
             logger.info(
               {

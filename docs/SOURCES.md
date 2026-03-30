@@ -19,11 +19,11 @@ The engine decides whether those reads land on RPC, Envio, HyperSync, or a futur
 For state reads specifically, planning is now two-step:
 
 1. build a generic RPC state read plan (`family=state`, `provider=rpc`, chain, ref, timestamp)
-2. apply protocol/runtime binding (Morpho today) to enforce protocol-specific requirements
+2. apply protocol/runtime binding (Morpho today in `src/protocols/morpho`) to enforce protocol-specific requirements
 
 Transition note:
 - `planGenericRpcStateRead` is the new primitive planner entrypoint
-- `planRpcStateRead` remains as a compatibility wrapper that returns the legacy Morpho-shaped plan while callers migrate
+- `planRpcStateRead` remains as a compatibility wrapper in the Morpho resolver module while callers migrate
 
 ## Capability Gating
 

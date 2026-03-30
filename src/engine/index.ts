@@ -17,23 +17,24 @@ export type {
 // Morpho-specific implementation
 export { createMorphoFetcher } from "./morpho-fetcher.js";
 export {
-  bindMorphoArchiveRpcExecution,
-  bindMorphoRpcStateRead,
   planGenericRpcStateRead,
-  planMorphoEventRead,
-  planMorphoRawEventRead,
-  planMorphoStateRead,
-  planRpcStateRead,
+  planIndexedEventRead,
+  planRawEventRead,
 } from "./source-plan.js";
 export type {
-  PlannedGenericArchiveRpcExecution,
+  PlannedArchiveRpcExecution,
   PlannedEnvioEventRead,
   PlannedGenericRpcStateRead,
   PlannedIndexedEventRead,
-  PlannedMorphoRpcStateRead,
   PlannedRawEventRead,
-  PlannedRpcStateRead,
 } from "./source-plan.js";
+export {
+  bindMorphoArchiveRpcExecution,
+  bindMorphoRpcStateRead,
+  planMorphoStateRead,
+  planRpcStateRead,
+} from "../protocols/morpho/index.js";
+export type { PlannedMorphoRpcStateRead, PlannedRpcStateRead } from "../protocols/morpho/index.js";
 export {
   createSourceCapabilityError,
   SourceCapabilityError,

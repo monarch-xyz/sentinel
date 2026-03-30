@@ -141,9 +141,9 @@ The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAV
 
 Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
 
-For RPC state, the planner emits a generic RPC state read primitive first (`planGenericRpcStateRead`), then protocol-specific bindings (Morpho today) compile that read into a generic archive call shape (`GenericRpcCall`).
+For RPC state, the planner emits a generic RPC state read primitive first (`planGenericRpcStateRead`), then protocol-specific resolvers (Morpho today in `src/protocols/morpho`) compile that read into a generic archive call shape (`GenericRpcCall`).
 Runtime execution uses a shared archive-node `eth_call` executor (`executeArchiveRpcCall`) that performs signature-driven encoding/decoding and supports typed args including `bytes`/`bytesN`.
-`planRpcStateRead` is retained temporarily as a compatibility wrapper to reduce public API churn while migration is in progress.
+`planRpcStateRead` is retained in the Morpho resolver module as a compatibility wrapper to reduce public API churn while migration is in progress.
 
 Optional providers are capability-gated instead of process-fatal:
 
