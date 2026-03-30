@@ -9,30 +9,18 @@
  */
 
 import { resolveBlockByTimestamp } from "../envio/blocks.js";
-import { bindMorphoArchiveRpcExecution } from "../protocols/morpho/index.js";
 import { executeArchiveRpcCall } from "../rpc/index.js";
 import type { EventRef, RawEventRef, StateRef } from "../types/index.js";
+import { requireBigIntTuple } from "../utils/bigint-tuples.js";
 import { createLogger } from "../utils/logger.js";
 import type { DataFetcher, DataFetcherOptions, IndexingDataClient } from "./fetcher.js";
+import { bindArchiveRpcExecution } from "./rpc-state-resolver.js";
 import { planGenericRpcStateRead, planIndexedEventRead, planRawEventRead } from "./source-plan.js";
 
 const logger = createLogger("morpho-fetcher");
 
-/**
- * Extract a field value from RPC Position result
- */
-function readBigIntTuple(result: unknown, expectedLength: number, functionName: string): bigint[] {
-  if (!Array.isArray(result) || result.length < expectedLength) {
-    throw new Error(`Unexpected ${functionName} RPC response shape`);
-  }
-  if (result.some((value) => typeof value !== "bigint")) {
-    throw new Error(`Unexpected ${functionName} RPC response value types`);
-  }
-  return result as bigint[];
-}
-
 function extractPositionField(result: unknown, field: string): number {
-  const [supplyShares, borrowShares, collateral] = readBigIntTuple(result, 3, "position");
+  const [supplyShares, borrowShares, collateral] = requireBigIntTuple(result, 3, "position RPC");
   switch (field) {
     case "supplyShares":
       return Number(supplyShares);
@@ -56,7 +44,7 @@ function extractMarketField(result: unknown, field: string): number {
     totalBorrowShares,
     lastUpdate,
     fee,
-  ] = readBigIntTuple(result, 6, "market");
+  ] = requireBigIntTuple(result, 6, "market RPC");
 
   switch (field) {
     case "totalSupplyAssets":
@@ -94,7 +82,12 @@ export function createMorphoFetcher(
    */
   async function fetchCurrentState(ref: StateRef): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, undefined, defaultChainId);
-    const plan = bindMorphoArchiveRpcExecution(plannedRead);
+    if (plannedRead.protocol !== "morpho") {
+      throw new Error(
+        `createMorphoFetcher only supports morpho protocol, got "${plannedRead.protocol}"`,
+      );
+    }
+    const plan = bindArchiveRpcExecution(plannedRead);
     const morphoPlan = plan.call;
 
     if (verbose) {
@@ -126,7 +119,12 @@ export function createMorphoFetcher(
    */
   async function fetchHistoricalState(ref: StateRef, timestamp: number): Promise<number> {
     const plannedRead = planGenericRpcStateRead(ref, timestamp, defaultChainId);
-    const plan = bindMorphoArchiveRpcExecution(plannedRead);
+    if (plannedRead.protocol !== "morpho") {
+      throw new Error(
+        `createMorphoFetcher only supports morpho protocol, got "${plannedRead.protocol}"`,
+      );
+    }
+    const plan = bindArchiveRpcExecution(plannedRead);
 
     // Resolve timestamp to block number
     const blockNumber = await resolveBlockByTimestamp(plan.chainId, timestamp);

@@ -189,6 +189,14 @@ function constant(value: number): Constant {
   return { type: "constant", value };
 }
 
+function getMetricProtocol(metricName: string): string {
+  const [protocol] = metricName.split(".");
+  if (!protocol) {
+    throw new Error(`Metric "${metricName}" must include a protocol prefix`);
+  }
+  return protocol.toLowerCase();
+}
+
 function normalizeRawEventSignature(signature: string): string {
   const trimmed = signature.trim();
   if (!trimmed) {
@@ -307,6 +315,7 @@ function buildStateRef(
 
   return {
     type: "state",
+    protocol: getMetricProtocol(metricName),
     entity_type: metric.entity,
     filters: buildFilters(chainId, marketId, address),
     field: metric.field,

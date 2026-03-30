@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { bindArchiveRpcExecution } from "../../src/engine/rpc-state-resolver.js";
 import { planGenericRpcStateRead } from "../../src/engine/source-plan.js";
 import {
   bindMorphoArchiveRpcExecution,
@@ -25,6 +26,7 @@ describe("morpho rpc state resolver", () => {
     expect(bindMorphoRpcStateRead(plannedRead)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
@@ -63,6 +65,19 @@ describe("morpho rpc state resolver", () => {
     });
   });
 
+  it("dispatches archive RPC binding using protocol discriminator", () => {
+    const ref: StateRef = {
+      type: "state",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(bindArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toEqual(
+      bindMorphoArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1)),
+    );
+  });
+
   it("preserves legacy Morpho state planner behavior", () => {
     const ref: StateRef = {
       type: "state",
@@ -78,6 +93,7 @@ describe("morpho rpc state resolver", () => {
     expect(planMorphoStateRead(ref, 1700000000000, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
@@ -128,6 +144,7 @@ describe("morpho rpc state resolver", () => {
     expect(planRpcStateRead(ref, 1700000000000, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 8453,
       entityType: "Position",
       field: "supplyShares",
@@ -147,6 +164,38 @@ describe("morpho rpc state resolver", () => {
 
     expect(() => bindMorphoArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
       "Unknown entity type for RPC: Vault",
+    );
+  });
+
+  it("rejects non-morpho protocol plans", () => {
+    const ref: StateRef = {
+      type: "state",
+      protocol: "aave",
+      entity_type: "Position",
+      filters: [
+        { field: "chainId", op: "eq", value: 8453 },
+        { field: "marketId", op: "eq", value: "0xmarket" },
+        { field: "user", op: "eq", value: "0xuser" },
+      ],
+      field: "supplyShares",
+    };
+
+    expect(() => bindMorphoRpcStateRead(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      "Morpho binder received incompatible protocol: aave",
+    );
+  });
+
+  it("rejects unsupported protocols in archive dispatcher", () => {
+    const ref: StateRef = {
+      type: "state",
+      protocol: "aave",
+      entity_type: "Market",
+      filters: [{ field: "marketId", op: "eq", value: "0xmarket" }],
+      field: "totalBorrowAssets",
+    };
+
+    expect(() => bindArchiveRpcExecution(planGenericRpcStateRead(ref, undefined, 1))).toThrow(
+      "Unsupported state protocol for RPC: aave",
     );
   });
 });

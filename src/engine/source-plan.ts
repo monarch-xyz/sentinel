@@ -1,10 +1,12 @@
 import type { EventRef, Filter, GenericRpcCall, RawEventRef, StateRef } from "../types/index.js";
 
 type FilterValue = string | number | boolean;
+const DEFAULT_STATE_PROTOCOL = "morpho";
 
 export interface PlannedGenericRpcStateRead {
   family: "state";
   provider: "rpc";
+  protocol: string;
   chainId: number;
   ref: StateRef;
   timestamp?: number;
@@ -47,7 +49,21 @@ function getEqFilterValue<T extends FilterValue>(filters: Filter[], field: strin
 }
 
 function resolveChainId(filters: Filter[], defaultChainId: number): number {
-  return Number(getEqFilterValue<number>(filters, "chainId") ?? defaultChainId);
+  const raw = getEqFilterValue<FilterValue>(filters, "chainId");
+  if (raw === undefined) {
+    return defaultChainId;
+  }
+
+  const chainId = typeof raw === "string" ? Number.parseInt(raw, 10) : Number(raw);
+  if (!Number.isInteger(chainId) || chainId <= 0) {
+    throw new Error(`Invalid chainId filter value: ${String(raw)}`);
+  }
+
+  return chainId;
+}
+
+function resolveStateProtocol(ref: StateRef): string {
+  return ref.protocol ?? DEFAULT_STATE_PROTOCOL;
 }
 
 /**
@@ -61,6 +77,7 @@ export function planGenericRpcStateRead(
   return {
     family: "state",
     provider: "rpc",
+    protocol: resolveStateProtocol(ref),
     chainId: resolveChainId(ref.filters, defaultChainId),
     ref,
     timestamp,

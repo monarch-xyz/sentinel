@@ -12,6 +12,7 @@ type FilterValue = string | number | boolean;
 export interface PlannedMorphoRpcStateRead {
   family: "state";
   provider: "rpc";
+  protocol: "morpho";
   chainId: number;
   entityType: string;
   field: string;
@@ -70,9 +71,14 @@ export function planRpcStateRead(
 export function bindMorphoRpcStateRead(
   plan: PlannedGenericRpcStateRead,
 ): PlannedMorphoRpcStateRead {
+  if (plan.protocol !== "morpho") {
+    throw new Error(`Morpho binder received incompatible protocol: ${plan.protocol}`);
+  }
+
   return {
     family: plan.family,
     provider: plan.provider,
+    protocol: "morpho",
     chainId: plan.chainId,
     entityType: plan.ref.entity_type,
     field: plan.ref.field,

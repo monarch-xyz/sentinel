@@ -39,6 +39,7 @@ export interface RawEventRef {
 
 export interface StateRef {
   type: "state";
+  protocol?: string;
   entity_type: string;
   filters: Filter[];
   field: string;
@@ -60,7 +61,7 @@ export type RpcTypedArgType =
   | `uint${number}`
   | `int${number}`;
 
-export type RpcTypedArgValue = string | number | bigint | boolean;
+export type RpcTypedArgValue = string | bigint | boolean;
 
 export interface RpcTypedArg {
   type: RpcTypedArgType;

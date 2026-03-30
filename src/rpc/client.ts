@@ -59,6 +59,7 @@ const monad = defineChain({
   },
 });
 import type { GenericRpcCall, RpcTypedArg } from "../types/index.js";
+import { requireBigIntTuple } from "../utils/bigint-tuples.js";
 import { createLogger } from "../utils/logger.js";
 import { isBytes32MarketId, normalizeMarketId } from "../utils/market.js";
 import { MORPHO_ADDRESSES, type MarketResult, type PositionResult } from "./abi.js";
@@ -130,7 +131,8 @@ function extractFunctionName(signature: string): string {
 }
 
 function normalizeTypedArg(arg: RpcTypedArg): unknown {
-  const { type, value } = arg;
+  const { type } = arg;
+  const value = arg.value as unknown;
 
   if (type === "address") {
     if (typeof value !== "string" || !isAddress(value)) {
@@ -217,18 +219,15 @@ function toBigIntTuple(
   value: unknown,
   expectedLength: number,
 ): bigint[] {
-  if (
-    !Array.isArray(value) ||
-    value.length < expectedLength ||
-    value.some((entry) => typeof entry !== "bigint")
-  ) {
+  try {
+    return requireBigIntTuple(value, expectedLength, functionName);
+  } catch {
     throw new RpcQueryError(
       `Unexpected ${functionName} response shape from archive RPC`,
       chainId,
       blockNumber,
     );
   }
-  return value as bigint[];
 }
 
 /**

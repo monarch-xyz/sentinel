@@ -18,6 +18,7 @@ describe("source plan", () => {
     expect(planGenericRpcStateRead(ref, undefined, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 1,
       ref,
       timestamp: undefined,
@@ -38,6 +39,7 @@ describe("source plan", () => {
     expect(planGenericRpcStateRead(ref, 1700000000000, 1)).toEqual({
       family: "state",
       provider: "rpc",
+      protocol: "morpho",
       chainId: 8453,
       ref,
       timestamp: 1700000000000,
