@@ -3,11 +3,11 @@ import type { EvaluatableSignal } from "./condition.ts";
 import { findFirstTrigger, simulateSignal, simulateSignalOverTime } from "./simulation.ts";
 
 // Mock block resolution
-vi.mock("../envio/blocks.js", () => ({
+vi.mock("../envio/blocks.ts", () => ({
   resolveBlockByTimestamp: vi.fn(),
 }));
 
-vi.mock("../rpc/index.js", () => ({
+vi.mock("../rpc/index.ts", () => ({
   readMarket: vi.fn(),
   readMarketAtBlock: vi.fn(),
   readPosition: vi.fn(),

@@ -15,7 +15,7 @@ type FetchStateFn = (ref: StateRef, timestamp?: number) => Promise<number>;
 type FetchEventsFn = (ref: EventRef, startTimeMs: number, endTimeMs: number) => Promise<number>;
 
 // Mock the blocks module
-vi.mock("../../src/envio/blocks.js", () => ({
+vi.mock("../../src/envio/blocks.ts", () => ({
   resolveBlockByTimestamp: vi.fn().mockResolvedValue(12345678),
 }));
 

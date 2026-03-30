@@ -4,7 +4,7 @@ import type { DataFetcher } from "../../src/engine/fetcher.ts";
 import type { Signal } from "../../src/types/index.ts";
 
 // Mock block resolver to avoid real network calls
-vi.mock("../../src/envio/blocks.js", () => {
+vi.mock("../../src/envio/blocks.ts", () => {
   return {
     resolveBlockByTimestamp: vi.fn().mockResolvedValue(19000000), // Mock block number
   };
