@@ -52,10 +52,10 @@ describe("CreateSignalSchema", () => {
     ).not.toThrow();
   });
 
-  it("accepts ERC1155 approval-for-all preset", () => {
+  it("accepts ERC4626 deposit preset", () => {
     expect(() =>
       CreateSignalSchema.parse({
-        name: "ERC1155 approval for all count",
+        name: "ERC4626 deposit count",
         definition: {
           scope: { chains: [1] },
           window: { duration: "1h" },
@@ -66,7 +66,32 @@ describe("CreateSignalSchema", () => {
               operator: ">",
               value: 1,
               event: {
-                kind: "erc1155_approval_for_all",
+                kind: "erc4626_deposit",
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts ERC4626 withdraw preset", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "ERC4626 withdraw count",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 1,
+              event: {
+                kind: "erc4626_withdraw",
               },
             },
           ],

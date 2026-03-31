@@ -328,7 +328,7 @@ Rules:
 - `aggregation` supports `sum`, `avg`, `min`, `max`, `count`
 - `field` is required for `sum`, `avg`, `min`, and `max`
 - `field` may be omitted when `aggregation` is `count`
-- well-known `event.kind` values currently include: `erc20_transfer`, `erc20_approval`, `erc721_transfer`, `erc721_approval`, `erc721_approval_for_all`, `erc1155_transfer_single`, `erc1155_transfer_batch`, and `swap`
+- well-known `event.kind` values currently include: `erc20_transfer`, `erc20_approval`, `erc721_transfer`, `erc721_approval`, `erc721_approval_for_all`, `erc4626_deposit`, `erc4626_withdraw`, and `swap`
 - `event.kind = "erc20_transfer"` uses the canonical ERC-20 `Transfer` signature
 - `event.kind = "swap"` expands into all requested supported swap presets; if `protocols` is omitted, Sentinel currently queries both `uniswap_v2` and `uniswap_v3`
 - `event.kind = "contract_event"` requires a full ABI event signature, including `indexed` markers

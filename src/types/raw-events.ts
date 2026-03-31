@@ -4,9 +4,8 @@ export const RAW_EVENT_KINDS = [
   "erc721_transfer",
   "erc721_approval",
   "erc721_approval_for_all",
-  "erc1155_transfer_single",
-  "erc1155_transfer_batch",
-  "erc1155_approval_for_all",
+  "erc4626_deposit",
+  "erc4626_withdraw",
   "swap",
   "contract_event",
 ] as const;
