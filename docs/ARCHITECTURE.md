@@ -127,8 +127,8 @@ Sentinel uses three canonical data families:
 | Family | DSL shape | Engine boundary | Provider today | Why |
 | --- | --- | --- | --- | --- |
 | state | `metric` on state-oriented conditions | RPC path | RPC | one consistent path for current and historical state |
-| indexed | `metric` on semantic event/entity conditions | indexing boundary | Envio | semantic protocol-aware history |
-| raw | `raw-events` | indexing boundary | HyperSync | high-throughput raw logs, transactions, traces, and blocks |
+| indexed | `metric` on semantic event/entity conditions (advanced) | indexing boundary | Envio | protocol-aware semantic history for advanced integrations |
+| raw | `raw-events` (default event primitive) | indexing boundary | HyperSync | high-throughput raw logs, transactions, traces, and blocks |
 
 Supporting reads:
 
@@ -140,6 +140,9 @@ Supporting reads:
 The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAVEL.md](./ISSUE_NO_TIME_TRAVEL.md).
 
 Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
+
+For events specifically, the compiler is now catalog-driven for well-known raw-event kinds (for example ERC-20/ERC-721/ERC-1155 transfers and approvals, plus swap presets), with `contract_event` retained as the explicit generic ABI escape hatch.
+Indexed semantic event metrics remain available but are treated as an advanced integration path.
 
 For RPC state, the planner emits a generic RPC state read primitive first (`planGenericRpcStateRead`), then protocol-specific resolvers (Morpho today in `src/protocols/morpho`) compile that read into a generic archive call shape (`GenericRpcCall`).
 Runtime execution uses a shared archive-node `eth_call` executor (`executeArchiveRpcCall`) that performs signature-driven encoding/decoding and supports typed args including `bytes`/`bytesN`.

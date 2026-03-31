@@ -71,8 +71,8 @@ Sentinel supports three canonical reference families in the DSL:
 | Family | How you reference it in DSL | Typical examples | Backing source today |
 | --- | --- | --- | --- |
 | state | `metric` on `threshold`, `change`, or `aggregate` | `Morpho.Position.supplyShares`, `Morpho.Market.totalBorrowAssets` | RPC |
-| indexed | `metric` on `threshold` or `aggregate` | `Morpho.Event.Supply.assets`, `Morpho.Flow.netSupply` | indexing boundary, currently Envio |
-| raw | `type: "raw-events"` with `event`, optional `filters`, and `field` for non-`count` aggregations | ERC-20 transfers, raw swap logs, custom ABI events | indexing boundary, currently HyperSync |
+| indexed | `metric` on `threshold` or `aggregate` (advanced) | `Morpho.Event.Supply.assets`, `Morpho.Flow.netSupply` | indexing boundary, currently Envio |
+| raw | `type: "raw-events"` with `event`, optional `filters`, and `field` for non-`count` aggregations (default event primitive) | ERC-20/ERC-721/ERC-1155 transfers and approvals, raw swap logs, custom ABI events | indexing boundary, currently HyperSync |
 
 These are the only three top-level families users need to think about.
 
@@ -328,9 +328,12 @@ Rules:
 - `aggregation` supports `sum`, `avg`, `min`, `max`, `count`
 - `field` is required for `sum`, `avg`, `min`, and `max`
 - `field` may be omitted when `aggregation` is `count`
+- well-known `event.kind` values currently include: `erc20_transfer`, `erc20_approval`, `erc721_transfer`, `erc721_approval`, `erc721_approval_for_all`, `erc1155_transfer_single`, `erc1155_transfer_batch`, and `swap`
 - `event.kind = "erc20_transfer"` uses the canonical ERC-20 `Transfer` signature
 - `event.kind = "swap"` expands into all requested supported swap presets; if `protocols` is omitted, Sentinel currently queries both `uniswap_v2` and `uniswap_v3`
 - `event.kind = "contract_event"` requires a full ABI event signature, including `indexed` markers
+- `signature` is only valid with `event.kind = "contract_event"`
+- `protocols` is only valid with `event.kind = "swap"`
 - `filters` run against decoded event arguments and metadata fields such as `contract_address`, `block_number`, and `transaction_hash`
 - `swap` presets also add normalized fields: `recipient`, `amount0_in`, `amount0_out`, `amount0_abs`, `amount1_in`, `amount1_out`, `amount1_abs`, and `swap_protocol`
 - `contract_addresses` is optional, but omitting it can create very broad scans

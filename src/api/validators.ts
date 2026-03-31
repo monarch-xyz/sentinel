@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { validateRawEventSpec } from "../raw-events/catalog.js";
+import { RAW_EVENT_KINDS, RAW_EVENT_SWAP_PROTOCOLS } from "../types/raw-events.js";
 
 const SignalScopeSchema = z.object({
   chains: z.array(z.number().int().positive()).min(1),
@@ -55,24 +57,18 @@ const AggregateConditionSchema = z.object({
 
 const RawEventSpecSchema = z
   .object({
-    kind: z.enum(["erc20_transfer", "contract_event", "swap"]),
+    kind: z.enum(RAW_EVENT_KINDS),
     contract_addresses: z.array(z.string()).optional(),
-    signature: z.string().optional(),
-    protocols: z.array(z.enum(["uniswap_v2", "uniswap_v3"])).optional(),
+    signature: z.string().trim().optional(),
+    protocols: z.array(z.enum(RAW_EVENT_SWAP_PROTOCOLS)).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.kind === "contract_event" && !value.signature) {
+    try {
+      validateRawEventSpec(value);
+    } catch (err) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "signature is required for contract_event raw-events",
-        path: ["signature"],
-      });
-    }
-    if (value.kind === "swap" && value.protocols && value.protocols.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "protocols must not be empty for swap raw-events",
-        path: ["protocols"],
+        message: err instanceof Error ? err.message : "invalid raw event specification",
       });
     }
   });
