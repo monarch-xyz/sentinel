@@ -2,6 +2,8 @@
  * Signal Types - Core domain types for Sentinel
  */
 
+import type { RawEventKind, RawEventSwapProtocol } from "./raw-events.js";
+
 // ============================================
 // Scope
 // ============================================
@@ -126,7 +128,7 @@ export interface AggregateCondition {
 
 export interface RawEventSpec {
   /** Prebuilt preset for common events. */
-  kind: "erc20_transfer" | "contract_event" | "swap";
+  kind: RawEventKind;
   /** Optional contract address filter for the emitting contracts. */
   contract_addresses?: string[];
   /**
@@ -140,7 +142,7 @@ export interface RawEventSpec {
    * Optional swap protocol presets to include. If omitted for `kind = "swap"`,
    * Sentinel queries all supported swap presets.
    */
-  protocols?: Array<"uniswap_v2" | "uniswap_v3">;
+  protocols?: RawEventSwapProtocol[];
 }
 
 export interface RawEventsCondition {

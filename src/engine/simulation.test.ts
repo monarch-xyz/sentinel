@@ -8,20 +8,17 @@ vi.mock("../envio/blocks.ts", () => ({
 }));
 
 vi.mock("../rpc/index.ts", () => ({
-  readMarket: vi.fn(),
-  readMarketAtBlock: vi.fn(),
-  readPosition: vi.fn(),
-  readPositionAtBlock: vi.fn(),
+  executeArchiveRpcCall: vi.fn(),
 }));
 
 import { resolveBlockByTimestamp } from "../envio/blocks.ts";
-import { readMarketAtBlock } from "../rpc/index.ts";
+import { executeArchiveRpcCall } from "../rpc/index.ts";
 import type { EventFetcher } from "./fetcher.ts";
 import { createMorphoFetcher } from "./morpho-fetcher.ts";
 
 // Type the mocked functions
 const mockedResolveBlockByTimestamp = vi.mocked(resolveBlockByTimestamp);
-const mockedReadMarketAtBlock = vi.mocked(readMarketAtBlock);
+const mockedExecuteArchiveRpcCall = vi.mocked(executeArchiveRpcCall);
 
 describe("simulation", () => {
   type FetchEventsFn = EventFetcher["fetchEvents"];
@@ -32,15 +29,35 @@ describe("simulation", () => {
 
   const createFetcher = (chainId: number) => createMorphoFetcher(mockEventFetcher, { chainId });
 
-  const createMarketResult = (overrides: Record<string, bigint> = {}) => ({
-    totalSupplyAssets: 0n,
-    totalSupplyShares: 0n,
-    totalBorrowAssets: 0n,
-    totalBorrowShares: 0n,
-    lastUpdate: 0n,
-    fee: 0n,
-    ...overrides,
-  });
+  const createMarketResult = (
+    overrides: Partial<{
+      totalSupplyAssets: bigint;
+      totalSupplyShares: bigint;
+      totalBorrowAssets: bigint;
+      totalBorrowShares: bigint;
+      lastUpdate: bigint;
+      fee: bigint;
+    }> = {},
+  ) => {
+    const result = {
+      totalSupplyAssets: 0n,
+      totalSupplyShares: 0n,
+      totalBorrowAssets: 0n,
+      totalBorrowShares: 0n,
+      lastUpdate: 0n,
+      fee: 0n,
+      ...overrides,
+    };
+
+    return [
+      result.totalSupplyAssets,
+      result.totalSupplyShares,
+      result.totalBorrowAssets,
+      result.totalBorrowShares,
+      result.lastUpdate,
+      result.fee,
+    ];
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,8 +75,15 @@ describe("simulation", () => {
         type: "condition",
         left: {
           type: "state",
+          protocol: "morpho",
           entity_type: "Market",
-          filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+          filters: [
+            {
+              field: "marketId",
+              op: "eq",
+              value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+            },
+          ],
           field: "totalBorrowAssets",
         },
         operator: "gt",
@@ -88,7 +112,7 @@ describe("simulation", () => {
         .mockResolvedValueOnce(17990000) // window start block
         .mockResolvedValue(17990000);
 
-      mockedReadMarketAtBlock.mockResolvedValue(
+      mockedExecuteArchiveRpcCall.mockResolvedValue(
         createMarketResult({ totalBorrowAssets: 2000000n }),
       );
 
@@ -115,7 +139,9 @@ describe("simulation", () => {
         .mockResolvedValueOnce(17990000)
         .mockResolvedValue(17990000);
 
-      mockedReadMarketAtBlock.mockResolvedValue(createMarketResult({ totalBorrowAssets: 500000n }));
+      mockedExecuteArchiveRpcCall.mockResolvedValue(
+        createMarketResult({ totalBorrowAssets: 500000n }),
+      );
 
       const result = await simulateSignal({ signal, atTimestamp, chainId, fetcher });
 
@@ -137,7 +163,7 @@ describe("simulation", () => {
         .mockResolvedValueOnce(18000000)
         .mockResolvedValueOnce(17900000)
         .mockResolvedValue(17900000);
-      mockedReadMarketAtBlock.mockResolvedValue(createMarketResult({ totalBorrowAssets: 0n }));
+      mockedExecuteArchiveRpcCall.mockResolvedValue(createMarketResult({ totalBorrowAssets: 0n }));
 
       const result = await simulateSignal({ signal, atTimestamp, chainId, fetcher });
 
@@ -154,8 +180,15 @@ describe("simulation", () => {
             type: "condition",
             left: {
               type: "state",
+              protocol: "morpho",
               entity_type: "Market",
-              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+              filters: [
+                {
+                  field: "marketId",
+                  op: "eq",
+                  value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+                },
+              ],
               field: "totalBorrowAssets",
               snapshot: "window_start", // Query at window start
             },
@@ -177,7 +210,7 @@ describe("simulation", () => {
         .mockResolvedValueOnce(17990000) // window start (for context)
         .mockResolvedValueOnce(17990000) // window start (for state query)
         .mockResolvedValue(17990000);
-      mockedReadMarketAtBlock.mockResolvedValue(
+      mockedExecuteArchiveRpcCall.mockResolvedValue(
         createMarketResult({ totalBorrowAssets: 1500000n }),
       );
 
@@ -194,7 +227,13 @@ describe("simulation", () => {
             left: {
               type: "event",
               event_type: "Borrow",
-              filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+              filters: [
+                {
+                  field: "marketId",
+                  op: "eq",
+                  value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+                },
+              ],
               field: "assets",
               aggregation: "sum",
             },
@@ -239,14 +278,28 @@ describe("simulation", () => {
               operator: "div",
               left: {
                 type: "state",
+                protocol: "morpho",
                 entity_type: "Market",
-                filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+                filters: [
+                  {
+                    field: "marketId",
+                    op: "eq",
+                    value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+                  },
+                ],
                 field: "totalBorrowAssets",
               },
               right: {
                 type: "state",
+                protocol: "morpho",
                 entity_type: "Market",
-                filters: [{ field: "marketId", op: "eq", value: "test-market" }],
+                filters: [
+                  {
+                    field: "marketId",
+                    op: "eq",
+                    value: "0x1111111111111111111111111111111111111111111111111111111111111111",
+                  },
+                ],
                 field: "totalSupplyAssets",
               },
             },
@@ -268,7 +321,7 @@ describe("simulation", () => {
         .mockResolvedValueOnce(17990000)
         .mockResolvedValue(17990000);
 
-      mockedReadMarketAtBlock.mockResolvedValue(
+      mockedExecuteArchiveRpcCall.mockResolvedValue(
         createMarketResult({ totalBorrowAssets: 950000n, totalSupplyAssets: 1000000n }),
       );
 
@@ -439,7 +492,7 @@ describe("simulation", () => {
       // Track simulation calls (each simulateSignal = 2 fetchState calls)
       let simulationIndex = 0;
 
-      mockedReadMarketAtBlock.mockImplementation(async () => {
+      mockedExecuteArchiveRpcCall.mockImplementation(async () => {
         // Each simulation increments twice, so divide by 2 to get simulation number
         const simNum = Math.floor(simulationIndex / 2);
         simulationIndex++;

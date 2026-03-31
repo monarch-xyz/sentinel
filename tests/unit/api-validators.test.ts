@@ -27,6 +27,31 @@ describe("CreateSignalSchema", () => {
     ).not.toThrow();
   });
 
+  it("accepts broader well-known raw event presets", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "ERC721 transfer count",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 1,
+              event: {
+                kind: "erc721_transfer",
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).not.toThrow();
+  });
+
   it("rejects non-count raw-events without a field", () => {
     expect(() =>
       CreateSignalSchema.parse({
@@ -75,6 +100,58 @@ describe("CreateSignalSchema", () => {
         cooldown_minutes: 5,
       }),
     ).not.toThrow();
+  });
+
+  it("rejects signature for non-contract-event presets", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "Invalid signature on preset",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 0,
+              event: {
+                kind: "erc20_transfer",
+                signature: "Transfer(address indexed from, address indexed to, uint256 value)",
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).toThrow("signature is only supported for contract_event raw-events");
+  });
+
+  it("rejects protocols for non-swap presets", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "Invalid protocols on preset",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 0,
+              event: {
+                kind: "erc20_approval",
+                protocols: ["uniswap_v2"],
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).toThrow("protocols are only supported for swap raw-events");
   });
 
   it("accepts create requests that include delivery plus the resolved managed webhook url", () => {

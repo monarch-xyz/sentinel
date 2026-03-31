@@ -9,8 +9,8 @@ Sentinel exposes three source families to DSL authors:
 | Family | User-facing DSL shape | Current provider | Purpose |
 | --- | --- | --- | --- |
 | state | `metric` on state-based conditions | RPC | current and historical state snapshots |
-| indexed | `metric` on semantic event/entity conditions | Envio | protocol-aware indexed history |
-| raw | `type: "raw-events"` | HyperSync | high-throughput raw decoded event scans |
+| indexed | `metric` on semantic event/entity conditions (advanced) | Envio | protocol-aware indexed history |
+| raw | `type: "raw-events"` (default event primitive) | HyperSync | high-throughput raw decoded event scans |
 
 The important boundary is family-first, not provider-first.
 Users write `state`, `indexed`, and `raw` semantics.
@@ -61,6 +61,25 @@ For example, a future expression can compare or combine state, indexed, and raw 
 The planner now treats RPC state planning as a generic primitive first, then applies protocol bindings that compile into a generic archive call representation.
 Execution is handled by a shared archive RPC executor (`executeArchiveRpcCall`) that supports signature-driven `eth_call` with typed args, including `bytes` and fixed-bytes (`bytesN`) inputs.
 This keeps Morpho behavior intact while preventing state planning from being Morpho-shaped by default.
+
+For raw events, `raw-events.event.kind` is now backed by a shared well-known catalog in `src/raw-events/catalog.ts` instead of ad hoc compiler branching.
+The first catalog batch includes:
+
+- `erc20_transfer`
+- `erc20_approval`
+- `erc721_transfer`
+- `erc721_approval`
+- `erc721_approval_for_all`
+- `erc1155_transfer_single`
+- `erc1155_transfer_batch`
+- `swap` (with optional protocol presets)
+- `contract_event` (generic ABI signature)
+
+Validation is kind-aware:
+
+- `signature` is only valid for `contract_event`
+- `protocols` is only valid for `swap`
+- `swap` defaults to all supported protocols when `protocols` is omitted
 
 ## Extension Path
 

@@ -556,6 +556,38 @@ describe("Compiler", () => {
   });
 
   describe("compileCondition - raw-events", () => {
+    it("compiles ERC721 transfer preset into a raw_event expression", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "sum",
+        operator: ">",
+        value: 2,
+        field: "tokenId",
+        chain_id: 1,
+        event: {
+          kind: "erc721_transfer",
+          contract_addresses: ["0x1111111111111111111111111111111111111111"],
+        },
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      expect(result.left).toMatchObject({
+        type: "raw_event",
+        source: "hypersync",
+        chainId: 1,
+        field: "tokenId",
+        aggregation: "sum",
+        contractAddresses: ["0x1111111111111111111111111111111111111111"],
+        queries: [
+          {
+            topic0: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            normalizer: "none",
+          },
+        ],
+      });
+    });
+
     it("compiles raw ERC20 transfer aggregation into a raw_event expression", () => {
       const userCondition: RawEventsCondition = {
         type: "raw-events",
@@ -651,6 +683,42 @@ describe("Compiler", () => {
         queries: [{ normalizer: "uniswap_v3_swap" }, { normalizer: "uniswap_v2_swap" }],
       });
       expect(result.left.type === "raw_event" ? result.left.queries : []).toHaveLength(2);
+    });
+
+    it("rejects signature for non-contract-event presets", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "count",
+        operator: ">",
+        value: 0,
+        chain_id: 1,
+        event: {
+          kind: "erc20_transfer",
+          signature: "Transfer(address indexed from, address indexed to, uint256 value)",
+        },
+      };
+
+      expect(() => compileCondition(userCondition)).toThrow(
+        "signature is only supported for contract_event raw-events",
+      );
+    });
+
+    it("rejects protocols for non-swap presets", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "count",
+        operator: ">",
+        value: 0,
+        chain_id: 1,
+        event: {
+          kind: "erc20_approval",
+          protocols: ["uniswap_v2"],
+        },
+      };
+
+      expect(() => compileCondition(userCondition)).toThrow(
+        "protocols are only supported for swap raw-events",
+      );
     });
   });
 });

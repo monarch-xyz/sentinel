@@ -112,12 +112,12 @@ Expected outputs:
 - Docs and frontend-facing guidance for event catalog usage
 
 Status checklist:
-- [ ] Define catalog structure for well-known raw events
-- [ ] Add first batch of well-known events
-- [ ] Improve compiler/validation path
-- [ ] Add/update unit tests
+- [x] Define catalog structure for well-known raw events
+- [x] Add first batch of well-known events
+- [x] Improve compiler/validation path
+- [x] Add/update unit tests
 - [ ] Run validation
-- [ ] Update docs
+- [x] Update docs
 - [ ] Open PR
 
 ### Phase 4 — Reframe indexed semantic data as advanced integration
@@ -164,10 +164,13 @@ Status checklist:
 
 ## Immediate next step
 
-We are now moving to Phase 3:
-- expand raw event primitives and introduce a broader well-known event catalog
-- keep indexed semantic data as advanced-only
-- continue updating docs/tests/validation as each step lands
+Phase 3 implementation is now in place and validation has passed for the current branch:
+- added a shared raw-event catalog module (`src/raw-events/catalog.ts`) for well-known raw event kinds
+- expanded the first well-known raw-event batch (ERC-20/ERC-721/ERC-1155 transfers and approvals, plus swap presets)
+- replaced ad hoc compiler switch logic with catalog-driven query construction and kind-aware validation
+- aligned API request validation with the same catalog validation rules
+- updated docs and unit tests for the catalog-driven raw-event path
+- targeted validation now passes (`vitest` targeted suite, `tsc --noEmit`, and branch-local `biome check` on changed files)
 
 ## Working notes
 
@@ -186,6 +189,12 @@ We are now moving to Phase 3:
 - Archive execution now runs through `executeArchiveRpcCall` in `src/rpc/client.ts`, using signature-driven encoding and output decoding.
 - Morpho fetcher current/historical state reads now execute through the generic path; historical reads still resolve timestamps to blocks before execution.
 - Legacy `readPosition*` and `readMarket*` helpers now delegate to the same generic executor to keep behavior aligned.
+
+### Phase 3 implementation notes
+- Well-known raw-event support is now centralized in `src/raw-events/catalog.ts`.
+- Compiler raw-event query generation now calls catalog helpers instead of maintaining event-kind branching in `src/engine/compiler.ts`.
+- API validator rules now reuse catalog validation to enforce kind-specific option constraints (`signature` only for `contract_event`, `protocols` only for `swap`).
+- Catalog now covers ERC-20, ERC-721, and ERC-1155 transfer/approval presets in addition to existing swap and `contract_event` paths.
 
 ## Update protocol
 
