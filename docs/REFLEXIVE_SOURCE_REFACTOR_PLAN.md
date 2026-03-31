@@ -164,13 +164,11 @@ Status checklist:
 
 ## Immediate next step
 
-Phase 3 implementation is now in place and validation has passed for the current branch:
-- added a shared raw-event catalog module (`src/raw-events/catalog.ts`) for well-known raw event kinds
-- expanded the first well-known raw-event batch (ERC-20/ERC-721 transfers and approvals, ERC-4626 deposit/withdraw events, plus swap presets)
-- replaced ad hoc compiler switch logic with catalog-driven query construction and kind-aware validation
-- aligned API request validation with the same catalog validation rules
-- updated docs and unit tests for the catalog-driven raw-event path
-- targeted validation now passes (`vitest` targeted suite, `tsc --noEmit`, and branch-local `biome check` on changed files)
+Phase 5 is now in progress:
+- define a backend catalog contract for builder/template consumption
+- keep basic templates centered on RPC state + raw events
+- keep advanced authoring explicit instead of mixed into default flows
+- preserve strict `/ready` semantics while using `/health` for deployment healthchecks
 
 ## Working notes
 

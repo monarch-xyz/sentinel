@@ -12,6 +12,15 @@ type StaticRawEventCatalogEntry = {
   normalizer?: RawEventQuery["normalizer"];
 };
 
+export interface RawEventTemplateDefinition {
+  kind: RawEventKind;
+  label: string;
+  category: "basic" | "advanced";
+  description: string;
+  defaultAggregation: "count" | "sum";
+  defaultField?: string;
+}
+
 const STATIC_WELL_KNOWN_RAW_EVENTS: Record<
   Exclude<RawEventKind, "swap" | "contract_event">,
   StaticRawEventCatalogEntry
@@ -61,6 +70,81 @@ const SWAP_PROTOCOL_QUERY_MAP: Record<RawEventSwapProtocol, RawEventQuery> = {
     normalizer: "uniswap_v3_swap",
   },
 };
+
+const RAW_EVENT_TEMPLATE_DEFINITIONS: RawEventTemplateDefinition[] = [
+  {
+    kind: "erc20_transfer",
+    label: "ERC-20 Transfer",
+    category: "basic",
+    description: "Track fungible token transfers by value or count.",
+    defaultAggregation: "sum",
+    defaultField: "value",
+  },
+  {
+    kind: "erc20_approval",
+    label: "ERC-20 Approval",
+    category: "basic",
+    description: "Track ERC-20 allowance approvals.",
+    defaultAggregation: "sum",
+    defaultField: "value",
+  },
+  {
+    kind: "erc721_transfer",
+    label: "ERC-721 Transfer",
+    category: "basic",
+    description: "Track NFT transfers by token ID or count.",
+    defaultAggregation: "count",
+  },
+  {
+    kind: "erc721_approval",
+    label: "ERC-721 Approval",
+    category: "basic",
+    description: "Track ERC-721 token approval updates.",
+    defaultAggregation: "count",
+  },
+  {
+    kind: "erc721_approval_for_all",
+    label: "ERC-721 Approval For All",
+    category: "basic",
+    description: "Track operator-wide ERC-721 approval changes.",
+    defaultAggregation: "count",
+  },
+  {
+    kind: "erc4626_deposit",
+    label: "ERC-4626 Deposit",
+    category: "basic",
+    description: "Track vault deposits by assets or shares.",
+    defaultAggregation: "sum",
+    defaultField: "assets",
+  },
+  {
+    kind: "erc4626_withdraw",
+    label: "ERC-4626 Withdraw",
+    category: "basic",
+    description: "Track vault withdrawals by assets or shares.",
+    defaultAggregation: "sum",
+    defaultField: "assets",
+  },
+  {
+    kind: "swap",
+    label: "DEX Swap",
+    category: "basic",
+    description: "Track common AMM swap events with normalized fields.",
+    defaultAggregation: "sum",
+    defaultField: "amount0_abs",
+  },
+  {
+    kind: "contract_event",
+    label: "Custom Contract Event",
+    category: "advanced",
+    description: "Advanced escape hatch for arbitrary ABI event signatures.",
+    defaultAggregation: "count",
+  },
+];
+
+export function getRawEventTemplateCatalog(): RawEventTemplateDefinition[] {
+  return RAW_EVENT_TEMPLATE_DEFINITIONS.map((definition) => ({ ...definition }));
+}
 
 function normalizeRawEventSignature(signature: string): string {
   const trimmed = signature.trim();

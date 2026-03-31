@@ -14,6 +14,7 @@ import { createLogger } from "../utils/logger.ts";
 import { authMiddleware } from "./middleware/auth.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
 import authRouter from "./routes/auth.ts";
+import catalogRouter from "./routes/catalog.ts";
 import meRouter from "./routes/me.ts";
 import signalsRouter from "./routes/signals.ts";
 import simulateRouter from "./routes/simulate.ts";
@@ -57,6 +58,7 @@ app.get("/ready", async (req, res) => {
 // API Routes
 app.use("/api/v1", authMiddleware);
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/catalog", catalogRouter);
 app.use("/api/v1/me", meRouter);
 app.use("/api/v1/signals", signalsRouter);
 app.use("/api/v1/simulate", simulateRouter);

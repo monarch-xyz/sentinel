@@ -117,6 +117,18 @@ GET /ready
 
 `GET /ready` performs a cached readiness probe against PostgreSQL, Redis, every configured archive RPC chain, and any configured indexed/raw providers. It returns `200` when all enabled dependencies are reachable and `503` when the process is up but one of those dependencies is not ready.
 
+For deployment platform healthchecks, prefer `GET /health`.
+`/health` confirms the API process is up, while `/ready` is intentionally stricter and can remain degraded while optional/required dependencies are still becoming ready.
+
+### Catalog
+
+`GET /api/v1/catalog` returns the current backend-supported signal template catalog, split into:
+
+- `basic.raw_events` — default primitive-first templates
+- `advanced.raw_events` — advanced escape hatches such as `contract_event`
+
+This endpoint is intended to support builder/template UX without hardcoding template lists in the frontend.
+
 ### Delivery Service
 
 | Method | Path | Purpose |
