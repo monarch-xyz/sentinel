@@ -70,16 +70,20 @@ Response:
     "indexed": {
       "provider": "envio",
       "enabled": false,
+      "tier": "advanced",
+      "label": "advanced indexed semantic source family",
       "requiredEnv": ["ENVIO_ENDPOINT"],
       "reason": "ENVIO_ENDPOINT is not configured",
-      "message": "indexed source family is disabled because ENVIO_ENDPOINT is not configured. Configure ENVIO_ENDPOINT to enable it."
+      "message": "advanced indexed semantic source family is disabled because ENVIO_ENDPOINT is not configured. Configure ENVIO_ENDPOINT to enable it."
     },
     "raw": {
       "provider": "hypersync",
       "enabled": false,
+      "tier": "default",
+      "label": "raw event source family",
       "requiredEnv": ["ENVIO_API_TOKEN"],
       "reason": "ENVIO_API_TOKEN is not configured",
-      "message": "raw source family is disabled because ENVIO_API_TOKEN is not configured. Configure ENVIO_API_TOKEN to enable it."
+      "message": "raw event source family is disabled because ENVIO_API_TOKEN is not configured. Configure ENVIO_API_TOKEN to enable it."
     }
   },
   "chains": {

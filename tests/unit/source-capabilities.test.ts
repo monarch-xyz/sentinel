@@ -4,6 +4,8 @@ import {
   assertSignalDefinitionSourcesEnabled,
   collectSignalSourceUsage,
   createSourceCapabilities,
+  getSourceCapabilityHealth,
+  getSourceCapabilityStatusLines,
 } from "../../src/engine/source-capabilities.ts";
 import type { SignalDefinition } from "../../src/types/signal.ts";
 
@@ -85,7 +87,32 @@ describe("source capabilities", () => {
       SourceCapabilityError,
     );
     expect(() => assertSignalDefinitionSourcesEnabled(definition, capabilities)).toThrow(
-      "raw source family is disabled because ENVIO_API_TOKEN is not configured",
+      "raw event source family is disabled because ENVIO_API_TOKEN is not configured",
     );
+  });
+
+  it("marks indexed semantics as an advanced source family in health output", () => {
+    const capabilities = createSourceCapabilities({
+      envioEndpoint: "",
+      hypersyncApiToken: "token",
+    });
+
+    const health = getSourceCapabilityHealth(capabilities);
+
+    expect(health.indexed.tier).toBe("advanced");
+    expect(health.indexed.label).toBe("advanced indexed semantic source family");
+    expect(health.indexed.message).toContain("advanced indexed semantic source family is disabled");
+  });
+
+  it("uses advanced/default wording in capability status lines", () => {
+    const capabilities = createSourceCapabilities({
+      envioEndpoint: "https://envio.example/graphql",
+      hypersyncApiToken: "token",
+    });
+
+    const lines = getSourceCapabilityStatusLines(capabilities);
+
+    expect(lines).toContain("advanced indexed semantic source family enabled via envio");
+    expect(lines).toContain("raw event source family enabled via hypersync");
   });
 });

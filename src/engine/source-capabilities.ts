@@ -11,6 +11,8 @@ export interface SourceCapability {
   provider: SourceProvider;
   enabled: boolean;
   requiredEnv: string[];
+  tier: "default" | "advanced";
+  label: string;
   reason?: string;
 }
 
@@ -49,7 +51,7 @@ function uniqueSorted(values: Iterable<string>): string[] {
 
 function buildCapabilityErrorMessage(capability: SourceCapability): string {
   if (capability.enabled) {
-    return `${capability.family} source family is enabled`;
+    return `${capability.label} is enabled`;
   }
 
   const envHint =
@@ -57,7 +59,7 @@ function buildCapabilityErrorMessage(capability: SourceCapability): string {
       ? ` Configure ${capability.requiredEnv.join(", ")} to enable it.`
       : "";
 
-  return `${capability.family} source family is disabled because ${
+  return `${capability.label} is disabled because ${
     capability.reason ?? "required infrastructure is not configured"
   }.${envHint}`;
 }
@@ -75,7 +77,7 @@ function buildUnavailableSourceMessage(
       ? ` Configure ${capability.requiredEnv.join(", ")} to enable it.`
       : "";
 
-  return `${capability.family} source family is unavailable because ${reasonOverride}.${envHint}`;
+  return `${capability.label} is unavailable because ${reasonOverride}.${envHint}`;
 }
 
 function collectMetricFamilies(
@@ -165,6 +167,8 @@ export function createSourceCapabilities(
       provider: "rpc",
       enabled: rpcConfig.configured,
       requiredEnv: Array.from(new Set(stateRequiredEnv)),
+      tier: "default",
+      label: "state source family",
       reason: rpcConfig.configured
         ? undefined
         : (rpcConfig.issues[0] ?? "archive RPC configuration is incomplete"),
@@ -174,6 +178,8 @@ export function createSourceCapabilities(
       provider: "envio",
       enabled: envioEndpoint.length > 0,
       requiredEnv: ["ENVIO_ENDPOINT"],
+      tier: "advanced",
+      label: "advanced indexed semantic source family",
       reason: envioEndpoint.length > 0 ? undefined : "ENVIO_ENDPOINT is not configured",
     },
     raw: {
@@ -181,6 +187,8 @@ export function createSourceCapabilities(
       provider: "hypersync",
       enabled: hypersyncApiToken.length > 0,
       requiredEnv: ["ENVIO_API_TOKEN"],
+      tier: "default",
+      label: "raw event source family",
       reason: hypersyncApiToken.length > 0 ? undefined : "ENVIO_API_TOKEN is not configured",
     },
   };
@@ -262,6 +270,8 @@ export function getSourceCapabilityHealth(
       provider: capabilities.state.provider,
       enabled: capabilities.state.enabled,
       requiredEnv: capabilities.state.requiredEnv,
+      tier: capabilities.state.tier,
+      label: capabilities.state.label,
       reason: capabilities.state.reason,
       message: buildCapabilityErrorMessage(capabilities.state),
     },
@@ -269,6 +279,8 @@ export function getSourceCapabilityHealth(
       provider: capabilities.indexed.provider,
       enabled: capabilities.indexed.enabled,
       requiredEnv: capabilities.indexed.requiredEnv,
+      tier: capabilities.indexed.tier,
+      label: capabilities.indexed.label,
       reason: capabilities.indexed.reason,
       message: buildCapabilityErrorMessage(capabilities.indexed),
     },
@@ -276,6 +288,8 @@ export function getSourceCapabilityHealth(
       provider: capabilities.raw.provider,
       enabled: capabilities.raw.enabled,
       requiredEnv: capabilities.raw.requiredEnv,
+      tier: capabilities.raw.tier,
+      label: capabilities.raw.label,
       reason: capabilities.raw.reason,
       message: buildCapabilityErrorMessage(capabilities.raw),
     },
@@ -287,7 +301,7 @@ export function getSourceCapabilityStatusLines(
 ): string[] {
   return Object.values(capabilities).map((capability) =>
     capability.enabled
-      ? `${capability.family} source family enabled via ${capability.provider}`
+      ? `${capability.label} enabled via ${capability.provider}`
       : buildCapabilityErrorMessage(capability),
   );
 }
