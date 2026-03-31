@@ -59,7 +59,7 @@ const RawEventSpecSchema = z
   .object({
     kind: z.enum(RAW_EVENT_KINDS),
     contract_addresses: z.array(z.string()).optional(),
-    signature: z.string().optional(),
+    signature: z.string().trim().optional(),
     protocols: z.array(z.enum(RAW_EVENT_SWAP_PROTOCOLS)).optional(),
   })
   .superRefine((value, ctx) => {

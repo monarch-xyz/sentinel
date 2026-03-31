@@ -101,7 +101,7 @@ function buildSwapQueries(protocols?: RawEventSwapProtocol[]): RawEventQuery[] {
 
 export function validateRawEventSpec(spec: RawEventSpec): void {
   if (spec.kind === "contract_event") {
-    if (!spec.signature) {
+    if (typeof spec.signature !== "string" || spec.signature.trim().length === 0) {
       throw new Error("signature is required for contract_event raw-events");
     }
     if (spec.protocols) {

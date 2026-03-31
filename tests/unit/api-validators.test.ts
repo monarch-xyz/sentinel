@@ -154,6 +154,32 @@ describe("CreateSignalSchema", () => {
     ).toThrow("protocols are only supported for swap raw-events");
   });
 
+  it("rejects whitespace-only signature for contract_event presets", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "Invalid blank contract event signature",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 0,
+              event: {
+                kind: "contract_event",
+                signature: "   ",
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).toThrow("signature is required for contract_event raw-events");
+  });
+
   it("accepts create requests that include delivery plus the resolved managed webhook url", () => {
     expect(() =>
       CreateSignalSchema.parse({
