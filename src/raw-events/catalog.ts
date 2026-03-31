@@ -41,6 +41,10 @@ const STATIC_WELL_KNOWN_RAW_EVENTS: Record<
     eventSignature:
       "event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)",
   },
+  erc1155_approval_for_all: {
+    eventSignature:
+      "event ApprovalForAll(address indexed account, address indexed operator, bool approved)",
+  },
 };
 
 const SWAP_PROTOCOL_QUERY_MAP: Record<RawEventSwapProtocol, RawEventQuery> = {

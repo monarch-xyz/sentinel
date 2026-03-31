@@ -6,6 +6,7 @@ export const RAW_EVENT_KINDS = [
   "erc721_approval_for_all",
   "erc1155_transfer_single",
   "erc1155_transfer_batch",
+  "erc1155_approval_for_all",
   "swap",
   "contract_event",
 ] as const;

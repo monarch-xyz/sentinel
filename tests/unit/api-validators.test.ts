@@ -52,6 +52,31 @@ describe("CreateSignalSchema", () => {
     ).not.toThrow();
   });
 
+  it("accepts ERC1155 approval-for-all preset", () => {
+    expect(() =>
+      CreateSignalSchema.parse({
+        name: "ERC1155 approval for all count",
+        definition: {
+          scope: { chains: [1] },
+          window: { duration: "1h" },
+          conditions: [
+            {
+              type: "raw-events",
+              aggregation: "count",
+              operator: ">",
+              value: 1,
+              event: {
+                kind: "erc1155_approval_for_all",
+              },
+            },
+          ],
+        },
+        webhook_url: "https://example.com/webhook",
+        cooldown_minutes: 5,
+      }),
+    ).not.toThrow();
+  });
+
   it("rejects non-count raw-events without a field", () => {
     expect(() =>
       CreateSignalSchema.parse({
