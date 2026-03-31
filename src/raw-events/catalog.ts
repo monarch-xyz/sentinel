@@ -33,17 +33,13 @@ const STATIC_WELL_KNOWN_RAW_EVENTS: Record<
     eventSignature:
       "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)",
   },
-  erc1155_transfer_single: {
+  erc4626_deposit: {
     eventSignature:
-      "event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)",
+      "event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares)",
   },
-  erc1155_transfer_batch: {
+  erc4626_withdraw: {
     eventSignature:
-      "event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)",
-  },
-  erc1155_approval_for_all: {
-    eventSignature:
-      "event ApprovalForAll(address indexed account, address indexed operator, bool approved)",
+      "event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)",
   },
 };
 

@@ -166,7 +166,7 @@ Status checklist:
 
 Phase 3 implementation is now in place and validation has passed for the current branch:
 - added a shared raw-event catalog module (`src/raw-events/catalog.ts`) for well-known raw event kinds
-- expanded the first well-known raw-event batch (ERC-20/ERC-721/ERC-1155 transfers and approvals, plus swap presets)
+- expanded the first well-known raw-event batch (ERC-20/ERC-721 transfers and approvals, ERC-4626 deposit/withdraw events, plus swap presets)
 - replaced ad hoc compiler switch logic with catalog-driven query construction and kind-aware validation
 - aligned API request validation with the same catalog validation rules
 - updated docs and unit tests for the catalog-driven raw-event path
@@ -194,7 +194,7 @@ Phase 3 implementation is now in place and validation has passed for the current
 - Well-known raw-event support is now centralized in `src/raw-events/catalog.ts`.
 - Compiler raw-event query generation now calls catalog helpers instead of maintaining event-kind branching in `src/engine/compiler.ts`.
 - API validator rules now reuse catalog validation to enforce kind-specific option constraints (`signature` only for `contract_event`, `protocols` only for `swap`).
-- Catalog now covers ERC-20, ERC-721, and ERC-1155 transfer/approval presets in addition to existing swap and `contract_event` paths.
+- Catalog now covers ERC-20 and ERC-721 transfer/approval presets plus ERC-4626 deposit/withdraw presets, in addition to existing swap and `contract_event` paths.
 
 ## Update protocol
 

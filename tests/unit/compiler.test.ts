@@ -588,7 +588,7 @@ describe("Compiler", () => {
       });
     });
 
-    it("compiles ERC1155 approval-for-all preset into a raw_event expression", () => {
+    it("compiles ERC4626 deposit preset into a raw_event expression", () => {
       const userCondition: RawEventsCondition = {
         type: "raw-events",
         aggregation: "count",
@@ -596,7 +596,7 @@ describe("Compiler", () => {
         value: 0,
         chain_id: 1,
         event: {
-          kind: "erc1155_approval_for_all",
+          kind: "erc4626_deposit",
           contract_addresses: ["0x1111111111111111111111111111111111111111"],
         },
       };
@@ -611,7 +611,37 @@ describe("Compiler", () => {
         contractAddresses: ["0x1111111111111111111111111111111111111111"],
         queries: [
           {
-            topic0: "0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31",
+            topic0: "0xdcbc1c05240f31ff3ad067ef1ee35ce4997762752e3a095284754544f4c709d7",
+            normalizer: "none",
+          },
+        ],
+      });
+    });
+
+    it("compiles ERC4626 withdraw preset into a raw_event expression", () => {
+      const userCondition: RawEventsCondition = {
+        type: "raw-events",
+        aggregation: "count",
+        operator: ">",
+        value: 0,
+        chain_id: 1,
+        event: {
+          kind: "erc4626_withdraw",
+          contract_addresses: ["0x1111111111111111111111111111111111111111"],
+        },
+      };
+
+      const result = compileCondition(userCondition) as InternalCondition;
+
+      expect(result.left).toMatchObject({
+        type: "raw_event",
+        source: "hypersync",
+        chainId: 1,
+        aggregation: "count",
+        contractAddresses: ["0x1111111111111111111111111111111111111111"],
+        queries: [
+          {
+            topic0: "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
             normalizer: "none",
           },
         ],

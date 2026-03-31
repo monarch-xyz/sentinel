@@ -141,7 +141,7 @@ The Envio time-travel limitation is documented separately in [ISSUE_NO_TIME_TRAV
 
 Provider choice is intentionally kept behind the engine fetcher and indexing layers so the DSL and evaluator do not care whether a read comes from Envio, HyperSync, RPC, or a future source.
 
-For events specifically, the compiler is now catalog-driven for well-known raw-event kinds (for example ERC-20/ERC-721/ERC-1155 transfers and approvals, plus swap presets), with `contract_event` retained as the explicit generic ABI escape hatch.
+For events specifically, the compiler is now catalog-driven for well-known raw-event kinds (for example ERC-20/ERC-721 transfers and approvals, ERC-4626 deposit/withdraw events, plus swap presets), with `contract_event` retained as the explicit generic ABI escape hatch.
 Indexed semantic event metrics remain available but are treated as an advanced integration path.
 
 For RPC state, the planner emits a generic RPC state read primitive first (`planGenericRpcStateRead`), then protocol-specific resolvers (Morpho today in `src/protocols/morpho`) compile that read into a generic archive call shape (`GenericRpcCall`).
